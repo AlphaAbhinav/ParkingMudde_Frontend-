@@ -7,14 +7,17 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // (Class kept exactly as authored)
 class ParkingSpot {
-  final int id;
+  final String id;
   final String name;
   final double lat;
   final double lng;
   final int slots;
+  final bool hasLiveSlots;
+  final bool isVerified;
   double distance;
 
   ParkingSpot({
@@ -23,17 +26,72 @@ class ParkingSpot {
     required this.lat,
     required this.lng,
     required this.slots,
+    this.hasLiveSlots = true,
+    this.isVerified = true,
     this.distance = 0,
   });
 
   factory ParkingSpot.fromJson(Map<String, dynamic> json) {
     return ParkingSpot(
-      id: json["id"],
-      name: json["name"],
-      lat: json["latitude"],
-      lng: json["longitude"],
-      slots: json["available_slots"],
+      id: "backend-${json["id"]}",
+      name: (json["name"] ?? "Verified parking").toString(),
+      lat: _toDouble(json["latitude"]),
+      lng: _toDouble(json["longitude"]),
+      slots: _toInt(json["available_slots"]),
+      hasLiveSlots: true,
+      isVerified: true,
     );
+  }
+
+  factory ParkingSpot.fromOverpassElement(Map<String, dynamic> json) {
+    final tags = Map<String, dynamic>.from(json["tags"] ?? {});
+    final center = json["center"] is Map ? Map<String, dynamic>.from(json["center"]) : null;
+    final lat = _toNullableDouble(json["lat"]) ?? _toNullableDouble(center?["lat"]) ?? 0;
+    final lng = _toNullableDouble(json["lon"]) ?? _toNullableDouble(center?["lon"]) ?? 0;
+    final rawCapacity = tags["capacity"] ?? tags["capacity:disabled"];
+
+    return ParkingSpot(
+      id: "osm-${json["type"]}-${json["id"]}",
+      name: (tags["name"] ?? _fallbackOverpassName(tags)).toString(),
+      lat: lat,
+      lng: lng,
+      slots: _toInt(rawCapacity),
+      hasLiveSlots: rawCapacity != null,
+      isVerified: false,
+    );
+  }
+
+  static String _fallbackOverpassName(Map<String, dynamic> tags) {
+    final parkingType = tags["parking"];
+    if (parkingType != null && parkingType.toString().trim().isNotEmpty) {
+      return "${_titleCase(parkingType.toString())} parking";
+    }
+    return "Public parking";
+  }
+
+  static String _titleCase(String value) {
+    return value
+        .replaceAll("_", " ")
+        .split(" ")
+        .where((part) => part.isNotEmpty)
+        .map((part) => part[0].toUpperCase() + part.substring(1))
+        .join(" ");
+  }
+
+  static int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? "") ?? 0;
+  }
+
+  static double _toDouble(dynamic value) {
+    return _toNullableDouble(value) ?? 0;
+  }
+
+  static double? _toNullableDouble(dynamic value) {
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? "");
   }
 }
 
@@ -77,11 +135,59 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
     return R * c;
   }
 
-  /// Fetch parking spots logic exact
+  Future<void> loadNearbyParking() async {
+    setState(() => isLoading = true);
+
+    final backendSpots = await fetchBackendParkingSpots();
+    final overpassSpots = await fetchOverpassParkingSpots();
+    final mergedSpots = _mergeParkingSpots([...backendSpots, ...overpassSpots]);
+
+    for (var spot in mergedSpots) {
+      spot.distance = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        spot.lat,
+        spot.lng,
+      );
+    }
+
+    mergedSpots.sort((a, b) {
+      final verifiedCompare = (b.isVerified ? 1 : 0).compareTo(a.isVerified ? 1 : 0);
+      if (verifiedCompare != 0) return verifiedCompare;
+      return a.distance.compareTo(b.distance);
+    });
+
+    setState(() {
+      parkingSpots = mergedSpots;
+      isLoading = false;
+    });
+  }
+
+  List<ParkingSpot> _mergeParkingSpots(List<ParkingSpot> spots) {
+    final uniqueSpots = <String, ParkingSpot>{};
+
+    for (final spot in spots) {
+      if (spot.lat == 0 || spot.lng == 0) continue;
+      final key = "${spot.lat.toStringAsFixed(5)},${spot.lng.toStringAsFixed(5)}";
+      final existing = uniqueSpots[key];
+      if (existing == null || (!existing.isVerified && spot.isVerified)) {
+        uniqueSpots[key] = spot;
+      }
+    }
+
+    return uniqueSpots.values.toList();
+  }
+
+  /// Fetch verified app parking first, then OSM fills the nearby map.
   Future<void> fetchParkingSpots() async {
+    await loadNearbyParking();
+  }
+
+  Future<List<ParkingSpot>> fetchBackendParkingSpots() async {
     try {
+      final String baseUrl = dotenv.env['BACKEND_URL'] ?? "http://localhost:8000";
       final response = await http.get(
-        Uri.parse("http://localhost:8000/v1/parking/"),
+        Uri.parse("$baseUrl/v1/parking/"),
       );
 
       if (response.statusCode == 200) {
@@ -91,28 +197,52 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
             .map((e) => ParkingSpot.fromJson(e))
             .toList();
 
-        for (var spot in spots) {
-          spot.distance = calculateDistance(
-            userLocation.latitude,
-            userLocation.longitude,
-            spot.lat,
-            spot.lng,
-          );
-        }
-
-        spots.sort((a, b) => a.distance.compareTo(b.distance));
-
-        setState(() {
-          parkingSpots = spots;
-          isLoading = false;
-        });
+        return spots;
       } else {
         print("Failed to load parking spots");
-        setState(() => isLoading = false);
       }
     } catch (e) {
       print("Network error connecting local testing host. $e");
-      setState(() => isLoading = false);
+    }
+
+    return [];
+  }
+
+  Future<List<ParkingSpot>> fetchOverpassParkingSpots() async {
+    const double radiusMeters = 5000;
+    final query = """
+[out:json][timeout:25];
+(
+  node["amenity"="parking"](around:$radiusMeters,${userLocation.latitude},${userLocation.longitude});
+  way["amenity"="parking"](around:$radiusMeters,${userLocation.latitude},${userLocation.longitude});
+  relation["amenity"="parking"](around:$radiusMeters,${userLocation.latitude},${userLocation.longitude});
+);
+out center tags;
+""";
+
+    try {
+      final response = await http.post(
+        Uri.parse("https://overpass-api.de/api/interpreter"),
+        headers: const {"Content-Type": "application/x-www-form-urlencoded"},
+        body: {"data": query},
+      );
+
+      if (response.statusCode != 200) {
+        print("Overpass parking lookup failed: ${response.statusCode}");
+        return [];
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final elements = decoded["elements"];
+      if (elements is! List) return [];
+
+      return elements
+          .whereType<Map<String, dynamic>>()
+          .map(ParkingSpot.fromOverpassElement)
+          .toList();
+    } catch (e) {
+      print("Overpass parking lookup error. $e");
+      return [];
     }
   }
 
@@ -125,7 +255,7 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
 
     if (!serviceEnabled) {
       print("Location disabled");
-      setState(() => isLoading = false);
+      loadNearbyParking();
       return;
     }
 
@@ -135,8 +265,13 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
       permission = await Geolocator.requestPermission();
     }
 
+    if (permission == LocationPermission.denied) {
+      loadNearbyParking();
+      return;
+    }
+
     if (permission == LocationPermission.deniedForever) {
-      setState(() => isLoading = false);
+      loadNearbyParking();
       return;
     }
 
@@ -148,7 +283,7 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
 
     mapController?.animateCamera(CameraUpdate.newLatLngZoom(userLocation, 15));
 
-    fetchParkingSpots();
+    loadNearbyParking();
   }
 
   /// Draw route completely unchanged logic
@@ -218,15 +353,16 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
   /// Map markers unmodified backend usage
   Set<Marker> get markers => parkingSpots.map((spot) {
     return Marker(
-      markerId: MarkerId(spot.id.toString()),
+      markerId: MarkerId(spot.id),
       position: LatLng(spot.lat, spot.lng),
       icon: BitmapDescriptor.defaultMarkerWithHue(
-        BitmapDescriptor.hueAzure,
+        spot.isVerified ? BitmapDescriptor.hueAzure : BitmapDescriptor.hueGreen,
       ), // Match the blue aesthetic
       infoWindow: InfoWindow(
         title: spot.name,
-        snippet:
-            "${spot.distance.toStringAsFixed(2)} km • ${spot.slots} slots available",
+        snippet: spot.hasLiveSlots
+            ? "${spot.distance.toStringAsFixed(2)} km - ${spot.slots} slots available"
+            : "${spot.distance.toStringAsFixed(2)} km - Public parking",
       ),
       onTap: () {
         drawRoute(spot.lat, spot.lng);
@@ -383,6 +519,9 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
   /// Very polished hovering Card to Replace ugly bottom sheet List!
   Widget _buildModernMapSpotCard(ParkingSpot spot) {
     final bool isHighlyAvailable = spot.slots > 5;
+    final String availabilityLabel = spot.hasLiveSlots
+        ? "${spot.slots} SLOTS"
+        : "OSM LISTING";
 
     return InkWell(
       onTap: () {
@@ -448,7 +587,9 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        "${spot.distance.toStringAsFixed(2)} Kilometers away",
+                        spot.isVerified
+                            ? "${spot.distance.toStringAsFixed(2)} Kilometers away"
+                            : "${spot.distance.toStringAsFixed(2)} Kilometers away - public map data",
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 11,
@@ -474,7 +615,9 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: isHighlyAvailable
+                    color: !spot.hasLiveSlots
+                        ? Colors.blue.shade50
+                        : isHighlyAvailable
                         ? Colors.green.shade50
                         : Colors.orange.shade50,
                     borderRadius: BorderRadius.circular(10),
@@ -482,17 +625,23 @@ class _NearbyParkingMapScreenState extends State<NearbyParkingMapScreen> {
                   child: Row(
                     children: [
                       Icon(
-                        Icons.directions_car_rounded,
+                        spot.hasLiveSlots
+                            ? Icons.directions_car_rounded
+                            : Icons.map_rounded,
                         size: 12,
-                        color: isHighlyAvailable
+                        color: !spot.hasLiveSlots
+                            ? Colors.blue.shade700
+                            : isHighlyAvailable
                             ? Colors.green.shade700
                             : Colors.orange.shade700,
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        "${spot.slots} SLOTS",
+                        availabilityLabel,
                         style: TextStyle(
-                          color: isHighlyAvailable
+                          color: !spot.hasLiveSlots
+                              ? Colors.blue.shade800
+                              : isHighlyAvailable
                               ? Colors.green.shade800
                               : Colors.orange.shade900,
                           fontWeight: FontWeight.w900,

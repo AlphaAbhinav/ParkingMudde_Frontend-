@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Please adjust imports if folder names changed slightly!
 import 'package:parkingmudde/screen/auth/loginpage.dart';
@@ -16,8 +17,8 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
   int currentIndex = 0;
 
   // Exact Brand Color Replications derived from screenshot:
-  final Color themeYellow = const Color(0xFFFFCC00); // Standard vivid UI gold
-  final Color themeBlue = const Color(0xFF2257AA); // UI Premium Corporate blue
+  final Color themeYellow = const Color(0xFFFDB903); // Standard vivid UI gold
+  final Color themeBlue = const Color(0xFF02399F); // UI Premium Corporate blue
 
   // Content Structured identically mapping directly across UX Wireframes.
   final List<Map<String, dynamic>> pages = [
@@ -26,7 +27,7 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
       "desc":
           "One app that connects vehicle owners, parking owners & communities to solve parking issues instantly.",
       // Using logo for now to guarantee zero breaking tests - Have graphic developer map to "assets/onboarding_1.png" etc
-      "image": "assets/logo.png",
+      "image": "assets/onboardingyellow.png",
       "bgColor": true, // true = yellow | false = blue
       "tags": [
         "Report Wrong Parking",
@@ -37,26 +38,26 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
     {
       "title": "Wrong Parking? Now\nsolve it in 60 seconds",
       "desc": "Scan number plate → alert owner → masked call → SOS if needed.",
-      "image": "assets/logo.png",
+      "image": "assets/onboardingblue.png",
       "bgColor": false,
     },
     {
       "title": "Be a Helper. Earn\nRewards.",
       "desc": "Help someone with simple vehicle errors and get Coinsback.",
-      "image": "assets/logo.png",
+      "image": "assets/onboardingyellow2.png",
       "bgColor": true,
     },
     {
       "title": "Road Accident? Alert\nfamily + nearby hospital.",
       "desc":
           "Emergency alert sends live location + photo to emergency contacts and nearby hospitals.",
-      "image": "assets/logo.png",
+      "image": "assets/onboardingblue.png",
       "bgColor": false,
     },
     {
       "title": "Earn, Spend, Redeem\n– all inside the app.",
       "desc": "Coins help you report, connect, book, and redeem rewards.",
-      "image": "assets/logo.png",
+      "image": "assets/onboardingyellow2.png",
       "bgColor": true,
     },
     {
@@ -64,7 +65,7 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
       "desc":
           "Explore seamless integrations & smarter vehicle protections effortlessly connected within one portal.",
       // added tiny sub text because standard slide leaves awkward open dead zones compared to standard template constraints. Feel free to set string to "" to leave completely completely blank like wireframes
-      "image": "assets/logo.png",
+      "image": "assets/onboardingblue.png",
       "bgColor": false,
     },
   ];
@@ -75,7 +76,9 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
     super.dispose();
   }
 
-  void _finishOnboarding() {
+  Future<void> _finishOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("has_seen_onboarding", true);
     Get.offAll(() => const Loginpage(), transition: Transition.fadeIn);
   }
 
@@ -234,7 +237,7 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
 
                         // Classic text purely cleanly cleanly "skip".
                         GestureDetector(
-                          onTap: _finishOnboarding,
+                          onTap: () => _finishOnboarding(),
                           child: Container(
                             color: Colors
                                 .transparent, // Ensures easy click hits limit ranges naturally.

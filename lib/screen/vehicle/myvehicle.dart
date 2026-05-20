@@ -24,8 +24,20 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
 
   Future<void> loadVehicles() async {
     try {
-      String userId = "1"; // 🔥 Replace later with actual logged-in user ID
+      String userId = "";
 
+      final user = await ApiService.getStoredUser();
+      final storedUserId = user?["user_id"]?.toString();
+
+      if (storedUserId == null || storedUserId.isEmpty) {
+        setState(() {
+          vehicles = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      userId = storedUserId;
       final data = await ApiService.getMyVehicles(userId);
 
       setState(() {
@@ -78,7 +90,10 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
       floatingActionButton: isLoading
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => Get.to(() => const AddVehicleScreen()),
+              onPressed: () async {
+                await Get.to(() => const AddVehicleScreen());
+                loadVehicles();
+              },
               backgroundColor: const Color(0XFF184B8C),
               elevation: 4,
               icon: const Icon(
@@ -166,8 +181,21 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                       final vehicle = vehicles[index];
                       return InkWell(
                         borderRadius: BorderRadius.circular(20),
-                        onTap: () {
-                          Get.to(const VehicleDetailPage());
+                        onTap: () async {
+                          final result = await Get.to(
+                            () => VehicleDetailPage(vehicle: vehicle),
+                          );
+                          if (result == true) {
+                            await loadVehicles();
+                            Get.snackbar(
+                              "Vehicle Updated",
+                              "Vehicle updated successfully",
+                              backgroundColor: Colors.green.shade600,
+                              colorText: Colors.white,
+                            );
+                          } else if (result == "deleted") {
+                            await loadVehicles();
+                          }
                         },
                         child: _vehicleCard(context, vehicle),
                       );
@@ -497,9 +525,18 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                 Text("Modify / Edit Info"),
               ],
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Get.to(AddVehicleScreen(edit: vehicle['id'].toString()));
+              final updated = await Get.to(() => AddVehicleScreen(edit: vehicle));
+              if (updated == true) {
+                await loadVehicles();
+                Get.snackbar(
+                  "Vehicle Updated",
+                  "Vehicle updated successfully",
+                  backgroundColor: Colors.green.shade600,
+                  colorText: Colors.white,
+                );
+              }
             },
           ),
           CupertinoActionSheetAction(
@@ -515,10 +552,66 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                 Text("Permanently Disconnect"),
               ],
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // Handle Delete Operations Logic Next safely from here exactly as prior.
-              debugPrint("Delete vehicle id: ${vehicle['id']}");
+              final user = await ApiService.getStoredUser();
+              final userId = user?["user_id"]?.toString() ?? "";
+              final vehicleId = vehicle["id"]?.toString() ?? "";
+
+              if (userId.isEmpty || vehicleId.isEmpty) {
+                Get.snackbar("Error", "Unable to identify vehicle.");
+                return;
+              }
+
+              // Quick confirm dialog
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dialogCtx) => AlertDialog(
+                  title: const Text("Remove Vehicle"),
+                  content: Text(
+                    "Are you sure you want to remove vehicle "
+                    "${vehicle['registration_number'] ?? ''}?",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogCtx, false),
+                      child: const Text("Cancel"),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogCtx, true),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                      child: const Text("Remove"),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed != true) return;
+
+              final result = await ApiService.deleteVehicle(
+                vehicleId: vehicleId,
+                userId: userId,
+                reason: "Removed via garage",
+              );
+
+              if (result["success"] == true) {
+                await loadVehicles();
+                Get.snackbar(
+                  "Vehicle Removed",
+                  "The vehicle has been removed from your garage.",
+                  backgroundColor: Colors.red.shade600,
+                  colorText: Colors.white,
+                );
+              } else {
+                Get.snackbar(
+                  "Error",
+                  result["message"] ?? "Failed to remove vehicle.",
+                  backgroundColor: Colors.orange.shade700,
+                  colorText: Colors.white,
+                );
+              }
             },
           ),
         ],

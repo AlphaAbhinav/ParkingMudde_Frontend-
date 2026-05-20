@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scandetail.dart';
+import 'package:parkingmudde/services/plate_scanner_service.dart';
 
 class VehicleNumberHelpScreen extends StatefulWidget {
   const VehicleNumberHelpScreen({super.key});
@@ -14,7 +15,9 @@ class VehicleNumberHelpScreen extends StatefulWidget {
 
 class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
   final TextEditingController vehicleController = TextEditingController();
+  final PlateScannerService _plateScanner = PlateScannerService();
   bool isValidVehicle = false;
+  bool isScanningPlate = false;
   bool isPristine = true;
 
   /// Indian Vehicle Number Regex
@@ -33,6 +36,67 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
       isPristine = false;
       isValidVehicle = vehicleRegex.hasMatch(text);
     });
+  }
+
+  Future<void> scanNumberPlate() async {
+    if (isScanningPlate) {
+      return;
+    }
+
+    setState(() {
+      isScanningPlate = true;
+    });
+
+    try {
+      final result = await _plateScanner.scanFromCamera();
+
+      if (!mounted || result == null) {
+        return;
+      }
+
+      if (result.vehicleNumber.isEmpty) {
+        Get.snackbar(
+          "Plate Not Detected",
+          "Try again with the plate centered and well lit.",
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.amber.shade800,
+          colorText: Colors.white,
+          margin: const EdgeInsets.all(16),
+          borderRadius: 8,
+        );
+        return;
+      }
+
+      validateVehicle(result.vehicleNumber);
+      Get.snackbar(
+        "Number Plate Scanned",
+        result.vehicleNumber,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green.shade700,
+        colorText: Colors.white,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 8,
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      Get.snackbar(
+        "Scan Failed",
+        "Camera text recognition could not read the plate. Please try again.",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.redAccent,
+        colorText: Colors.white,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 8,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isScanningPlate = false;
+        });
+      }
+    }
   }
 
   @override
@@ -172,9 +236,7 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
   /// Visually satisfying layout for scan to notify
   Widget buildScannerCard() {
     return InkWell(
-      onTap: () {
-        // TODO: Open OCR Camera
-      },
+      onTap: isScanningPlate ? null : scanNumberPlate,
       borderRadius: BorderRadius.circular(24),
       child: Container(
         width: double.infinity,
@@ -213,18 +275,27 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
                     color: Color(0XFF184b8c),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons
-                        .qr_code_scanner_rounded, // Specific scan icon matching help scenario slightly better
-                    size: 36,
-                    color: Colors.white,
-                  ),
+                  child: isScanningPlate
+                      ? const SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons
+                              .qr_code_scanner_rounded, // Specific scan icon matching help scenario slightly better
+                          size: 36,
+                          color: Colors.white,
+                        ),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            const Text(
-              "Scan Number Plate",
+            Text(
+              isScanningPlate ? "Reading Plate..." : "Scan Number Plate",
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
@@ -427,7 +498,12 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
       onTap: canProceed
           ? () {
               if (isValidVehicle) {
-                Get.to(ReportProofScreen(typev: "1"));
+                Get.to(
+                  ReportProofScreen(
+                    typev: "help",
+                    vehicleNumber: vehicleController.text,
+                  ),
+                );
               } else {
                 Get.snackbar(
                   "Incorrect Registration format",

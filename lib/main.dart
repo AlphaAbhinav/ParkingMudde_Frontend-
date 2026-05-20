@@ -3,8 +3,12 @@ import 'package:get/get.dart';
 import 'package:parkingmudde/screen/splash/splashpage.dart';
 import 'package:provider/provider.dart';
 import 'providers/wallet_provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
+  
   runApp(
     ChangeNotifierProvider(
       create: (_) => WalletProvider(),

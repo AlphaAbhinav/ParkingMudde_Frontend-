@@ -47,10 +47,15 @@ dependencies:
   share_plus: ^12.0.1
   google_maps_flutter: ^2.5.0
   geolocator: ^10.1.0
+  geocoding: ^3.0.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
   http: ^1.2.1
   shared_preferences: ^2.2.2 
   provider: ^6.1.2
   flutter_polyline_points: ^2.0.0
+  flutter_dotenv: ^6.0.0
+  pinput: ^6.0.2
   
   
 
@@ -82,6 +87,8 @@ flutter:
   #   - images/a_dot_ham.jpeg
   assets:
     - assets/
+    - assets/images/
+    - .env
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

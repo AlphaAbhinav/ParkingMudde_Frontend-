@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-
-
+import 'package:get/get.dart';
+import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
+import 'package:parkingmudde/screen/vehicle/myvehicle.dart';
 
 class AddVehicleBottomSheet extends StatelessWidget {
   const AddVehicleBottomSheet({super.key});
@@ -8,31 +9,43 @@ class AddVehicleBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 200,
+      height: 220,
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // Standard BottomSheet Grab Bar native rendering
             Container(
-              width: 40,
-              height: 4,
+              width: 50,
+              height: 5,
               decoration: BoxDecoration(
-                color: Colors.grey.shade400,
+                color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 24),
 
-            Text("Add Your Vehicle", ),
+            // Text heavily bolder and mapped to current UI boundaries
+            const Text(
+              "Add Your Vehicle",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF222222),
+              ),
+            ),
 
-            SizedBox(height: 8),
-
-            Text(
-              "You can add your vehicle details now or do it later.",
+            const SizedBox(height: 12),
+            const Text(
+              "You can add your vehicle details now or do it later when registering incidents.",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: Color(0xFF6B7280),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
 
             const Spacer(),
@@ -41,35 +54,67 @@ class AddVehicleBottomSheet extends StatelessWidget {
               children: [
                 Expanded(
                   child: SizedBox(
-                    height: 40,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: Text(
-                        "Add Vehicle Now",
-                        style: TextStyle(fontSize: 14,fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 5),
-                Expanded(
-                  child: SizedBox(
-                    height: 40,
+                    height:
+                        52, // Standard thick 52 bounds standard bound bounds spaces limits map constraint map
                     child: OutlinedButton(
                       onPressed: () {
                         Navigator.pop(context);
                       },
-                      child: Text(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                          color: Color(0xFFD2D2D2),
+                          width: 1,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
                         "Later",
-                        style: TextStyle(fontSize: 14,fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF555555),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: SizedBox(
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        final added = await Get.to(() => const AddVehicleScreen());
+                        if (added == true) {
+                          Get.to(() => const MyVehiclesScreen());
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2A5EE8),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        "Add Now",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ],
             ),
+            const SizedBox(
+              height: 10,
+            ), // Bottom SafeArea native constraint margin map boundaries layouts mapped form spaces limit bounds mapping bounds layout boundary spaces constraints limit forms boundary
           ],
         ),
       ),

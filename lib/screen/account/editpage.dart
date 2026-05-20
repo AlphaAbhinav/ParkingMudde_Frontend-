@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../services/api_service.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -13,7 +17,11 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
 
-  File? _profileImage;
+  Uint8List? _profileImageBytes;
+  XFile? _pickedProfileImage;
+  String? _storedProfileImage;
+  String? _userId;
+  bool isSaving = false;
   final picker = ImagePicker();
 
   final nameCtrl = TextEditingController();
@@ -26,12 +34,78 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   String gender = "Male";
 
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final storedUser = await ApiService.getStoredUser();
+    if (storedUser != null) {
+      _fillProfileForm(storedUser);
+    }
+
+    final user = await ApiService.refreshCurrentUser();
+    if (!mounted || user == null) return;
+    _fillProfileForm(user);
+  }
+
+  void _fillProfileForm(Map<String, dynamic> user) {
+    final fullName = user["full_name"]?.toString() ?? "";
+    final nameParts = fullName
+        .trim()
+        .split(RegExp(r"\s+"))
+        .where((part) => part.isNotEmpty)
+        .toList();
+
+    setState(() {
+      _userId = user["user_id"]?.toString();
+      nameCtrl.text = nameParts.isNotEmpty ? nameParts.first : "";
+      lNameCtrl.text = nameParts.length > 1 ? nameParts.skip(1).join(" ") : "";
+      emailCtrl.text = user["email"]?.toString() ?? "";
+      phoneCtrl.text = user["mobile_number"]?.toString() ?? "";
+      addressCtrl.text = user["location"]?.toString() ?? "";
+      dobCtrl.text = user["date_of_birth"]?.toString() ?? "";
+      gender = user["gender"]?.toString().isNotEmpty == true
+          ? user["gender"].toString()
+          : gender;
+      _storedProfileImage = user["profile_image"]?.toString();
+    });
+  }
+
   Future<void> _pickImage() async {
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
+    try {
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 65,
+        maxWidth: 900,
+        maxHeight: 900,
+      );
+      if (image == null) return;
+
+      final bytes = await image.readAsBytes();
+      if (bytes.length > 3_700_000) {
+        Get.snackbar(
+          "Image Too Large",
+          "Please choose a smaller profile photo.",
+          backgroundColor: Colors.red.shade700,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
       setState(() {
-        _profileImage = File(image.path);
+        _pickedProfileImage = image;
+        _profileImageBytes = bytes;
       });
+    } catch (_) {
+      Get.snackbar(
+        "Photo Not Selected",
+        "Could not open this image. Please try another photo.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -118,10 +192,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       child: CircleAvatar(
                         radius: 50,
                         backgroundColor: Colors.white,
-                        backgroundImage: _profileImage != null
-                            ? FileImage(_profileImage!)
-                            : const NetworkImage("https://i.pravatar.cc/150")
-                                  as ImageProvider,
+                        backgroundImage: _profileImageBytes != null
+                            ? MemoryImage(_profileImageBytes!)
+                            : _storedProfileImageProvider(),
+                        child: _profileImageBytes == null &&
+                                _storedProfileImageProvider() == null
+                            ? const Icon(
+                                Icons.person_rounded,
+                                color: Color(0XFF184B8C),
+                                size: 44,
+                              )
+                            : null,
                       ),
                     ),
                     Positioned(
@@ -168,7 +249,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     child: _buildModernFormField(
                       controller: nameCtrl,
                       label: "First Name*",
-                      hint: "John",
+                      hint: "First name",
                       icon: Icons.person_outline_rounded,
                     ),
                   ),
@@ -177,7 +258,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     child: _buildModernFormField(
                       controller: lNameCtrl,
                       label: "Last Name*",
-                      hint: "Doe",
+                      hint: "Last name",
                       icon: Icons.badge_outlined,
                     ),
                   ),
@@ -255,19 +336,66 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
               // ====== PRESERVED SECURE BUTTON DEPLOY ====== //
               InkWell(
-                onTap: () {
+                onTap: isSaving
+                    ? null
+                    : () async {
                   if (_formKey.currentState!.validate()) {
-                    // Form handling natively safe
-                    Get.snackbar(
-                      "Changes Requested",
-                      "Information synchronized successfully.",
-                      backgroundColor: Colors.green.shade800,
-                      colorText: Colors.white,
-                      icon: const Icon(
-                        Icons.security_rounded,
-                        color: Colors.white,
+                    final userId = _userId ??
+                        (await SharedPreferences.getInstance()).getString(
+                          "user_id",
+                        );
+                    if (userId == null || userId.isEmpty) {
+                      Get.snackbar(
+                        "Error",
+                        "User not logged in.",
+                        backgroundColor: Colors.red.shade700,
+                        colorText: Colors.white,
+                      );
+                      return;
+                    }
+
+                    final fullName =
+                        "${nameCtrl.text.trim()} ${lNameCtrl.text.trim()}"
+                            .trim();
+                    setState(() => isSaving = true);
+                    final result = await ApiService.updateUserProfile(
+                      userId: userId,
+                      fullName: fullName,
+                      mobileNumber: phoneCtrl.text.replaceAll(
+                        RegExp(r'[^0-9]'),
+                        '',
                       ),
+                      email: emailCtrl.text.trim().toLowerCase(),
+                      gender: gender,
+                      dateOfBirth: dobCtrl.text.trim(),
+                      location: addressCtrl.text.trim(),
+                      profileImage: _pickedProfileImage,
                     );
+                    if (!mounted) return;
+                    setState(() => isSaving = false);
+
+                    if (result["success"] == true) {
+                      Get.snackbar(
+                        "Profile Updated",
+                        _pickedProfileImage == null
+                            ? "Your profile details were saved successfully."
+                            : "Your profile photo and details were saved successfully.",
+                        backgroundColor: Colors.green.shade800,
+                        colorText: Colors.white,
+                        icon: const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.white,
+                        ),
+                      );
+                      Get.back();
+                    } else {
+                      Get.snackbar(
+                        "Update Failed",
+                        result["message"] ?? "Could not update profile.",
+                        backgroundColor: Colors.red.shade700,
+                        colorText: Colors.white,
+                      );
+                    }
                   }
                 },
                 borderRadius: BorderRadius.circular(16),
@@ -286,11 +414,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Synchronize Registry Details",
+                        isSaving
+                            ? "Synchronizing..."
+                            : "Synchronize Registry Details",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 15,
@@ -317,6 +447,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
       ),
     );
+  }
+
+  ImageProvider? _storedProfileImageProvider() {
+    final image = _storedProfileImage;
+    if (image == null || image.isEmpty) return null;
+
+    if (image.startsWith("data:image")) {
+      return MemoryImage(base64Decode(image.split(",").last));
+    }
+
+    return NetworkImage(image);
   }
 
   /// Visually graceful extraction replacing the brutal identical copy/pasting. Ensures perfect scaling consistency natively!

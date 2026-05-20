@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:parkingmudde/screen/auth/loginpage.dart';
 import 'package:parkingmudde/screen/auth/onboarding.dart';
 
 class Splashpage extends StatefulWidget {
@@ -44,9 +46,12 @@ class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void _navigateToNextPage() {
+  Future<void> _navigateToNextPage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenOnboarding = prefs.getBool("has_seen_onboarding") ?? false;
+
     Get.offAll(
-      () => const ParkingOnboarding(),
+      () => hasSeenOnboarding ? const Loginpage() : const ParkingOnboarding(),
       transition: Transition.fadeIn,
       duration: const Duration(milliseconds: 800),
     );

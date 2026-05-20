@@ -6,13 +6,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/api_service.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
-import 'package:sms_autofill/sms_autofill.dart';
+import 'package:pinput/pinput.dart';
 
 class Otppage extends StatefulWidget {
   final String mobile;
   final String referralCode;
+  final String? testOtp;
 
-  const Otppage({super.key, required this.mobile, required this.referralCode});
+  const Otppage({super.key, required this.mobile, required this.referralCode, this.testOtp});
 
   @override
   State<Otppage> createState() => _OtppageState();
@@ -127,6 +128,28 @@ class _OtppageState extends State<Otppage> {
                     ),
                   ),
 
+                  if (widget.testOtp != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Text(
+                        "TEST OTP: ${widget.testOtp}",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.orange.shade800,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                          letterSpacing: 2.0,
+                        ),
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 12),
 
                   Text.rich(
@@ -155,44 +178,52 @@ class _OtppageState extends State<Otppage> {
 
                   const SizedBox(height: 40),
 
-                  PinFieldAutoFill(
-                    codeLength: 6,
-                    autoFocus: true,
+                  Pinput(
+                    length: 6,
+                    autofocus: true,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      LengthLimitingTextInputFormatter(6),
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
-                    decoration: BoxLooseDecoration(
+                    defaultPinTheme: PinTheme(
+                      width: 50,
+                      height: 56,
                       textStyle: TextStyle(
-                        fontWeight: FontWeight.bold,
                         fontSize: 24,
                         color: brandBlue,
+                        fontWeight: FontWeight.w900,
                       ),
-                      gapSpace: 12,
-                      strokeWidth: 1.8,
-                      radius: const Radius.circular(12),
-                      strokeColorBuilder: PinListenColorBuilder(
-                        brandBlue,
-                        Colors.grey.shade300,
-                      ),
-                      bgColorBuilder: const FixedColorBuilder(
-                        Color(0xFFFAFAFA),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAFAFA),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300, width: 1.8),
                       ),
                     ),
-                    onCodeChanged: (value) {
-                      if (value == null) return;
-
+                    focusedPinTheme: PinTheme(
+                      width: 50,
+                      height: 56,
+                      textStyle: TextStyle(
+                        fontSize: 24,
+                        color: brandBlue,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAFAFA),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: brandBlue, width: 1.8),
+                      ),
+                    ),
+                    onCompleted: (pin) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (!mounted) return;
-
                         setState(() {
-                          enteredOtp = value;
+                          enteredOtp = pin;
                         });
-
                         if (enteredOtp.length == 6 && !isLoading) {
                           _handleVerification();
                         }
+                      });
+                    },
+                    onChanged: (value) {
+                      setState(() {
+                        enteredOtp = value;
                       });
                     },
                   ),
@@ -221,7 +252,7 @@ class _OtppageState extends State<Otppage> {
                                 if (result["success"] == true) {
                                   Get.snackbar(
                                     "OTP Resent",
-                                    "Successfully sent a new code.",
+                                    "Successfully sent a new code. Test OTP: ${result["otp"] ?? ''}",
                                     backgroundColor: Colors.black87,
                                     colorText: Colors.white,
                                     snackPosition: SnackPosition.TOP,

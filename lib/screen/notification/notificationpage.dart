@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../services/api_service.dart';
+
 class Notificationpage extends StatefulWidget {
   const Notificationpage({super.key});
 
@@ -9,242 +11,484 @@ class Notificationpage extends StatefulWidget {
 }
 
 class _NotificationpageState extends State<Notificationpage> {
+  static const Color primaryBlue = Color(0xFF2A5EE8);
+  static const Color accentYellow = Color(0xFFFFB703);
+
+  final List<String> filters = [
+    "All",
+    "Reports",
+    "Vehicles",
+    "Helped",
+    "Bookings",
+    "Coupons",
+  ];
+  String selectedFilter = "All";
+  bool isLoading = true;
+  List<dynamic> notifications = [];
+  String? userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() => isLoading = true);
+
+    final user = await ApiService.getStoredUser();
+    final storedUserId = user?["user_id"]?.toString();
+
+    if (storedUserId == null || storedUserId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          userId = null;
+          notifications = [];
+          isLoading = false;
+        });
+      }
+      return;
+    }
+
+    final result = await ApiService.getNotifications(storedUserId);
+    if (mounted) {
+      setState(() {
+        userId = storedUserId;
+        notifications = result;
+        isLoading = false;
+      });
+    }
+  }
+
+  List<dynamic> get visibleNotifications {
+    return notifications.where((item) {
+      final type = item["type"]?.toString() ?? "";
+      if (selectedFilter == "Reports") return type == "REPORTED_VEHICLE";
+      if (selectedFilter == "Vehicles") {
+        return type == "VEHICLE_ADDED" ||
+            type == "VEHICLE_UPDATED" ||
+            type == "VEHICLE_DELETED";
+      }
+      if (selectedFilter == "Helped") return type == "HELPED_VEHICLE";
+      if (selectedFilter == "Bookings") return type == "PARKING_BOOKING";
+      if (selectedFilter == "Coupons") return type == "COUPON_PURCHASED";
+      return true;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final items = visibleNotifications;
+
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF6F8FA,
-      ), // Premium off-white super-app base
+      backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: false,
-        scrolledUnderElevation: 1,
+        centerTitle: true,
+        scrolledUnderElevation: 0.5,
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new,
-            color: Color(0XFF184B8C),
-            size: 22,
+            color: primaryBlue,
+            size: 20,
           ),
           onPressed: () {
-            Get.back();
+            if (Get.key.currentState?.canPop() == true) {
+              Get.back();
+            }
           },
         ),
         title: const Text(
-          "Notifications",
+          "Activities",
           style: TextStyle(
-            fontSize: 17,
+            fontSize: 15,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF1E293B),
-            letterSpacing: 0.3,
+            color: Colors.black87,
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              // Functional Mock Action Target
-            },
-            child: const Text(
-              "Clear all",
-              style: TextStyle(
-                color: Color(0XFF184B8C),
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: Colors.grey.shade200, height: 1),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Today",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.blueGrey,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              /// Beautiful Unified List Boundary replacing awkward single flat rows!
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                  border: Border.all(color: Colors.grey.shade100, width: 2),
-                ),
-                child: ListView.separated(
-                  padding: EdgeInsets.zero, // Erases weird inner bleed mappings
-                  itemCount: 10,
-                  physics: const NeverScrollableScrollPhysics(),
-                  shrinkWrap: true,
-                  separatorBuilder: (context, index) => Padding(
-                    padding: const EdgeInsets.only(
-                      left: 60,
-                    ), // Keeps divider exclusively bound on text columns smoothly
-                    child: Divider(
-                      color: Colors.grey.shade100,
-                      height: 1,
-                      thickness: 1.5,
-                    ),
-                  ),
-                  itemBuilder: (context, i) {
-                    return _buildModernNotificationItem(index: i);
-                  },
-                ),
-              ),
-              const SizedBox(height: 40), // Safe screen overflow exit spacing
-            ],
+      body: Column(
+        children: [
+          _filterBar(),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadNotifications,
+              color: primaryBlue,
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : items.isEmpty
+                      ? _emptyState()
+                      : _activityList(items),
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterBar() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: filters.map((filter) {
+            final selected = selectedFilter == filter;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(filter),
+                selected: selected,
+                onSelected: (_) => setState(() => selectedFilter = filter),
+                showCheckmark: false,
+                selectedColor: accentYellow,
+                backgroundColor: const Color(0xFFF0F2F5),
+                labelStyle: TextStyle(
+                  color: selected ? Colors.white : Colors.blueGrey.shade700,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: BorderSide(
+                    color: selected ? accentYellow : Colors.transparent,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );
   }
 
-  /// Refined Premium Custom Logic mapped Notification Builder!
-  Widget _buildModernNotificationItem({required int index}) {
-    // Abstracted minor variations mathematically to display beautifully alternating representations so your page instantly 'pops'!
-    bool isUnread = index < 3; // First 3 marked unread natively
-    int logicVariation = index % 3;
+  Widget _emptyState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 86),
+      children: [
+        const Icon(
+          Icons.local_activity_outlined,
+          color: primaryBlue,
+          size: 46,
+        ),
+        const SizedBox(height: 14),
+        const Center(
+          child: Text(
+            "No activities yet",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "Vehicles, reports, helped vehicles, bookings, and coupon activity will appear here.",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.blueGrey.shade500,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
 
-    String title;
-    IconData visualIcon;
-    Color iconColorTint;
-
-    // Simple presentation mocking matching the domain
-    if (logicVariation == 0) {
-      title = "System Alert";
-      visualIcon = Icons.notifications_active_rounded;
-      iconColorTint = const Color(0XFF184B8C);
-    } else if (logicVariation == 1) {
-      title = "New Parking Voucher!";
-      visualIcon = Icons.local_activity_rounded;
-      iconColorTint = Colors.green.shade600;
-    } else {
-      title = "Vehicle Verification Processed";
-      visualIcon = Icons.directions_car_rounded;
-      iconColorTint = Colors.orange.shade700;
+  Widget _activityList(List<dynamic> items) {
+    final grouped = <String, List<dynamic>>{};
+    for (final item in items) {
+      grouped.putIfAbsent(_sectionTitle(item), () => []).add(item);
     }
 
-    return Material(
-      color: Colors.transparent, // Fixes white ink ripple hiding!
-      child: InkWell(
-        onTap: () {
-          // Native interaction handling space
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              /// Interactive Display Component Avatar
-              Container(
-                height: 44,
-                width: 44,
-                decoration: BoxDecoration(
-                  color: isUnread
-                      ? iconColorTint.withOpacity(0.12)
-                      : Colors.grey.shade50,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isUnread ? Colors.transparent : Colors.grey.shade200,
-                  ),
-                ),
-                child: Icon(
-                  visualIcon,
-                  size: 20,
-                  color: isUnread ? iconColorTint : Colors.grey.shade400,
-                ),
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 92),
+      children: grouped.entries.expand((entry) {
+        return [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
+            child: Text(
+              entry.key,
+              style: TextStyle(
+                color: Colors.blueGrey.shade500,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
               ),
+            ),
+          ),
+          ...entry.value.map(_activityCard),
+        ];
+      }).toList(),
+    );
+  }
 
-              const SizedBox(width: 14),
+  Widget _activityCard(dynamic item) {
+    final type = item["type"]?.toString() ?? "";
+    final status = item["status"]?.toString() ?? "SUBMITTED";
+    final coins = int.tryParse(item["coins_delta"]?.toString() ?? "0") ?? 0;
+    final amount = item["amount"];
+    final vehicleNumber = item["vehicle_number"]?.toString();
+    final location = item["location"]?.toString();
 
-              /// Detailed Segment Readouts!
-              Expanded(
-                child: Column(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: Colors.black.withOpacity(0.06)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: _typeColor(type).withOpacity(0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(_typeIcon(type), color: _typeColor(type), size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: isUnread
-                                ? FontWeight.bold
-                                : FontWeight.w600,
-                            color: isUnread
-                                ? Colors.black87
-                                : Colors.blueGrey.shade600,
-                            letterSpacing: 0.3,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                    Expanded(
+                      child: Text(
+                        _title(type, status),
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          height: 1.05,
                         ),
-                        Text(
-                          "2h ago",
-                          style: TextStyle(
-                            color: isUnread
-                                ? const Color(0XFF184B8C)
-                                : Colors.blueGrey.shade300,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      "Lorem Ipsum is simply dummy text of the printing and typesetting industry mapped beautifully.", // Fleshed to feel robust dynamically.
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: Colors.blueGrey.shade500,
-                        height: 1.4,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    _statusPill(status),
                   ],
                 ),
-              ),
-
-              // Simple new-unread ping pip component natively integrated!
-              if (isUnread)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8, top: 4),
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Color(0XFF184B8C),
-                      shape: BoxShape.circle,
+                const SizedBox(height: 6),
+                if (type == "PARKING_BOOKING" ||
+                    type == "VEHICLE_ADDED" ||
+                    type == "VEHICLE_UPDATED" ||
+                    type == "VEHICLE_DELETED" ||
+                    type == "COUPON_PURCHASED")
+                  Text(
+                    item["description"]?.toString() ?? "Activity update",
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  )
+                else
+                  Text(
+                    [
+                      if (vehicleNumber != null && vehicleNumber.isNotEmpty)
+                        vehicleNumber,
+                      if (location != null && location.isNotEmpty) location,
+                    ].join("  •  "),
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.schedule_rounded,
+                      color: Colors.blueGrey.shade400,
+                      size: 11,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      _formatTime(item),
+                      style: TextStyle(
+                        color: Colors.blueGrey.shade500,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (coins != 0) _coinText(coins),
+                    if (coins == 0 && amount != null) _amountText(amount),
+                  ],
                 ),
-            ],
+              ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusPill(String status) {
+    final color = _statusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        _statusLabel(status),
+        style: TextStyle(
+          color: color,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );
+  }
+
+  Widget _coinText(int coins) {
+    final positive = coins > 0;
+    return Text(
+      "${positive ? '+' : ''}$coins PM Coins",
+      style: TextStyle(
+        color: positive ? const Color(0xFF10B981) : Colors.red.shade600,
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+  }
+
+  Widget _amountText(dynamic amount) {
+    return Text(
+      "Rs$amount",
+      style: const TextStyle(
+        color: Colors.black87,
+        fontSize: 11,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+  }
+
+  String _title(String type, String status) {
+    if (type == "VEHICLE_ADDED") return "Vehicle Added";
+    if (type == "VEHICLE_UPDATED") return "Vehicle Updated";
+    if (type == "VEHICLE_DELETED") return "Vehicle Removed";
+    if (type == "COUPON_PURCHASED") return "Coupon Purchased";
+    if (type == "HELPED_VEHICLE") return "Helped Vehicle Owner";
+    if (type == "PARKING_BOOKING") return "Parking Booking";
+    if (status == "CONFIRMED") return "Wrong parking Confirmed";
+    return "Wrong parking Reported";
+  }
+
+  String _sectionTitle(dynamic item) {
+    final createdAt = DateTime.tryParse(item["created_at"]?.toString() ?? "");
+    if (createdAt == null) return "THIS WEEK";
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final itemDay = DateTime(createdAt.year, createdAt.month, createdAt.day);
+    final diff = today.difference(itemDay).inDays;
+    if (diff == 0) return "TODAY";
+    if (diff == 1) return "YESTERDAY";
+    return "THIS WEEK";
+  }
+
+  String _formatTime(dynamic item) {
+    final createdAt = DateTime.tryParse(item["created_at"]?.toString() ?? "");
+    if (createdAt == null) return item["time"]?.toString() ?? "";
+
+    final now = DateTime.now();
+    final difference = now.difference(createdAt);
+    if (difference.inMinutes < 1) return "now";
+    if (difference.inHours < 1) return "${difference.inMinutes} mins ago";
+    if (difference.inDays < 1) return "${difference.inHours} hours ago";
+
+    final hour = createdAt.hour.toString().padLeft(2, "0");
+    final minute = createdAt.minute.toString().padLeft(2, "0");
+    return "$hour:$minute";
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case "IN_PROGRESS":
+        return "In Progress";
+      case "COMPLETED":
+      case "CONFIRMED":
+      case "APPROVED":
+        return "Completed";
+      case "REJECTED":
+        return "Rejected";
+      case "PENDING":
+        return "Pending";
+      case "SENT":
+        return "Sent";
+      default:
+        return "Submitted";
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case "IN_PROGRESS":
+      case "SUBMITTED":
+      case "SENT":
+      case "PENDING":
+        return Colors.orange.shade700;
+      case "REJECTED":
+        return Colors.red.shade600;
+      default:
+        return Colors.green.shade700;
+    }
+  }
+
+  Color _typeColor(String type) {
+    switch (type) {
+      case "HELPED_VEHICLE":
+        return const Color(0xFF10B981);
+      case "PARKING_BOOKING":
+        return const Color(0xFFA855F7);
+      case "COUPON_PURCHASED":
+        return const Color(0xFFF97316);
+      case "VEHICLE_ADDED":
+      case "VEHICLE_UPDATED":
+        return const Color(0xFF2A5EE8);
+      case "VEHICLE_DELETED":
+        return Colors.red.shade600;
+      default:
+        return primaryBlue;
+    }
+  }
+
+  IconData _typeIcon(String type) {
+    switch (type) {
+      case "HELPED_VEHICLE":
+        return Icons.local_police_rounded;
+      case "PARKING_BOOKING":
+        return Icons.local_parking_rounded;
+      case "COUPON_PURCHASED":
+        return Icons.card_giftcard_rounded;
+      case "VEHICLE_ADDED":
+        return Icons.directions_car_filled_rounded;
+      case "VEHICLE_UPDATED":
+        return Icons.edit_note_rounded;
+      case "VEHICLE_DELETED":
+        return Icons.no_transfer_rounded;
+      default:
+        return Icons.work_rounded;
+    }
   }
 }

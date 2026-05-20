@@ -9,7 +9,8 @@ import '../../providers/wallet_provider.dart';
 
 class ReportProofScreen extends StatefulWidget {
   final String? typev;
-  const ReportProofScreen({super.key, this.typev});
+  final String? vehicleNumber;
+  const ReportProofScreen({super.key, this.typev, this.vehicleNumber});
 
   @override
   State<ReportProofScreen> createState() => _ReportProofScreenState();
@@ -114,12 +115,25 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       isLoading = true;
     });
 
-    Map<String, dynamic> result = await ApiService.createWrongParkingReport(
-      vehicleNumber: "MH12AB1234",
-      images: images,
-      videoFile: videoFile,
-      capturedAt: DateTime.now().toString().split('.').first,
-    );
+    final storedUser = await ApiService.getStoredUser();
+    final currentUserId = storedUser?["user_id"]?.toString();
+    final targetVehicle = widget.vehicleNumber ?? "MH12AB1234";
+
+    Map<String, dynamic> result;
+    if (widget.typev == "help" && currentUserId != null) {
+      result = await ApiService.createHelpedVehicleActivity(
+        userId: currentUserId,
+        vehicleNumber: targetVehicle,
+        location: offenderData["area"],
+      );
+    } else {
+      result = await ApiService.createWrongParkingReport(
+        vehicleNumber: targetVehicle,
+        images: images,
+        videoFile: videoFile,
+        capturedAt: DateTime.now().toString().split('.').first,
+      );
+    }
 
     setState(() {
       isLoading = false;
@@ -129,7 +143,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       // Refresh wallet balance using Provider
       await context.read<WalletProvider>().fetchWallet();
 
-      showSnack("Report submitted successfully");
+      showSnack(
+        widget.typev == "help"
+            ? "Help activity submitted successfully"
+            : "Report submitted successfully",
+      );
 
       Get.to(() => ThankYouReportScreen(typecv: widget.typev));
     } else {
@@ -155,7 +173,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
           onPressed: () => Get.back(),
         ),
         title: Text(
-          widget.typev == "1" ? "Vehicle Details" : "Report Evidence",
+          widget.typev == "help" ? "Vehicle Details" : "Report Evidence",
           style: const TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w800,
