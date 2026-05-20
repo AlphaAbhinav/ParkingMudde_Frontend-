@@ -18,6 +18,9 @@ class ParkingSpot {
   final int slots;
   final bool hasLiveSlots;
   final bool isVerified;
+  final double? pricePerHour;   // null = unknown
+  final String feeType;         // "free" / "paid" / "unknown"
+  final String? chargeLabel;    // raw charge string from OSM e.g. "₹50/hour"
   double distance;
 
   ParkingSpot({
@@ -29,7 +32,26 @@ class ParkingSpot {
     this.hasLiveSlots = true,
     this.isVerified = true,
     this.distance = 0,
+    this.pricePerHour,
+    this.feeType = "unknown",
+    this.chargeLabel,
   });
+
+  /// Human-readable price string for display
+  String get priceDisplay {
+    if (feeType == "free" || pricePerHour == 0) return "FREE";
+    if (chargeLabel != null && chargeLabel!.isNotEmpty) return chargeLabel!;
+    if (pricePerHour != null && pricePerHour! > 0) {
+      return "₹${pricePerHour!.toStringAsFixed(0)}/hr";
+    }
+    return "Price N/A";
+  }
+
+  /// Whether this is a free parking spot
+  bool get isFree => feeType == "free" || pricePerHour == 0;
+
+  /// Whether the price is known
+  bool get hasPriceInfo => feeType != "unknown" || pricePerHour != null || (chargeLabel != null && chargeLabel!.isNotEmpty);
 
   factory ParkingSpot.fromJson(Map<String, dynamic> json) {
     return ParkingSpot(
@@ -40,6 +62,8 @@ class ParkingSpot {
       slots: _toInt(json["available_slots"]),
       hasLiveSlots: true,
       isVerified: true,
+      pricePerHour: _toNullableDouble(json["price_per_hour"]),
+      feeType: (json["fee_type"] ?? "unknown").toString(),
     );
   }
 
@@ -50,6 +74,33 @@ class ParkingSpot {
     final lng = _toNullableDouble(json["lon"]) ?? _toNullableDouble(center?["lon"]) ?? 0;
     final rawCapacity = tags["capacity"] ?? tags["capacity:disabled"];
 
+    // --- Extract pricing info from OSM tags ---
+    final String? feeRaw = (tags["fee"] ?? tags["parking:fee"])?.toString().toLowerCase();
+    final String? chargeRaw = tags["charge"]?.toString();
+
+    String feeType = "unknown";
+    double? pricePerHour;
+
+    if (feeRaw == "no" || feeRaw == "none") {
+      feeType = "free";
+      pricePerHour = 0;
+    } else if (feeRaw == "yes") {
+      feeType = "paid";
+      // Try to parse a numeric value from the charge tag
+      if (chargeRaw != null) {
+        final numMatch = RegExp(r'(\d+\.?\d*)').firstMatch(chargeRaw);
+        if (numMatch != null) {
+          pricePerHour = double.tryParse(numMatch.group(1)!);
+        }
+      }
+    } else if (chargeRaw != null && chargeRaw.isNotEmpty) {
+      feeType = "paid";
+      final numMatch = RegExp(r'(\d+\.?\d*)').firstMatch(chargeRaw);
+      if (numMatch != null) {
+        pricePerHour = double.tryParse(numMatch.group(1)!);
+      }
+    }
+
     return ParkingSpot(
       id: "osm-${json["type"]}-${json["id"]}",
       name: (tags["name"] ?? _fallbackOverpassName(tags)).toString(),
@@ -58,6 +109,9 @@ class ParkingSpot {
       slots: _toInt(rawCapacity),
       hasLiveSlots: rawCapacity != null,
       isVerified: false,
+      pricePerHour: pricePerHour,
+      feeType: feeType,
+      chargeLabel: chargeRaw,
     );
   }
 
@@ -361,8 +415,8 @@ out center tags;
       infoWindow: InfoWindow(
         title: spot.name,
         snippet: spot.hasLiveSlots
-            ? "${spot.distance.toStringAsFixed(2)} km - ${spot.slots} slots available"
-            : "${spot.distance.toStringAsFixed(2)} km - Public parking",
+            ? "${spot.distance.toStringAsFixed(2)} km • ${spot.slots} slots • ${spot.priceDisplay}"
+            : "${spot.distance.toStringAsFixed(2)} km • ${spot.priceDisplay}",
       ),
       onTap: () {
         drawRoute(spot.lat, spot.lng);
@@ -602,51 +656,109 @@ out center tags;
               ],
             ),
 
-            const Divider(height: 20),
+            const Divider(height: 16),
 
             // Sub Details and Quick Actions block
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                /// Beautiful Smart Slot visual tag
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: !spot.hasLiveSlots
-                        ? Colors.blue.shade50
-                        : isHighlyAvailable
-                        ? Colors.green.shade50
-                        : Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                /// Slot + Price badges row
+                Expanded(
                   child: Row(
                     children: [
-                      Icon(
-                        spot.hasLiveSlots
-                            ? Icons.directions_car_rounded
-                            : Icons.map_rounded,
-                        size: 12,
-                        color: !spot.hasLiveSlots
-                            ? Colors.blue.shade700
-                            : isHighlyAvailable
-                            ? Colors.green.shade700
-                            : Colors.orange.shade700,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        availabilityLabel,
-                        style: TextStyle(
+                      /// Smart Slot visual tag
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
                           color: !spot.hasLiveSlots
-                              ? Colors.blue.shade800
+                              ? Colors.blue.shade50
                               : isHighlyAvailable
-                              ? Colors.green.shade800
-                              : Colors.orange.shade900,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 11,
-                          letterSpacing: 0.3,
+                              ? Colors.green.shade50
+                              : Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              spot.hasLiveSlots
+                                  ? Icons.directions_car_rounded
+                                  : Icons.map_rounded,
+                              size: 12,
+                              color: !spot.hasLiveSlots
+                                  ? Colors.blue.shade700
+                                  : isHighlyAvailable
+                                  ? Colors.green.shade700
+                                  : Colors.orange.shade700,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              availabilityLabel,
+                              style: TextStyle(
+                                color: !spot.hasLiveSlots
+                                    ? Colors.blue.shade800
+                                    : isHighlyAvailable
+                                    ? Colors.green.shade800
+                                    : Colors.orange.shade900,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(width: 6),
+
+                      /// Price badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: spot.isFree
+                              ? Colors.green.shade50
+                              : spot.hasPriceInfo
+                              ? const Color(0XFF184B8C).withOpacity(0.08)
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              spot.isFree
+                                  ? Icons.money_off_rounded
+                                  : spot.hasPriceInfo
+                                  ? Icons.currency_rupee_rounded
+                                  : Icons.help_outline_rounded,
+                              size: 12,
+                              color: spot.isFree
+                                  ? Colors.green.shade700
+                                  : spot.hasPriceInfo
+                                  ? const Color(0XFF184B8C)
+                                  : Colors.grey.shade600,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              spot.priceDisplay,
+                              style: TextStyle(
+                                color: spot.isFree
+                                    ? Colors.green.shade800
+                                    : spot.hasPriceInfo
+                                    ? const Color(0XFF184B8C)
+                                    : Colors.grey.shade700,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
