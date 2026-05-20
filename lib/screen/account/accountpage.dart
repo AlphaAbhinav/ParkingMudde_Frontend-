@@ -29,6 +29,7 @@ class _AccountpageState extends State<Accountpage> {
   int walletCoins = 0;
   int vehicleCount = 0;
   int bookingCount = 0;
+  Map<String, dynamic>? communityProfile;
 
   // Clean unified extraction constants natively mapping layouts
   static const Color primaryBlue = Color(0xFF2A5EE8);
@@ -70,12 +71,14 @@ class _AccountpageState extends State<Accountpage> {
     final wallet = await ApiService.getWalletBalance(userId);
     final vehicles = await ApiService.getMyVehicles(userId);
     final bookings = await ApiService.getMyBookings(userId);
+    final community = await ApiService.getMyCommunity(userId);
 
     if (!mounted) return;
     setState(() {
       walletCoins = int.tryParse(wallet["balance"]?.toString() ?? "0") ?? 0;
       vehicleCount = vehicles.length;
       bookingCount = bookings.length;
+      communityProfile = community;
     });
   }
 
@@ -120,6 +123,10 @@ class _AccountpageState extends State<Accountpage> {
 
               // 2. METRICS ROW CARD
               _buildFigmaMetricSquaresRow(),
+
+              const SizedBox(height: 24),
+
+              _buildCommunityParkingCard(),
 
               const SizedBox(height: 40),
 
@@ -248,6 +255,123 @@ class _AccountpageState extends State<Accountpage> {
   // ──────────────────────────────────────────────────────────
   // FIGMA EXTRACT 1: TOP PROFILE MASTHEAD bounds maps limits bound bounds constraint
   // ──────────────────────────────────────────────────────────
+  Widget _buildCommunityParkingCard() {
+    final profile = communityProfile;
+    if (profile == null || profile["linked"] != true) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.apartment_rounded, color: primaryBlue),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                "No community parking linked yet. Ask your community admin to add your resident record with this mobile/email.",
+                style: TextStyle(
+                  color: subTextGrey,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final society = Map<String, dynamic>.from(profile["society"] ?? {});
+    final resident = Map<String, dynamic>.from(profile["resident"] ?? {});
+    final assignedParking = (profile["assigned_parking"] as List?) ?? [];
+    final firstSlot = assignedParking.isNotEmpty
+        ? Map<String, dynamic>.from(assignedParking.first)
+        : null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F4FD8), Color(0xFF173B8F)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: primaryBlue.withOpacity(0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.local_parking_rounded, color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  society["name"]?.toString() ?? "My Community",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  resident["kyc_status"]?.toString() ?? "KYC PENDING",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            "${resident["tower"] ?? "-"} / ${resident["unit_number"] ?? "-"}",
+            style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.2)),
+            ),
+            child: Text(
+              firstSlot == null
+                  ? "Parking slot not assigned yet"
+                  : "Assigned slot: ${firstSlot["slot_number"]} (${firstSlot["level"] ?? "Level not set"})",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFigmaTopHeaderProfile() {
     final fullName = _userValue("full_name", "Parking Mudde User");
     final mobile = _userValue("mobile_number", "Mobile not added");

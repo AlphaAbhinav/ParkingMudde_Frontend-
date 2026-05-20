@@ -656,6 +656,30 @@ class ApiService {
     }
   }
 
+  // ================= GET LINKED COMMUNITY + ASSIGNED PARKING =================
+  static Future<Map<String, dynamic>> getMyCommunity(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/auth/user/$userId/community"),
+      );
+
+      print("Community Status: ${response.statusCode}");
+      print("Community Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      final body = jsonDecode(response.body);
+      return {
+        "linked": false,
+        "message": body["detail"] ?? "Failed to fetch community",
+      };
+    } catch (e) {
+      print("Community Exception: $e");
+      return {"linked": false, "message": "Network error"};
+    }
+  }
+
   // ================= GET IN-APP NOTIFICATIONS =================
   static Future<List<dynamic>> getNotifications(String userId) async {
     try {
