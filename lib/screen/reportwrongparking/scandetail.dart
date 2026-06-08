@@ -291,19 +291,6 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       final double reportLat = storedUser?["latitude"] as double? ?? 19.0760;
       final double reportLng = storedUser?["longitude"] as double? ?? 72.8777;
 
-      if (images.length == 4) {
-        final aiResult = await ApiService.getAIVerdict(
-          images: images,
-          lat: reportLat,
-          lng: reportLng,
-        );
-        if (aiResult["success"] == true) {
-          aiScore = aiResult["score"];
-          aiVerdict = aiResult["verdict"];
-          aiReasons = aiResult["reasons"];
-        }
-      }
-
       result = await ApiService.createWrongParkingReport(
         vehicleNumber: targetVehicle,
         images: images,

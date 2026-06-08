@@ -164,10 +164,10 @@ class ApiService {
       request.fields['lng'] = reportLng.toString();
       request.fields['captured_at'] = capturedAt;
       if (selectedIssue != null && selectedIssue.isNotEmpty) {
-        request.fields['selected_issue'] = selectedIssue;
+        request.fields['selected_reason'] = selectedIssue;
       }
       if (selectedIssueCode != null && selectedIssueCode.isNotEmpty) {
-        request.fields['selected_issue_code'] = selectedIssueCode;
+        request.fields['selected_reason_code'] = selectedIssueCode;
       }
       
       if (aiScore != null) request.fields['ai_score'] = aiScore.toString();
@@ -237,9 +237,20 @@ class ApiService {
         return {"success": false, "message": "Duplicate report detected"};
       }
 
+      String errorMessage = "Server error: ${response.statusCode}";
+      try {
+        final body = jsonDecode(response.body);
+        final detail = body["detail"];
+        if (detail is String && detail.isNotEmpty) {
+          errorMessage = detail;
+        } else if (detail != null) {
+          errorMessage = detail.toString();
+        }
+      } catch (_) {}
+
       return {
         "success": false,
-        "message": "Server error: ${response.statusCode}",
+        "message": errorMessage,
       };
     } catch (e) {
       print("Report Exception: $e");
