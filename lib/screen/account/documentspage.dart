@@ -4,7 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../services/api_service.dart';
 
 class VehicleDocumentsPage extends StatefulWidget {
   const VehicleDocumentsPage({super.key});
@@ -15,13 +16,38 @@ class VehicleDocumentsPage extends StatefulWidget {
 
 class _VehicleDocumentsPageState extends State<VehicleDocumentsPage> {
   final ImagePicker picker = ImagePicker();
-  final Map<String, String> documents = {};
+  final Map<String, Map<String, dynamic>> documentsByType = {};
+
+  String? userId;
+  bool loading = true;
+  String? savingType;
 
   final List<Map<String, dynamic>> documentTypes = [
-    {"title": "Registration Certificate", "icon": Icons.description_rounded},
-    {"title": "Driving Licence", "icon": Icons.badge_rounded},
-    {"title": "Insurance", "icon": Icons.verified_user_rounded},
-    {"title": "Pollution Certificate", "icon": Icons.eco_rounded},
+    {
+      "type": "aadhaar_card",
+      "title": "Aadhaar Card",
+      "icon": Icons.credit_card_rounded,
+    },
+    {
+      "type": "driving_licence",
+      "title": "Driving Licence",
+      "icon": Icons.badge_rounded,
+    },
+    {
+      "type": "registration_certificate",
+      "title": "Registration Certificate",
+      "icon": Icons.description_rounded,
+    },
+    {
+      "type": "insurance_document",
+      "title": "Insurance Document",
+      "icon": Icons.verified_user_rounded,
+    },
+    {
+      "type": "pollution_certificate",
+      "title": "Pollution Certificate",
+      "icon": Icons.eco_rounded,
+    },
   ];
 
   @override
@@ -31,59 +57,144 @@ class _VehicleDocumentsPageState extends State<VehicleDocumentsPage> {
   }
 
   Future<void> _loadDocuments() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString("vehicle_documents");
-    if (saved == null || saved.isEmpty) return;
+    final storedUser = await ApiService.getStoredUser();
+    final currentUserId = storedUser?["user_id"]?.toString();
 
-    final decoded = jsonDecode(saved) as Map<String, dynamic>;
-    if (mounted) {
-      setState(() {
-        documents
-          ..clear()
-          ..addAll(decoded.map((key, value) => MapEntry(key, value.toString())));
-      });
+    if (currentUserId == null || currentUserId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          userId = null;
+          loading = false;
+        });
+      }
+      return;
     }
+
+    final docs = await ApiService.getUserDocuments(currentUserId);
+    if (!mounted) return;
+
+    setState(() {
+      userId = currentUserId;
+      documentsByType
+        ..clear()
+        ..addEntries(
+          docs.map(
+            (doc) => MapEntry(
+              doc["document_type"].toString(),
+              Map<String, dynamic>.from(doc as Map),
+            ),
+          ),
+        );
+      loading = false;
+    });
   }
 
-  Future<void> _saveDocuments() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("vehicle_documents", jsonEncode(documents));
-  }
+  Future<void> _pickDocument(Map<String, dynamic> docType) async {
+    final currentUserId = userId;
+    if (currentUserId == null || currentUserId.isEmpty) {
+      Get.snackbar(
+        "Login required",
+        "Please login again to upload your documents.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+      return;
+    }
 
-  Future<void> _pickDocument(String title) async {
     final file = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 80,
+      imageQuality: 85,
     );
     if (file == null) return;
 
-    final bytes = await file.readAsBytes();
-    setState(() => documents[title] = base64Encode(bytes));
-    await _saveDocuments();
-  }
+    final type = docType["type"].toString();
+    final title = docType["title"].toString();
 
-  Future<void> _removeDocument(String title) async {
-    setState(() => documents.remove(title));
-    await _saveDocuments();
-  }
+    setState(() => savingType = type);
+    final result = await ApiService.uploadUserDocument(
+      userId: currentUserId,
+      documentType: type,
+      documentLabel: title,
+      file: file,
+    );
 
-  void _openDocument(String title) {
-    final encodedDocument = documents[title];
-    if (encodedDocument == null || encodedDocument.isEmpty) return;
+    if (!mounted) return;
+    setState(() => savingType = null);
 
-    try {
-      final bytes = base64Decode(encodedDocument);
-      Get.to(
-        () => _DocumentPreviewPage(title: title, documentBytes: bytes),
-      );
-    } catch (_) {
+    if (result["success"] == true) {
+      await _loadDocuments();
       Get.snackbar(
-        "Could not open document",
-        "Please replace this document and try again.",
+        "Document saved",
+        "$title has been added to your account.",
+        backgroundColor: const Color(0xFF20C475),
+        colorText: Colors.white,
+      );
+    } else {
+      Get.snackbar(
+        "Upload failed",
+        result["message"] ?? "Please try again.",
         backgroundColor: Colors.red.shade700,
         colorText: Colors.white,
       );
     }
+  }
+
+  Future<void> _removeDocument(Map<String, dynamic> document) async {
+    final currentUserId = userId;
+    final documentId = document["id"]?.toString();
+    if (currentUserId == null || documentId == null) return;
+
+    final result = await ApiService.deleteUserDocument(
+      userId: currentUserId,
+      documentId: documentId,
+    );
+
+    if (result["success"] == true) {
+      await _loadDocuments();
+      Get.snackbar(
+        "Document removed",
+        "You can add it again anytime.",
+        backgroundColor: Colors.black87,
+        colorText: Colors.white,
+      );
+    } else {
+      Get.snackbar(
+        "Could not remove",
+        result["message"] ?? "Please try again.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  void _openDocument(Map<String, dynamic> document) {
+    final dataUrl = document["data_url"]?.toString() ?? "";
+    final commaIndex = dataUrl.indexOf(",");
+    if (commaIndex == -1) {
+      _showOpenError();
+      return;
+    }
+
+    try {
+      final bytes = base64Decode(dataUrl.substring(commaIndex + 1));
+      Get.to(
+        () => _DocumentPreviewPage(
+          title: document["document_label"]?.toString() ?? "Document",
+          documentBytes: bytes,
+        ),
+      );
+    } catch (_) {
+      _showOpenError();
+    }
+  }
+
+  void _showOpenError() {
+    Get.snackbar(
+      "Could not open document",
+      "Please replace this document and try again.",
+      backgroundColor: Colors.red.shade700,
+      colorText: Colors.white,
+    );
   }
 
   @override
@@ -94,7 +205,7 @@ class _VehicleDocumentsPageState extends State<VehicleDocumentsPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         title: const Text(
-          "Vehicle Documents",
+          "Documents",
           style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black87),
         ),
         leading: IconButton(
@@ -102,97 +213,155 @@ class _VehicleDocumentsPageState extends State<VehicleDocumentsPage> {
           onPressed: Get.back,
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadDocuments,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(
+                    "Add and keep your documents here for quick access. You can view, replace or remove them anytime.",
+                    style: TextStyle(
+                      color: Colors.blueGrey.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (userId == null)
+                    _messageCard(
+                      icon: Icons.lock_outline_rounded,
+                      title: "Login required",
+                      subtitle: "Please login again to manage your documents.",
+                    )
+                  else
+                    ...documentTypes.map(_documentTile),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _documentTile(Map<String, dynamic> docType) {
+    final type = docType["type"].toString();
+    final title = docType["title"].toString();
+    final icon = docType["icon"] as IconData;
+    final document = documentsByType[type];
+    final saved = document != null;
+    final saving = savingType == type;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
         children: [
-          Text(
-            "Store vehicle-related documents here for quick access.",
-            style: TextStyle(
-              color: Colors.blueGrey.shade600,
-              fontWeight: FontWeight.w600,
+          CircleAvatar(
+            backgroundColor:
+                saved ? const Color(0xFFF2FDF5) : const Color(0xFFEBEEFB),
+            child: Icon(
+              saved ? Icons.folder_rounded : icon,
+              color:
+                  saved ? const Color(0xFF20C475) : const Color(0xFF6678EF),
             ),
           ),
-          const SizedBox(height: 18),
-          ...documentTypes.map(
-            (doc) {
-              final title = doc["title"].toString();
-              final icon = doc["icon"] as IconData;
-              final saved = documents.containsKey(title);
-              return InkWell(
-                onTap: saved ? () => _openDocument(title) : null,
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: saved
-                            ? const Color(0xFFF2FDF5)
-                            : const Color(0xFFEBEEFB),
-                        child: Icon(
-                          saved ? Icons.check_rounded : icon,
-                          color: saved
-                              ? const Color(0xFF20C475)
-                              : const Color(0xFF6678EF),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              saved
-                                  ? "Stored on this device - tap to open"
-                                  : "Not added yet",
-                              style: TextStyle(
-                                color: Colors.blueGrey.shade500,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (saved)
-                        IconButton(
-                          onPressed: () => _openDocument(title),
-                          icon: const Icon(
-                            Icons.visibility_rounded,
-                            color: Color(0xFF2A5EE8),
-                          ),
-                        ),
-                      TextButton(
-                        onPressed: () => _pickDocument(title),
-                        child: Text(saved ? "Replace" : "Add"),
-                      ),
-                      if (saved)
-                        IconButton(
-                          onPressed: () => _removeDocument(title),
-                          icon: const Icon(
-                            Icons.delete_outline_rounded,
-                            color: Colors.red,
-                          ),
-                        ),
-                    ],
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
                   ),
                 ),
-              );
-            },
+                const SizedBox(height: 3),
+                Text(
+                  saved ? "Added - tap view to check" : "Not added yet",
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade500,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (saving)
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else ...[
+            if (saved)
+              IconButton(
+                tooltip: "View",
+                onPressed: () => _openDocument(document),
+                icon: const Icon(
+                  Icons.visibility_rounded,
+                  color: Color(0xFF2A5EE8),
+                ),
+              ),
+            TextButton(
+              onPressed: () => _pickDocument(docType),
+              child: Text(saved ? "Replace" : "Add"),
+            ),
+            if (saved)
+              IconButton(
+                tooltip: "Remove",
+                onPressed: () => _removeDocument(document),
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _messageCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF2A5EE8)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

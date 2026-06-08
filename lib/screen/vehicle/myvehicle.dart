@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
+import 'package:parkingmudde/screen/vehicle/transfer_vehicle.dart';
 import 'package:parkingmudde/screen/vehicle/vehicledetail.dart';
 import 'package:parkingmudde/services/api_service.dart';
 
@@ -14,6 +15,7 @@ class MyVehiclesScreen extends StatefulWidget {
 
 class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
   List<dynamic> vehicles = [];
+  List<dynamic> pendingTransfers = [];
   bool isLoading = true;
 
   @override
@@ -32,16 +34,18 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
       if (storedUserId == null || storedUserId.isEmpty) {
         setState(() {
           vehicles = [];
+          pendingTransfers = [];
           isLoading = false;
         });
         return;
       }
 
-      userId = storedUserId;
-      final data = await ApiService.getMyVehicles(userId);
+      final fetchedVehicles = await ApiService.getMyVehicles(storedUserId);
+      final fetchedPending = await ApiService.getPendingTransfers(storedUserId);
 
       setState(() {
-        vehicles = data;
+        vehicles = fetchedVehicles;
+        pendingTransfers = fetchedPending;
         isLoading = false;
       });
     } catch (e) {
@@ -91,7 +95,7 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
           ? null
           : FloatingActionButton.extended(
               onPressed: () async {
-                await Get.to(() => const AddVehicleScreen());
+                await Get.to(() => const AddVehicleScreen(fromMyVehicles: true));
                 loadVehicles();
               },
               backgroundColor: const Color(0XFF184B8C),
@@ -140,6 +144,10 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (pendingTransfers.isNotEmpty) ...[
+                    ...pendingTransfers.map((p) => _pendingTransferCard(context, p)),
+                    const SizedBox(height: 16),
+                  ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -254,6 +262,105 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
   }
 
   /// 🔹 The Highly Enhanced Card Identity
+  Widget _pendingTransferCard(BuildContext context, dynamic transfer) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.orange.shade200, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.swap_horiz_rounded, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text(
+                "Incoming Transfer Request",
+                style: TextStyle(
+                  color: Colors.orange.shade800,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "${transfer['brand_name']} ${transfer['model_name']}",
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          _miniLicensePlateView(transfer['registration_number'] ?? ''),
+          const SizedBox(height: 8),
+          Text(
+            "From: ${transfer['sender_name']} (${transfer['sender_mobile']})",
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _respondToTransfer(transfer['id'], 'decline'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text("Decline"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _respondToTransfer(transfer['id'], 'accept'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text("Accept", style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Future<void> _respondToTransfer(String transferId, String action) async {
+    setState(() => isLoading = true);
+    final res = await ApiService.respondToTransfer(transferId: transferId, action: action);
+    if (res['success'] == true) {
+      Get.snackbar(
+        action == 'accept' ? "Transfer Accepted" : "Transfer Declined",
+        res['message'] ?? "",
+        backgroundColor: action == 'accept' ? Colors.green.shade600 : Colors.orange.shade600,
+        colorText: Colors.white,
+      );
+      await loadVehicles();
+    } else {
+      Get.snackbar("Error", res['message'] ?? "Action failed");
+      setState(() => isLoading = false);
+    }
+  }
+
   Widget _vehicleCard(BuildContext context, dynamic vehicle) {
     String fullName =
         "${vehicle['owner_first_name']} ${vehicle['owner_last_name']}";
@@ -367,8 +474,8 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                     _chip(vehicle['vehicle_type'] ?? 'Unknown'),
                     const SizedBox(width: 8),
                     _statusChip(
-                      true,
-                    ), // 🔥 Configurable as asked in code natively
+                      vehicle['transfer_status'] == 'pending' ? 'transfer_pending' : 'verified',
+                    ),
                   ],
                 ),
               ],
@@ -472,30 +579,43 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
     );
   }
 
-  Widget _statusChip(bool verified) {
+  Widget _statusChip(String status) {
+    bool isTransferPending = status == 'transfer_pending';
+    bool verified = status == 'verified';
+
+    Color bgColor = isTransferPending
+        ? Colors.orange.shade50
+        : (verified ? Colors.green.shade50 : Colors.red.shade50);
+    Color borderColor = isTransferPending
+        ? Colors.orange.withValues(alpha: 0.2)
+        : (verified ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2));
+    Color iconColor = isTransferPending
+        ? Colors.orange.shade700
+        : (verified ? Colors.green.shade600 : Colors.red.shade600);
+    IconData iconData = isTransferPending
+        ? Icons.sync_rounded
+        : (verified ? Icons.check_circle_rounded : Icons.info);
+    String label = isTransferPending
+        ? "Transfer Pending"
+        : (verified ? "Verified" : "Pending");
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: verified ? Colors.green.shade50 : Colors.orange.shade50,
+        color: bgColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: (verified ? Colors.green : Colors.orange).withOpacity(0.2),
-        ),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
-          Icon(
-            verified ? Icons.check_circle_rounded : Icons.info,
-            size: 10,
-            color: verified ? Colors.green.shade600 : Colors.orange.shade700,
-          ),
+          Icon(iconData, size: 10, color: iconColor),
           const SizedBox(width: 4),
           Text(
-            verified ? "Verified" : "Pending",
+            label,
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w900,
-              color: verified ? Colors.green.shade800 : Colors.orange.shade900,
+              color: iconColor,
               letterSpacing: 0.3,
             ),
           ),
@@ -515,106 +635,76 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
         message: const Text(
           "Select operation parameters for the listed vehicle entity.",
         ),
-        actions: [
-          CupertinoActionSheetAction(
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.edit_note, color: CupertinoColors.activeBlue),
-                SizedBox(width: 8),
-                Text("Modify / Edit Info"),
-              ],
-            ),
-            onPressed: () async {
-              Navigator.pop(context);
-              final updated = await Get.to(() => AddVehicleScreen(edit: vehicle));
-              if (updated == true) {
-                await loadVehicles();
-                Get.snackbar(
-                  "Vehicle Updated",
-                  "Vehicle updated successfully",
-                  backgroundColor: Colors.green.shade600,
-                  colorText: Colors.white,
-                );
-              }
-            },
-          ),
-          CupertinoActionSheetAction(
-            isDestructiveAction: true,
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.delete_sweep_rounded,
-                  color: CupertinoColors.destructiveRed,
-                ),
-                SizedBox(width: 8),
-                Text("Permanently Disconnect"),
-              ],
-            ),
-            onPressed: () async {
-              Navigator.pop(context);
-              final user = await ApiService.getStoredUser();
-              final userId = user?["user_id"]?.toString() ?? "";
-              final vehicleId = vehicle["id"]?.toString() ?? "";
-
-              if (userId.isEmpty || vehicleId.isEmpty) {
-                Get.snackbar("Error", "Unable to identify vehicle.");
-                return;
-              }
-
-              // Quick confirm dialog
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (dialogCtx) => AlertDialog(
-                  title: const Text("Remove Vehicle"),
-                  content: Text(
-                    "Are you sure you want to remove vehicle "
-                    "${vehicle['registration_number'] ?? ''}?",
+        actions: vehicle['transfer_status'] == 'pending'
+            ? [
+                CupertinoActionSheetAction(
+                  isDestructiveAction: true,
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.cancel, color: CupertinoColors.destructiveRed),
+                      SizedBox(width: 8),
+                      Text("Cancel Transfer"),
+                    ],
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogCtx, false),
-                      child: const Text("Cancel"),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogCtx, true),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
-                      child: const Text("Remove"),
-                    ),
-                  ],
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    // Mock cancel API logic
+                    Get.snackbar(
+                      "Transfer Cancelled",
+                      "The transfer request has been revoked.",
+                      backgroundColor: Colors.orange.shade700,
+                      colorText: Colors.white,
+                    );
+                    await loadVehicles();
+                  },
                 ),
-              );
-
-              if (confirmed != true) return;
-
-              final result = await ApiService.deleteVehicle(
-                vehicleId: vehicleId,
-                userId: userId,
-                reason: "Removed via garage",
-              );
-
-              if (result["success"] == true) {
-                await loadVehicles();
-                Get.snackbar(
-                  "Vehicle Removed",
-                  "The vehicle has been removed from your garage.",
-                  backgroundColor: Colors.red.shade600,
-                  colorText: Colors.white,
-                );
-              } else {
-                Get.snackbar(
-                  "Error",
-                  result["message"] ?? "Failed to remove vehicle.",
-                  backgroundColor: Colors.orange.shade700,
-                  colorText: Colors.white,
-                );
-              }
-            },
-          ),
-        ],
+              ]
+            : [
+                CupertinoActionSheetAction(
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.edit_note, color: CupertinoColors.activeBlue),
+                      SizedBox(width: 8),
+                      Text("Modify / Edit Info"),
+                    ],
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    final updated = await Get.to(() => AddVehicleScreen(edit: vehicle, fromMyVehicles: true));
+                    if (updated == true) {
+                      await loadVehicles();
+                      Get.snackbar(
+                        "Vehicle Updated",
+                        "Vehicle updated successfully",
+                        backgroundColor: Colors.green.shade600,
+                        colorText: Colors.white,
+                      );
+                    }
+                  },
+                ),
+                CupertinoActionSheetAction(
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.swap_horiz_rounded,
+                        color: CupertinoColors.activeBlue,
+                      ),
+                      SizedBox(width: 8),
+                      Text("Transfer Ownership"),
+                    ],
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    final updated = await Get.to(() => TransferVehicleScreen(vehicle: vehicle));
+                    if (updated == true) {
+                      await loadVehicles();
+                    }
+                  },
+                ),
+              ],
         cancelButton: CupertinoActionSheetAction(
           isDefaultAction: true,
           child: const Text("Abort Operation"),

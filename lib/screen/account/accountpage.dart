@@ -11,6 +11,7 @@ import 'package:parkingmudde/screen/booking/mybookingspage.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/auth/loginpage.dart';
 import 'package:parkingmudde/screen/notification/notificationpage.dart';
+import 'package:parkingmudde/screen/parkingAlert/parkingalertpage.dart';
 import 'package:parkingmudde/screen/Referal/referalpage.dart';
 import 'package:parkingmudde/screen/vehicle/myvehicle.dart';
 import 'package:parkingmudde/screen/wallet/walletpage.dart';
@@ -29,6 +30,8 @@ class _AccountpageState extends State<Accountpage> {
   int walletCoins = 0;
   int vehicleCount = 0;
   int bookingCount = 0;
+  int alertsRaisedByCount = 0;
+  int alertsAgainstCount = 0;
   Map<String, dynamic>? communityProfile;
 
   // Clean unified extraction constants natively mapping layouts
@@ -72,12 +75,18 @@ class _AccountpageState extends State<Accountpage> {
     final vehicles = await ApiService.getMyVehicles(userId);
     final bookings = await ApiService.getMyBookings(userId);
     final community = await ApiService.getMyCommunity(userId);
+    final alerts = await ApiService.getParkingAlerts(userId);
+    final alertCounts = alerts["counts"] is Map ? alerts["counts"] as Map : {};
 
     if (!mounted) return;
     setState(() {
       walletCoins = int.tryParse(wallet["balance"]?.toString() ?? "0") ?? 0;
       vehicleCount = vehicles.length;
       bookingCount = bookings.length;
+      alertsRaisedByCount =
+          int.tryParse(alertCounts["raised_by_you"]?.toString() ?? "0") ?? 0;
+      alertsAgainstCount =
+          int.tryParse(alertCounts["against_you"]?.toString() ?? "0") ?? 0;
       communityProfile = community;
     });
   }
@@ -126,6 +135,10 @@ class _AccountpageState extends State<Accountpage> {
 
               const SizedBox(height: 24),
 
+              _buildAlertCountsCard(),
+
+              const SizedBox(height: 24),
+
               _buildCommunityParkingCard(),
 
               const SizedBox(height: 40),
@@ -157,8 +170,8 @@ class _AccountpageState extends State<Accountpage> {
               ),
               _buildModernNavRowItem(
                 icon: Icons.library_books_rounded,
-                title: "Documents",
-                subtitle: "Driving Licence, RC",
+                title: "Identity & Vehicle Documents",
+                subtitle: "Aadhaar, Driving Licence, RC",
                 bgColor: const Color(0xFFEBEEFB),
                 iconColor: const Color(0xFF6678EF),
                 onTap: () => Get.to(() => const VehicleDocumentsPage()),
@@ -528,6 +541,100 @@ class _AccountpageState extends State<Accountpage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAlertCountsCard() {
+    return InkWell(
+      onTap: () => Get.to(() => const AlertsScreen()),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: primaryBlue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.warning_rounded, color: primaryBlue),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Parking Alert History",
+                    style: TextStyle(
+                      color: textBlack,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _alertCountPill("Raised by you", alertsRaisedByCount),
+                      const SizedBox(width: 8),
+                      _alertCountPill("Against you", alertsAgainstCount),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Color(0xFFC0CAD8),
+              size: 14,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _alertCountPill(String label, int value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value.toString(),
+              style: const TextStyle(
+                color: textBlack,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: subTextGrey,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -4,10 +4,14 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/screen/vehicle/myvehicle.dart';
+import 'package:parkingmudde/screen/homepage/mainpage.dart';
+import 'package:parkingmudde/utils/vehicle_data.dart';
 
 class AddVehicleScreen extends StatefulWidget {
   final dynamic edit;
-  const AddVehicleScreen({super.key, this.edit});
+  final bool fromRegistration;
+  final bool fromMyVehicles;
+  const AddVehicleScreen({super.key, this.edit, this.fromRegistration = false, this.fromMyVehicles = false});
 
   @override
   State<AddVehicleScreen> createState() => _AddVehicleScreenState();
@@ -16,16 +20,26 @@ class AddVehicleScreen extends StatefulWidget {
 class _AddVehicleScreenState extends State<AddVehicleScreen> {
   // Toggle states seamlessly bound internally for UI representation matching mockups
   int selectedRole = 0; // 0 for Owner, 1 for Driver
+  int selectedVehicleType = 0; // Car(0), Bike(1), Scooter(2), Commercial(3)
   int selectedFuel = 0; // Petrol(0), Diesel(1), CNG(2), Electric(3)
 
+  final List<String> vehicleTypeOptions = ["Car", "Bike", "Scooter", "Commercial"];
   final List<String> fuelOptions = ["Petrol", "Diesel", "CNG", "Electric"];
 
   // Mapping physical UI Figma inputs securely safely matching backend requirement limits
   final vehNumController = TextEditingController();
-  final brandController =
-      TextEditingController(); // Maps internally safely as 'firstName' placeholder mapping functionality limits mapping boundaries space mapping mapped constraint layout bound form
-  final modelController =
-      TextEditingController(); // Maps internally safely as 'lastName' mapping
+  final descriptionController = TextEditingController();
+  final kmDrivenController = TextEditingController();
+  final pollutionExpiryController = TextEditingController();
+  final ownerNameController = TextEditingController();
+  final customBrandController = TextEditingController();
+  final customModelController = TextEditingController();
+  bool isOtherBrand = false;
+  bool isOtherModel = false;
+  String selectedBrand = "";
+  String selectedModel = "";
+  int brandKey = 0; 
+  int modelKey = 0;
   final yearController = TextEditingController();
   final regController =
       TextEditingController(); // Strict Original DB property maps
@@ -86,25 +100,51 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
 
     _hasPrefilledEditVehicle = true;
     final role = vehicle["owner_role"]?.toString().toLowerCase();
-    final fuel = (vehicle["fuel_type"] ?? vehicle["vehicle_type"])?.toString();
+    final vehicleType = vehicle["vehicle_type"]?.toString();
+    final fuel = vehicle["fuel_type"]?.toString();
+    final vehicleTypeIndex = vehicleTypeOptions.indexWhere(
+      (option) => option.toLowerCase() == vehicleType?.toLowerCase(),
+    );
     final fuelIndex = fuelOptions.indexWhere(
       (option) => option.toLowerCase() == fuel?.toLowerCase(),
     );
 
     selectedRole = role == "driver" ? 1 : 0;
+    selectedVehicleType =
+        vehicleTypeIndex >= 0 ? vehicleTypeIndex : selectedVehicleType;
     selectedFuel = fuelIndex >= 0 ? fuelIndex : selectedFuel;
     vehNumController.text = vehicle["vehicle_number"]?.toString() ?? "";
-    brandController.text =
-        vehicle["brand_name"]?.toString() ??
-        vehicle["owner_first_name"]?.toString() ??
-        "";
-    modelController.text =
-        vehicle["model_name"]?.toString() ??
-        vehicle["owner_last_name"]?.toString() ??
-        "";
+    
+    final initialBrand = vehicle["brand_name"]?.toString() ?? vehicle["owner_first_name"]?.toString() ?? "";
+    final initialModel = vehicle["model_name"]?.toString() ?? vehicle["owner_last_name"]?.toString() ?? "";
+    
+    final currentType = vehicleTypeOptions[selectedVehicleType];
+    final availableBrands = VehicleData.indianVehicleData[currentType]?.keys.toList() ?? [];
+    
+    if (initialBrand.isNotEmpty && !availableBrands.contains(initialBrand)) {
+        isOtherBrand = true;
+        selectedBrand = "Others";
+        customBrandController.text = initialBrand;
+    } else {
+        selectedBrand = initialBrand;
+    }
+    
+    final availableModels = VehicleData.indianVehicleData[currentType]?[selectedBrand] ?? [];
+    if (initialModel.isNotEmpty && !availableModels.contains(initialModel)) {
+        isOtherModel = true;
+        selectedModel = "Others";
+        customModelController.text = initialModel;
+    } else {
+        selectedModel = initialModel;
+    }
+
     yearController.text = vehicle["purchase_year"]?.toString() ?? "";
+    descriptionController.text = vehicle["description"]?.toString() ?? "";
+    kmDrivenController.text = vehicle["km_driven"]?.toString() ?? "";
     regController.text = vehicle["registration_number"]?.toString() ?? "";
     expiryController.text = vehicle["insurance_expiry_date"]?.toString() ?? "";
+    pollutionExpiryController.text =
+        vehicle["pollution_expiry_date"]?.toString() ?? "";
     mobileController.text = vehicle["registered_mobile"]?.toString() ?? "";
     relationshipController.text =
         vehicle["owner_relationship"]?.toString() ?? "";
@@ -113,8 +153,12 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
   @override
   void dispose() {
     vehNumController.dispose();
-    brandController.dispose();
-    modelController.dispose();
+    descriptionController.dispose();
+    kmDrivenController.dispose();
+    pollutionExpiryController.dispose();
+    ownerNameController.dispose();
+    customBrandController.dispose();
+    customModelController.dispose();
     yearController.dispose();
     regController.dispose();
     expiryController.dispose();
@@ -125,15 +169,32 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
 
   // --- Strict compliance unaltered functionally retaining Original Network Hooks boundary constraint logic spaces bounds limits ---
   Future<void> _handleSubmit() async {
-    print("🔵 Submit Button Clicked");
+    final finalBrand = isOtherBrand ? customBrandController.text.trim() : selectedBrand.trim();
+    final finalModel = isOtherModel ? customModelController.text.trim() : selectedModel.trim();
 
-    if (brandController.text.isEmpty ||
-        modelController.text.isEmpty ||
-        regController.text.isEmpty ||
-        mobileController.text.isEmpty) {
+    if (vehNumController.text.trim().isEmpty ||
+        finalBrand.isEmpty ||
+        finalModel.isEmpty ||
+        yearController.text.trim().isEmpty ||
+        regController.text.trim().isEmpty ||
+        expiryController.text.trim().isEmpty ||
+        pollutionExpiryController.text.trim().isEmpty) {
       Get.snackbar(
         "Validation",
-        "Please fill essential form vehicle detail inputs required.",
+        "Please fill all required vehicle details.",
+        backgroundColor: Colors.redAccent,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (selectedRole == 1 &&
+        (ownerNameController.text.trim().isEmpty ||
+            mobileController.text.trim().isEmpty ||
+            relationshipController.text.trim().isEmpty)) {
+      Get.snackbar(
+        "Driver Verification",
+        "Please enter vehicle owner name, owner mobile number and relationship.",
         backgroundColor: Colors.redAccent,
         colorText: Colors.white,
       );
@@ -152,14 +213,22 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
       return;
     }
 
-    final insuranceExpiryYear = int.tryParse(expiryController.text.trim());
-    if (insuranceExpiryYear != null && insuranceExpiryYear < currentYear) {
+    final registeredMobile = selectedRole == 1
+        ? mobileController.text.trim()
+        : (suggestedMobileNumber?.isNotEmpty == true
+              ? suggestedMobileNumber!
+              : mobileController.text.trim());
+
+    if (registeredMobile.replaceAll(RegExp(r'[^0-9]'), '').length != 10) {
       Get.snackbar(
-        "Insurance Renewal Needed",
-        "Your insurance looks expired. Please renew your insurance.",
-        backgroundColor: Colors.orange.shade700,
+        "Owner Mobile Required",
+        selectedRole == 1
+            ? "Enter a valid 10-digit vehicle owner mobile number."
+            : "Your account mobile number is missing. Please enter owner mobile number.",
+        backgroundColor: Colors.redAccent,
         colorText: Colors.white,
       );
+      return;
     }
 
     setState(() => isLoading = true);
@@ -178,30 +247,36 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
           ? await ApiService.updateVehicle(
               vehicleId: editVehicleId!,
               userId: userId,
-              firstName: brandController.text.trim(),
-              lastName: modelController.text.trim(),
-              vehicleType: fuelOptions[selectedFuel],
+              firstName: finalBrand,
+              lastName: finalModel,
+              vehicleType: vehicleTypeOptions[selectedVehicleType],
+              fuelType: fuelOptions[selectedFuel],
               registrationNumber: regController.text.trim(),
-              registeredMobile: mobileController.text.trim(),
+              registeredMobile: registeredMobile,
               ownerRole: selectedRole == 0 ? "Owner" : "Driver",
               vehicleNumber: vehNumController.text.trim(),
               purchaseYear: yearController.text.trim(),
+              description: descriptionController.text.trim(),
+              kmDriven: kmDrivenController.text.trim(),
               insuranceExpiryDate: expiryController.text.trim(),
+              pollutionExpiryDate: pollutionExpiryController.text.trim(),
               ownerRelationship: relationshipController.text.trim(),
             )
           : await ApiService.addVehicle(
         userId: userId,
-        firstName: brandController.text
-            .trim(), // Safely fulfilled parameters limit space mapping boundary logic bounds mapping layouts mappings constraint spaces bound bounds boundaries standard layouts mapping boundaries limits standard layout mapping mapping bound layouts
-        lastName: modelController.text.trim(),
-        vehicleType:
-            fuelOptions[selectedFuel], // Adapted structurally matching boundaries maps boundaries maps mapping mappings mappings bound mapped constraint spaces forms form constraints layout form spaces mappings boundaries spaces form form layout forms limits maps standard mapping layout limit mappings bounds mappings boundaries limits bounds space spaces limits space mapping limits limits boundaries limit
+        firstName: finalBrand,
+        lastName: finalModel,
+        vehicleType: vehicleTypeOptions[selectedVehicleType],
+        fuelType: fuelOptions[selectedFuel],
         registrationNumber: regController.text.trim(),
-        registeredMobile: mobileController.text.trim(),
+        registeredMobile: registeredMobile,
         ownerRole: selectedRole == 0 ? "Owner" : "Driver",
         vehicleNumber: vehNumController.text.trim(),
         purchaseYear: yearController.text.trim(),
+        description: descriptionController.text.trim(),
+        kmDriven: kmDrivenController.text.trim(),
         insuranceExpiryDate: expiryController.text.trim(),
+        pollutionExpiryDate: pollutionExpiryController.text.trim(),
         ownerRelationship: relationshipController.text.trim(),
       );
 
@@ -215,7 +290,13 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
             backgroundColor: Colors.green.shade600,
             colorText: Colors.white,
           );
-          Get.off(() => const MyVehiclesScreen());
+          if (widget.fromRegistration) {
+            Get.offAll(() => const Dash());
+          } else if (widget.fromMyVehicles) {
+            Get.back(result: true);
+          } else {
+            Get.off(() => const MyVehiclesScreen());
+          }
         }
       } else {
         Get.snackbar(
@@ -227,7 +308,6 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
         );
       }
     } catch (e) {
-      print("🔴 API Error: $e");
       Get.snackbar(
         "Error",
         "Connectivity resolution constraint breakdown maps layout forms mapped constraints bound forms constraints boundaries maps mappings limits limit mapping constraints form mappings limits boundary forms limits boundary map: $e",
@@ -251,7 +331,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
           scrolledUnderElevation:
               0, // Clears scroll artifacts layouts mappings mapped map standard
           titleSpacing: 0,
-          leading: IconButton(
+          leading: widget.fromRegistration ? null : IconButton(
             icon: const Icon(
               Icons.arrow_back,
               color: textBlack,
@@ -291,31 +371,138 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
 
                       const SizedBox(height: 24),
 
-                      _buildFigmaFieldLabel("Vehicle Number"),
+                      _buildFigmaFieldLabel("Vehicle Name *"),
                       _buildFigmaTextInput(
                         vehNumController,
-                        "Input Vehicle Vehicle Number",
+                        "Up to 9 characters",
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(9),
+                        ],
                       ), // Matched native precise typographic forms constraint limit
+
+                      const SizedBox(height: 20),
+
+                      _buildFigmaFieldLabel("Vehicle Type"),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(vehicleTypeOptions.length, (index) {
+                          final isVehicleTypeSelected =
+                              selectedVehicleType == index;
+                          return InkWell(
+                            onTap: () {
+                                setState(() {
+                                    selectedVehicleType = index;
+                                    selectedBrand = "";
+                                    selectedModel = "";
+                                    isOtherBrand = false;
+                                    isOtherModel = false;
+                                    brandKey++;
+                                    modelKey++;
+                                });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 13,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isVehicleTypeSelected
+                                    ? primaryBlue
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isVehicleTypeSelected
+                                      ? primaryBlue
+                                      : borderGrey,
+                                  width: 1.2,
+                                ),
+                              ),
+                              child: Text(
+                                vehicleTypeOptions[index],
+                                style: TextStyle(
+                                  color: isVehicleTypeSelected
+                                      ? Colors.white
+                                      : textBlack,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      _buildFigmaFieldLabel("Brand Name *"),
+                      _buildSearchableDropdown(
+                        key: ValueKey("brand_$brandKey"),
+                        hintText: "Select or search brand",
+                        initialValue: selectedBrand,
+                        options: [
+                          ...(VehicleData.indianVehicleData[vehicleTypeOptions[selectedVehicleType]]?.keys ?? []),
+                          "Others"
+                        ],
+                        onSelected: (val) {
+                          setState(() {
+                            selectedBrand = val;
+                            isOtherBrand = val == "Others";
+                            selectedModel = "";
+                            isOtherModel = false;
+                            modelKey++;
+                          });
+                        },
+                      ),
+
+                      if (isOtherBrand) ...[
+                        const SizedBox(height: 14),
+                        _buildFigmaFieldLabel("Custom Brand Name *"),
+                        _buildFigmaTextInput(
+                          customBrandController,
+                          "Enter brand name",
+                        ),
+                      ],
 
                       const SizedBox(height: 14),
 
-                      _buildFigmaFieldLabel("Brand Name"),
+                      _buildFigmaFieldLabel("Model Name *"),
+                      _buildSearchableDropdown(
+                        key: ValueKey("model_$modelKey"),
+                        hintText: "Select or search model",
+                        initialValue: selectedModel,
+                        options: [
+                          ...(VehicleData.indianVehicleData[vehicleTypeOptions[selectedVehicleType]]?[selectedBrand] ?? []),
+                          "Others"
+                        ],
+                        onSelected: (val) {
+                          setState(() {
+                            selectedModel = val;
+                            isOtherModel = val == "Others";
+                          });
+                        },
+                      ),
+
+                      if (isOtherModel) ...[
+                        const SizedBox(height: 14),
+                        _buildFigmaFieldLabel("Custom Model Name *"),
+                        _buildFigmaTextInput(
+                          customModelController,
+                          "Enter model name",
+                        ),
+                      ],
+
+                      const SizedBox(height: 14),
+
+                      _buildFigmaFieldLabel("Description"),
                       _buildFigmaTextInput(
-                        brandController,
-                        "Input Vehicle Brand Name",
+                        descriptionController,
+                        "Provide a short description",
                       ),
 
                       const SizedBox(height: 14),
 
-                      _buildFigmaFieldLabel("Model Name"),
-                      _buildFigmaTextInput(
-                        modelController,
-                        "Input Brand Name",
-                      ), // Accurately preserving typo placeholder from UI boundary bounds spaces constraints map boundary forms mapping bounds mappings boundaries bounds
-
-                      const SizedBox(height: 14),
-
-                      _buildFigmaFieldLabel("Year of Purchase"),
+                      _buildFigmaFieldLabel("Year of Purchase *"),
                       _buildFigmaTextInput(
                         yearController,
                         "Input Purchase Year",
@@ -326,8 +513,21 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
                         ],
                       ),
 
+                      const SizedBox(height: 14),
+
+                      _buildFigmaFieldLabel("KM Driven"),
+                      _buildFigmaTextInput(
+                        kmDrivenController,
+                        "Provide KM driven",
+                        inputType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                      ),
+
                       const SizedBox(height: 20),
 
+                      _buildFigmaFieldLabel("Fuel Type *"),
                       // Identical Blue Full Range Chips row bounds mapping maps spaces bounds bounds bounds space maps
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -373,7 +573,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
 
                       const SizedBox(height: 20),
 
-                      _buildFigmaFieldLabel("Vehicle Registration No."),
+                      _buildFigmaFieldLabel("Vehicle Registration No. *"),
                       _buildFigmaTextInput(
                         regController,
                         "Vehicle Registration No.",
@@ -381,22 +581,55 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
 
                       const SizedBox(height: 14),
 
-                      _buildFigmaFieldLabel("Insurance Expiry Date"),
+                      _buildFigmaFieldLabel("Insurance Expiry Date *"),
                       _buildFigmaTextInput(
                         expiryController,
-                        "Insurance Expiry Year",
-                        inputType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(4),
-                        ],
+                        "Select insurance expiry date",
+                        readOnly: true,
+                        onTap: () => _selectDate(expiryController),
                       ),
 
                       const SizedBox(height: 14),
 
-                      _buildFigmaFieldLabel("Owners Mobile No."),
-                      if (suggestedMobileNumber != null &&
-                          suggestedMobileNumber!.isNotEmpty)
+                      _buildFigmaFieldLabel("Pollution Expiry Date *"),
+                      _buildFigmaTextInput(
+                        pollutionExpiryController,
+                        "Select pollution expiry date",
+                        readOnly: true,
+                        onTap: () => _selectDate(pollutionExpiryController),
+                      ),
+
+                      if (selectedRole == 0 &&
+                          (suggestedMobileNumber == null ||
+                              suggestedMobileNumber!.isEmpty)) ...[
+                        const SizedBox(height: 14),
+
+                        _buildFigmaFieldLabel("Registered Mobile No. *"),
+                        _buildFigmaTextInput(
+                          mobileController,
+                          "Enter registered mobile number",
+                          inputType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(10),
+                          ],
+                        ),
+                      ],
+
+                      if (selectedRole == 1) ...[
+                        const SizedBox(height: 14),
+
+                        _buildFigmaFieldLabel("Vehicle Owner Name *"),
+                        _buildFigmaTextInput(
+                          ownerNameController,
+                          "Enter vehicle owner name",
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        _buildFigmaFieldLabel("Vehicle Owner Mobile No. *"),
+                        if (suggestedMobileNumber != null &&
+                            suggestedMobileNumber!.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Align(
@@ -410,23 +643,24 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
                             ),
                           ),
                         ),
-                      _buildFigmaTextInput(
-                        mobileController,
-                        "Owners Mobile No.",
-                        inputType: TextInputType.phone,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(10),
-                        ],
-                      ),
+                        _buildFigmaTextInput(
+                          mobileController,
+                          "Vehicle owner mobile number",
+                          inputType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(10),
+                          ],
+                        ),
 
-                      const SizedBox(height: 14),
+                        const SizedBox(height: 14),
 
-                      _buildFigmaFieldLabel("Owner Relationship"),
-                      _buildFigmaTextInput(
-                        relationshipController,
-                        "Owner Relationship",
-                      ),
+                        _buildFigmaFieldLabel("Vehicle Owner Relationship *"),
+                        _buildFigmaTextInput(
+                          relationshipController,
+                          "Your relationship with owner",
+                        ),
+                      ],
 
                       const SizedBox(height: 24),
 
@@ -475,7 +709,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
                           )
                         : Text(
                             isEditing ? "Update Vehicle" : "Add Vehicle",
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 16,
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
@@ -498,7 +732,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
 
   Widget _buildRoleSelector() {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors
             .white, // No center bounds limits map mappings mapped layouts mapping boundary map
       ),
@@ -540,6 +774,17 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
     );
   }
 
+  Future<void> _selectDate(TextEditingController controller) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 30)),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(DateTime.now().year + 20),
+    );
+    if (picked == null) return;
+    controller.text = "${picked.day}-${picked.month}-${picked.year}";
+  }
+
   Widget _buildFigmaFieldLabel(String labelText) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 6),
@@ -561,6 +806,8 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
     String placeholderHint, {
     TextInputType inputType = TextInputType.text,
     List<TextInputFormatter>? inputFormatters,
+    bool readOnly = false,
+    VoidCallback? onTap,
   }) {
     return Container(
       height:
@@ -573,6 +820,8 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
       ),
       child: TextField(
         controller: controller,
+        readOnly: readOnly,
+        onTap: onTap,
         keyboardType: inputType,
         inputFormatters: inputFormatters,
         style: const TextStyle(
@@ -598,6 +847,88 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
           ),
         ),
       ),
+    );
+  }
+  Widget _buildSearchableDropdown({
+    Key? key,
+    required String hintText,
+    required String initialValue,
+    required List<String> options,
+    required void Function(String) onSelected,
+  }) {
+    return Autocomplete<String>(
+      key: key,
+      initialValue: TextEditingValue(text: initialValue),
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return options;
+        }
+        return options.where((String option) {
+          return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+        });
+      },
+      onSelected: onSelected,
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4.0,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: 200, 
+                maxWidth: MediaQuery.of(context).size.width - 40
+              ),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final option = options.elementAt(index);
+                  return InkWell(
+                    onTap: () {
+                      onSelected(option);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(option, style: const TextStyle(color: textBlack, fontSize: 14)),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            style: const TextStyle(fontSize: 14, color: textBlack, fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: const TextStyle(color: Color(0xFFC0CAD8), fontSize: 13, fontWeight: FontWeight.w400),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: borderGrey, width: 1.0),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: primaryBlue, width: 1.5),
+              ),
+              suffixIcon: const Icon(Icons.arrow_drop_down, color: primaryBlue),
+            ),
+          ),
+        );
+      },
     );
   }
 }

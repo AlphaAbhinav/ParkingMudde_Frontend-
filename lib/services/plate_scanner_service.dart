@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:parkingmudde/screen/common/plate_camera_capture.dart';
 
 class PlateScanResult {
   const PlateScanResult({
@@ -21,19 +25,64 @@ class PlateScannerService {
   final ImagePicker _picker;
   final RegExp _vehicleRegex = RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$');
   static final String _aiBaseUrl =
-      dotenv.env['AI_MODEL_URL'] ?? 'https://number-plate-reader.onrender.com';
+      dotenv.env['AI_MODEL_URL'] ??
+      'https://number-plate-reader-eovt.onrender.com';
 
-  Future<PlateScanResult?> scanFromCamera() async {
-    final photo = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 92,
-      preferredCameraDevice: CameraDevice.rear,
-    );
+  Future<PlateScanResult?> scanFromCamera({BuildContext? context}) async {
+    final photo = context == null
+        ? await _picker.pickImage(
+            source: ImageSource.camera,
+            imageQuality: 92,
+            maxWidth: 1280,
+            maxHeight: 1280,
+            preferredCameraDevice: CameraDevice.rear,
+          )
+        : await Navigator.of(context).push<XFile?>(
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => const PlateCameraCaptureScreen(),
+            ),
+          );
 
     if (photo == null) {
       return null;
     }
 
+    return scanPhoto(photo);
+  }
+
+  Future<PlateScanResult?> scanPhoto(XFile photo) async {
+    try {
+      final localResult = await _scanOnDevice(photo.path);
+      if (localResult != null && localResult.vehicleNumber.isNotEmpty) {
+        return localResult;
+      }
+    } catch (_) {
+      // Fall back to the remote reader on devices where ML Kit cannot process the image.
+    }
+
+    return _scanWithServerFallback(photo);
+  }
+
+  Future<PlateScanResult?> _scanOnDevice(String imagePath) async {
+    final inputImage = InputImage.fromFilePath(imagePath);
+    final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+
+    try {
+      final recognizedText = await textRecognizer.processImage(inputImage);
+      final rawText = recognizedText.text;
+      final vehicleNumber = extractVehicleNumber(rawText);
+
+      return PlateScanResult(
+        vehicleNumber: vehicleNumber ?? '',
+        rawText: rawText,
+      );
+    } finally {
+      await textRecognizer.close();
+    }
+  }
+
+  Future<PlateScanResult?> _scanWithServerFallback(XFile photo) async {
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('$_aiBaseUrl/read-number-plate'),
@@ -48,11 +97,13 @@ class PlateScannerService {
       ),
     );
 
-    final streamedResponse = await request.send();
+    final streamedResponse = await request.send().timeout(
+      const Duration(seconds: 60),
+    );
     final response = await http.Response.fromStream(streamedResponse);
 
     if (response.statusCode != 200) {
-      throw Exception('AI scan failed: ${response.statusCode}');
+      throw Exception('AI scan failed: ${response.statusCode} ${response.body}');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -72,6 +123,13 @@ class PlateScannerService {
     final compact = rawText.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
     if (compact.isEmpty) {
       return null;
+    }
+
+    final directMatch = RegExp(
+      r'[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}',
+    ).firstMatch(compact);
+    if (directMatch != null) {
+      return directMatch.group(0);
     }
 
     for (final length in const [10, 9]) {

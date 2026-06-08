@@ -21,6 +21,10 @@ class _NotificationpageState extends State<Notificationpage> {
     "Helped",
     "Bookings",
     "Coupons",
+    "Visitors",
+    "Packages",
+    "Updates",
+    "Tickets",
   ];
   String selectedFilter = "All";
   bool isLoading = true;
@@ -72,6 +76,10 @@ class _NotificationpageState extends State<Notificationpage> {
       if (selectedFilter == "Helped") return type == "HELPED_VEHICLE";
       if (selectedFilter == "Bookings") return type == "PARKING_BOOKING";
       if (selectedFilter == "Coupons") return type == "COUPON_PURCHASED";
+      if (selectedFilter == "Visitors") return type == "VISITOR_PASS";
+      if (selectedFilter == "Packages") return type == "WALLET_PACKAGE";
+      if (selectedFilter == "Updates") return type == "APP_UPDATE";
+      if (selectedFilter == "Tickets") return type == "SUPPORT_TICKET";
       return true;
     }).toList();
   }
@@ -100,7 +108,7 @@ class _NotificationpageState extends State<Notificationpage> {
           },
         ),
         title: const Text(
-          "Activities",
+          "Notifications",
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w900,
@@ -110,6 +118,7 @@ class _NotificationpageState extends State<Notificationpage> {
       ),
       body: Column(
         children: [
+          _notificationSummary(),
           _filterBar(),
           Expanded(
             child: RefreshIndicator(
@@ -120,6 +129,81 @@ class _NotificationpageState extends State<Notificationpage> {
                   : items.isEmpty
                       ? _emptyState()
                       : _activityList(items),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _notificationSummary() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: _summaryTile(
+              icon: Icons.notifications_active_rounded,
+              title: "App Updates",
+              value: notifications.length.toString(),
+              color: primaryBlue,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _summaryTile(
+              icon: Icons.confirmation_number_rounded,
+              title: "Query Tickets",
+              value: _ticketCount().toString(),
+              color: Colors.deepOrange.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryTile({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F8FA),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.blueGrey.shade600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -176,15 +260,19 @@ class _NotificationpageState extends State<Notificationpage> {
           size: 46,
         ),
         const SizedBox(height: 14),
-        const Center(
+        Center(
           child: Text(
-            "No activities yet",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+            selectedFilter == "Tickets"
+                ? "No query tickets yet"
+                : "No notifications yet",
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          "Vehicles, reports, helped vehicles, bookings, and coupon activity will appear here.",
+          selectedFilter == "Tickets"
+              ? "Tickets raised from Help & Support will appear here once support tracking is connected."
+              : "Vehicles, reports, visitors, bookings, packages, coupons, app updates, and support ticket activity will appear here.",
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13,
@@ -289,7 +377,11 @@ class _NotificationpageState extends State<Notificationpage> {
                     type == "VEHICLE_ADDED" ||
                     type == "VEHICLE_UPDATED" ||
                     type == "VEHICLE_DELETED" ||
-                    type == "COUPON_PURCHASED")
+                    type == "COUPON_PURCHASED" ||
+                    type == "WALLET_PACKAGE" ||
+                    type == "VISITOR_PASS" ||
+                    type == "APP_UPDATE" ||
+                    type == "SUPPORT_TICKET")
                   Text(
                     item["description"]?.toString() ?? "Activity update",
                     style: const TextStyle(
@@ -388,6 +480,10 @@ class _NotificationpageState extends State<Notificationpage> {
     if (type == "VEHICLE_UPDATED") return "Vehicle Updated";
     if (type == "VEHICLE_DELETED") return "Vehicle Removed";
     if (type == "COUPON_PURCHASED") return "Coupon Purchased";
+    if (type == "WALLET_PACKAGE") return "Wallet Package";
+    if (type == "VISITOR_PASS") return "Visitor Pass";
+    if (type == "APP_UPDATE") return "App Update";
+    if (type == "SUPPORT_TICKET") return "Query Ticket";
     if (type == "HELPED_VEHICLE") return "Helped Vehicle Owner";
     if (type == "PARKING_BOOKING") return "Parking Booking";
     if (status == "CONFIRMED") return "Wrong parking Confirmed";
@@ -433,6 +529,7 @@ class _NotificationpageState extends State<Notificationpage> {
       case "REJECTED":
         return "Rejected";
       case "PENDING":
+      case "REQUESTED":
         return "Pending";
       case "SENT":
         return "Sent";
@@ -447,6 +544,7 @@ class _NotificationpageState extends State<Notificationpage> {
       case "SUBMITTED":
       case "SENT":
       case "PENDING":
+      case "REQUESTED":
         return Colors.orange.shade700;
       case "REJECTED":
         return Colors.red.shade600;
@@ -463,6 +561,14 @@ class _NotificationpageState extends State<Notificationpage> {
         return const Color(0xFFA855F7);
       case "COUPON_PURCHASED":
         return const Color(0xFFF97316);
+      case "WALLET_PACKAGE":
+        return const Color(0xFF2563EB);
+      case "VISITOR_PASS":
+        return const Color(0xFF0F766E);
+      case "APP_UPDATE":
+        return const Color(0xFF7C3AED);
+      case "SUPPORT_TICKET":
+        return const Color(0xFFEA580C);
       case "VEHICLE_ADDED":
       case "VEHICLE_UPDATED":
         return const Color(0xFF2A5EE8);
@@ -481,6 +587,14 @@ class _NotificationpageState extends State<Notificationpage> {
         return Icons.local_parking_rounded;
       case "COUPON_PURCHASED":
         return Icons.card_giftcard_rounded;
+      case "WALLET_PACKAGE":
+        return Icons.account_balance_wallet_rounded;
+      case "VISITOR_PASS":
+        return Icons.badge_rounded;
+      case "APP_UPDATE":
+        return Icons.campaign_rounded;
+      case "SUPPORT_TICKET":
+        return Icons.confirmation_number_rounded;
       case "VEHICLE_ADDED":
         return Icons.directions_car_filled_rounded;
       case "VEHICLE_UPDATED":
@@ -490,5 +604,11 @@ class _NotificationpageState extends State<Notificationpage> {
       default:
         return Icons.work_rounded;
     }
+  }
+
+  int _ticketCount() {
+    return notifications
+        .where((item) => item["type"]?.toString() == "SUPPORT_TICKET")
+        .length;
   }
 }

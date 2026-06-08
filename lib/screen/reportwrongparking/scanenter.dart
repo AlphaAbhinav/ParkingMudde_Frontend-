@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-// import 'package:parkingmudde/screen/homepage/mainpage.dart';
+import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scandetail.dart';
+import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/services/plate_scanner_service.dart';
+import 'package:parkingmudde/widgets/ad_banner.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class VehicleNumberInputScreen extends StatefulWidget {
   const VehicleNumberInputScreen({super.key});
@@ -14,47 +17,26 @@ class VehicleNumberInputScreen extends StatefulWidget {
 }
 
 class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
-  final TextEditingController vehicleController = TextEditingController();
   final PlateScannerService _plateScanner = PlateScannerService();
-  bool isValidVehicle = false;
   bool isScanningPlate = false;
-  bool isPristine =
-      true; // Tracks if user has started typing to hide errors early
 
-  /// Indian Vehicle Number Regex
-  final RegExp vehicleRegex = RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$');
+  // Primary Theme Extraction tied perfectly native visually mappings limits mappings map boundaries constraint map forms limit boundaries
+  static const Color primaryBlue = Color(0xFF2A5EE8);
+  static const Color textBlack = Color(0xFF1E212D);
+  static const Color textDarkGrey = Color(0xFF4B5563);
+  static const Color lightBlueBg = Color(0xFFEFF5FE);
+  static const Color borderGrey = Color(0xFFD2D2D2);
 
-  void validateVehicle(String value) {
-    // Kept your precise logic untouched
-    final text = value.replaceAll(" ", "").toUpperCase();
+  // --- Strict compliance to Camera Scan action preservation limits bound boundaries mapped constraint bounds limit boundary map maps limit map ---
+  Future<void> _scanNumberPlateAction() async {
+    if (isScanningPlate) return;
 
-    // Updates UI cursor dynamically based on exact format requested
-    vehicleController.value = vehicleController.value.copyWith(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-
-    setState(() {
-      isPristine = false;
-      isValidVehicle = vehicleRegex.hasMatch(text);
-    });
-  }
-
-  Future<void> scanNumberPlate() async {
-    if (isScanningPlate) {
-      return;
-    }
-
-    setState(() {
-      isScanningPlate = true;
-    });
+    setState(() => isScanningPlate = true);
 
     try {
-      final result = await _plateScanner.scanFromCamera();
+      final result = await _plateScanner.scanFromCamera(context: context);
 
-      if (!mounted || result == null) {
-        return;
-      }
+      if (!mounted || result == null) return;
 
       if (result.vehicleNumber.isEmpty) {
         Get.snackbar(
@@ -64,40 +46,391 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
           backgroundColor: Colors.amber.shade800,
           colorText: Colors.white,
           margin: const EdgeInsets.all(16),
-          borderRadius: 8,
+          borderRadius: 12,
         );
         return;
       }
 
-      validateVehicle(result.vehicleNumber);
-      Get.snackbar(
-        "Number Plate Scanned",
-        result.vehicleNumber,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green.shade700,
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-        borderRadius: 8,
-      );
+      // Format safely bounds standard layout mappings
+      final cleanPlate = result.vehicleNumber.replaceAll(" ", "").toUpperCase();
+
+      _openManualEntrySheet(initialVehicleNumber: cleanPlate);
     } catch (e) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       Get.snackbar(
         "Scan Failed",
-        "Camera text recognition could not read the plate. Please try again.",
+        "Camera text recognition could not read the plate. Please enter it manually.",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.redAccent,
         colorText: Colors.white,
         margin: const EdgeInsets.all(16),
-        borderRadius: 8,
+        borderRadius: 12,
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          isScanningPlate = false;
-        });
-      }
+      if (mounted) setState(() => isScanningPlate = false);
+    }
+  }
+
+  // Beautiful modern native bottom-sheet call layout forms
+  void _openManualEntrySheet({String? initialVehicleNumber}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalCtx) {
+        return _ManualVehicleEntrySheet(
+          initialVehicleNumber: initialVehicleNumber,
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: Colors
+            .white, // Exact stripped-down minimal form background mapping boundaries limits map constraint
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_rounded, // Match exactly image boundaries
+              color: textBlack,
+              size: 24,
+            ),
+            onPressed: () => Get.offAll(() => const Dash()),
+          ),
+          title: const Text(
+            "Report Wrong Parking",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: textBlack,
+              letterSpacing: 0.2,
+            ),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(color: const Color(0xFFF3F4F6), height: 1.5),
+          ),
+        ),
+        body: Stack(
+          children: [
+            SafeArea(
+              child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. TOP INFORMATION CARD boundaries mapping layouts boundaries standard map forms boundary mapped constraints
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: lightBlueBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: borderGrey,
+                      width: 1,
+                    ), // Exact replica constraints limits map layouts mapping spaces forms boundaries
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Clear the way peacefully.\nWe'll notify the vehicle owner privately\nso they can resolve the issue quickly.",
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                          fontWeight: FontWeight.w700,
+                          color: textBlack,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.verified_rounded,
+                            color: primaryBlue,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            "Your phone number is never shared.",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: textDarkGrey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // 2. PRIMARY SCAN TRIGGER BOX spaces mappings map constraints bounds layout limits mapping maps bound space bounds mapping forms boundaries boundaries forms maps map mapping standard boundary
+                InkWell(
+                  onTap: _scanNumberPlateAction,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderGrey, width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.01),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Scan Vehicle Number",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: textBlack,
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              "Fast and accurate",
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFDFE8FC,
+                            ), // Perfectly identical visual limits layouts boundary layouts
+                            shape: BoxShape.circle,
+                          ),
+                          child: isScanningPlate
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                    color: primaryBlue,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.camera_alt_rounded,
+                                  color: primaryBlue,
+                                  size: 24,
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+
+                    // 3. SECONDARY TEXT BUTTON FOR MANUAL TRIGGER
+                    Center(
+                      child: InkWell(
+                        onTap: () => _openManualEntrySheet(),
+                        child: const Text(
+                          "Enter Vehicle Number Manually",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: primaryBlue,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // AdB2 — Sponsored banner
+                    const AdBanner(
+                      accentColor: Color(0xFFB45309),
+                      brandName: "Your Brand Here",
+                      tagline:
+                          "Reach active drivers in your city. Partner with ParkingMudde.",
+                      logoIcon: Icons.directions_car_rounded,
+                    ),
+
+                    const Spacer(),
+
+                    // 4. BOTTOM SAFETY DISCLOSURE
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_rounded,
+                          color: Colors.grey.shade400,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            "Only report genuine parking issues to keep the\ncommunity responsible",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              height: 1.4,
+                              color: Color(0xFF9AA4B2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (isScanningPlate) _loadingOverlay(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _loadingOverlay() {
+    return Positioned.fill(
+      child: AbsorbPointer(
+        child: Container(
+          color: Colors.black.withOpacity(0.34),
+          child: Center(
+            child: Container(
+              width: 250,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.16),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 34,
+                    width: 34,
+                    child: CircularProgressIndicator(
+                      color: primaryBlue,
+                      strokeWidth: 3,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    "Reading number plate",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: textBlack,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    "Checking the captured photo with the AI model...",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────
+// MODAL BOTTOM SHEET WRAPPER FOR NATIVE INDIAN HSRP ENTRY! layout constraints limits map maps bound map forms limits constraint bounds forms
+// ──────────────────────────────────────────────────────────
+
+class _ManualVehicleEntrySheet extends StatefulWidget {
+  final String? initialVehicleNumber;
+
+  const _ManualVehicleEntrySheet({this.initialVehicleNumber});
+
+  @override
+  State<_ManualVehicleEntrySheet> createState() =>
+      _ManualVehicleEntrySheetState();
+}
+
+class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
+  final TextEditingController vehicleController = TextEditingController();
+  final RegExp vehicleRegex = RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$');
+
+  static const List<Map<String, String>> _reportIssues = [
+    {"code": "RESERVED_SPOT", "title": "Parked in my reserved spot"},
+    {"code": "BLOCKING_CAR_EXIT", "title": "Blocking my car / double parked"},
+    {"code": "NO_PARKING_ZONE", "title": "Parked in No Parking zone"},
+    {"code": "BLOCKING_GATE", "title": "Blocking society entry/exit gate"},
+    {"code": "BLOCKING_DRIVEWAY", "title": "Blocking driveway / ramp"},
+    {"code": "BLOCKING_FIRE_EXIT", "title": "Blocking fire exit"},
+    {"code": "BLOCKING_AMBULANCE", "title": "Blocking ambulance access"},
+    {"code": "FOOTPATH", "title": "Parked on footpath"},
+    {"code": "WRONG_SIDE", "title": "Parked on wrong side"},
+    {"code": "HANDICAPPED_SLOT", "title": "Parked in handicapped slot"},
+    {"code": "EV_CHARGING_SPOT", "title": "Parked in EV charging spot"},
+    {"code": "PEDESTRIAN_CROSSING", "title": "Parked on zebra crossing"},
+    {"code": "BLOCKING_SHOP", "title": "Blocking shop entrance / shutter"},
+    {"code": "BLOCKING_HOME", "title": "Parking in front of my house"},
+    {"code": "TRAFFIC_JAM", "title": "Parking causing traffic jam"},
+  ];
+
+  bool isValidVehicle = false;
+  bool isPristine = true;
+  bool isLookingUpVehicle = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final initialNumber = widget.initialVehicleNumber
+        ?.replaceAll(" ", "")
+        .toUpperCase();
+    if (initialNumber != null && initialNumber.isNotEmpty) {
+      vehicleController.value = TextEditingValue(
+        text: initialNumber,
+        selection: TextSelection.collapsed(offset: initialNumber.length),
+      );
+      isPristine = false;
+      isValidVehicle = vehicleRegex.hasMatch(initialNumber);
     }
   }
 
@@ -107,447 +440,551 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(
-        0xFFF6F8FA,
-      ), // Match super-app soft background theme
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        scrolledUnderElevation: 1,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Color(0XFF184B8C),
-            size: 22,
-          ),
-          onPressed: () => Get.back(),
-        ),
-        title: const Text(
-          "Report Wrong Parking", // Fixed Typo beautifully
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1E293B), // Sleek slate color for headings
-            letterSpacing: 0.3,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: Colors.grey.shade200,
-            height: 1,
-          ), // Thin hairline division
-        ),
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 24,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      /// 🔹 Interactive Professional Scanner Card
-                      buildScannerCard(),
+  void _validateVehicle(String value) {
+    final text = value.replaceAll(" ", "").toUpperCase();
 
-                      const SizedBox(height: 32),
+    // Smooth internal validation updates limits layout layout mapped mapping boundaries limits forms forms limit boundaries layout layout map
+    if (vehicleController.text != text) {
+      vehicleController.value = vehicleController.value.copyWith(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    }
+    setState(() {
+      isPristine = false;
+      isValidVehicle = vehicleRegex.hasMatch(text);
+    });
+  }
 
-                      /// 🔹 Elegant Section Divider
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Divider(
-                              color: Colors.grey.shade300,
-                              thickness: 1,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Text(
-                              "OR ENTER MANUALLY",
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey.shade500,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Divider(
-                              color: Colors.grey.shade300,
-                              thickness: 1,
-                            ),
-                          ),
-                        ],
-                      ),
+  Future<void> _onManualSubmit() async {
+    if (!isValidVehicle) return;
 
-                      const SizedBox(height: 32),
+    final vehicleNumber = vehicleController.text.toUpperCase();
+    setState(() => isLookingUpVehicle = true);
 
-                      /// 🔹 Stunning License Plate Replica Field
-                      buildIndianLicensePlateField(),
+    final result = await ApiService.lookupVehicleByNumber(vehicleNumber);
+    if (!mounted) return;
 
-                      const SizedBox(height: 20),
+    setState(() => isLookingUpVehicle = false);
 
-                      const SizedBox(
-                        height: 20,
-                      ), // Buffer before the floating action layout
-                      /// 🔹 Floating Action Continue Button
-                      buildActionFooter(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+    if (result["success"] == true && result["registered"] == true) {
+      Get.back();
+      _showReportIssueSelector(
+        vehicleNumber: vehicleNumber,
+        vehicleLookupData: result["data"] as Map<String, dynamic>?,
+      );
+      return;
+    }
+
+    if (result["registered"] == false) {
+      Get.back();
+      _showUnregisteredReportDialog(vehicleNumber);
+      return;
+    }
+
+    Get.snackbar(
+      "Lookup Failed",
+      result["message"]?.toString() ?? "Could not check this vehicle right now.",
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.redAccent,
+      colorText: Colors.white,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
     );
   }
 
-  /// Interactive Scanner layout with focus guides styling
-  Widget buildScannerCard() {
-    return InkWell(
-      onTap: isScanningPlate ? null : scanNumberPlate,
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-        decoration: BoxDecoration(
+  void _showReportIssueSelector({
+    required String vehicleNumber,
+    required Map<String, dynamic>? vehicleLookupData,
+  }) {
+    Get.bottomSheet(
+      Container(
+        constraints: BoxConstraints(
+          maxHeight: Get.height * 0.78,
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
-          border: Border.all(
-            color: const Color(0XFF184b8c).withOpacity(0.1),
-            width: 1.5,
-          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                // Soft background radial bubble for emphasis
-                Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    color: const Color(0XFF184b8c).withOpacity(0.08),
-                    shape: BoxShape.circle,
-                  ),
+            Center(
+              child: Container(
+                width: 42,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    color: Color(0XFF184b8c),
-                    shape: BoxShape.circle,
-                  ),
-                  child: isScanningPlate
-                      ? const SizedBox(
-                          width: 36,
-                          height: 36,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.document_scanner_rounded,
-                          size: 36,
-                          color: Colors.white,
-                        ),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              isScanningPlate ? "Reading Plate..." : "Scan Number Plate",
+            const SizedBox(height: 18),
+            const Text(
+              "Select parking mudde",
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.black87,
+                color: Color(0xFF1E212D),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 6),
             const Text(
-              "Place vehicle plate inside the camera frame\nfor fast & accurate reporting",
-              textAlign: TextAlign.center,
+              "Choose the issue you are facing before uploading proof.",
               style: TextStyle(
+                color: Color(0xFF6B7280),
                 fontSize: 13,
-                color: Colors.black54,
-                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: ListView.separated(
+                physics: const BouncingScrollPhysics(),
+                itemCount: _reportIssues.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final issue = _reportIssues[index];
+                  return InkWell(
+                    onTap: () {
+                      Get.back();
+                      Get.to(
+                        () => ReportProofScreen(
+                          typev: "report",
+                          vehicleNumber: vehicleNumber,
+                          vehicleLookupData: vehicleLookupData,
+                          selectedIssueTitle: issue["title"],
+                          selectedIssueCode: issue["code"],
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 13,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.report_problem_rounded,
+                            color: Color(0xFF2A5EE8),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              issue["title"]!,
+                              style: const TextStyle(
+                                color: Color(0xFF1E212D),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
         ),
       ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 
-  /// Visually identical input element built as a High Security Number Plate (IND plate)
-  Widget buildIndianLicensePlateField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Vehicle Registration Number",
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+  void _showUnregisteredReportDialog(String vehicleNumber) {
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text(
+          "Stuck with an unregistered vehicle?",
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
-        const SizedBox(height: 12),
-        Container(
-          height: 60,
-          decoration: BoxDecoration(
+        content: Text(
+          "$vehicleNumber is not registered with ParkingMudde yet. You can invite the owner or use SOS if the parking issue is urgent.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text("Close"),
+          ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              _showInviteVehicleOwnerSheet(vehicleNumber);
+            },
+            child: const Text("Invite Now"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final uri = Uri(scheme: "tel", path: "100");
+              await launchUrl(uri);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2A5EE8),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("SOS"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showInviteVehicleOwnerSheet(String vehicleNumber) {
+    final nameController = TextEditingController();
+    final mobileController = TextEditingController();
+
+    Get.bottomSheet(
+      Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+          decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(8), // Standard crisp borders
-            border: Border.all(
-              color: isPristine
-                  ? Colors.black45
-                  : (isValidVehicle ? Colors.green.shade600 : Colors.redAccent),
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 'IND' Blue Strip area found on real Indian plates
-              Container(
-                width: 32,
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade800,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(6),
-                    bottomLeft: Radius.circular(6),
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      width: 12,
-                      height: 12,
-                      decoration: const BoxDecoration(
-                        color: Colors.orange,
-                        shape: BoxShape.circle,
-                      ),
-                    ), // Sun hologram imitation
-                    const Spacer(),
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        "IND",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ],
+              const Text(
+                "Invite vehicle owner",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1E212D),
                 ),
               ),
-              const SizedBox(width: 12),
-
-              // Connected existing controller effectively without affecting logic constraints!
-              Expanded(
-                child: TextFormField(
-                  controller: vehicleController,
-                  onChanged: validateVehicle,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2.0,
-                    color: Colors.black87,
-                  ),
-                  textCapitalization:
-                      TextCapitalization.characters, // Proper keyboard forcing
-                  keyboardType: TextInputType.text,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                      RegExp(r'[A-Za-z0-9]'),
-                    ), // Forcing out special chars proactively
-                    LengthLimitingTextInputFormatter(11),
-                  ],
-                  decoration: InputDecoration(
-                    hintText: "MH12AB1234",
-                    hintStyle: TextStyle(
-                      color: Colors.grey.shade400,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                    border: InputBorder.none,
-                    isCollapsed: true,
-                  ),
+              const SizedBox(height: 8),
+              Text(
+                "Vehicle: $vehicleNumber",
+                style: const TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-
-              // Responsive live feedback icons
-              Padding(
-                padding: const EdgeInsets.only(right: 12.0),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: vehicleController.text.isEmpty
-                      ? const SizedBox.shrink()
-                      : isValidVehicle
-                      ? Container(
-                          key: const ValueKey('valid'),
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade100,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.check,
-                            size: 16,
-                            color: Colors.green.shade700,
-                          ),
-                        )
-                      : Container(
-                          key: const ValueKey('invalid'),
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            size: 16,
-                            color: Colors.redAccent,
-                          ),
-                        ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: nameController,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: "Vehicle owner name",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: mobileController,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                decoration: const InputDecoration(
+                  labelText: "Vehicle owner number",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () {
+                    Get.back();
+                    Get.snackbar(
+                      "Thanks for helping",
+                      "We will alert the vehicle owner when details are available.",
+                      snackPosition: SnackPosition.BOTTOM,
+                    );
+                  },
+                  child: const Text("Don't have the details?"),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final mobile = mobileController.text.trim();
+                    if (mobile.length != 10) {
+                      Get.snackbar(
+                        "Mobile required",
+                        "Enter a valid 10-digit mobile number.",
+                        snackPosition: SnackPosition.BOTTOM,
+                      );
+                      return;
+                    }
+                    final ownerName = nameController.text.trim();
+                    final message =
+                        "Hi ${ownerName.isEmpty ? "there" : ownerName}, your vehicle $vehicleNumber was reported for a parking issue. Please join ParkingMudde to get private alerts and resolve parking muddes faster.";
+                    final uri = Uri(
+                      scheme: "sms",
+                      path: mobile,
+                      queryParameters: {"body": message},
+                    );
+                    await launchUrl(uri);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2A5EE8),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("Alert Them Now"),
                 ),
               ),
             ],
           ),
         ),
-
-        // Beautiful textual warning response
-        if (vehicleController.text.isNotEmpty && !isValidVehicle)
-          Padding(
-            padding: const EdgeInsets.only(top: 8, left: 4),
-            child: Text(
-              "Format e.g. MH12AB1234",
-              style: TextStyle(
-                color: Colors.red.shade400,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          )
-        else if (vehicleController.text.isNotEmpty && isValidVehicle)
-          Padding(
-            padding: const EdgeInsets.only(top: 8, left: 4),
-            child: Text(
-              "Vehicle identity recognized",
-              style: TextStyle(
-                color: Colors.green.shade600,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-      ],
+      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 
-  /// Complete full-width professional super-app docked action container
-  Widget buildActionFooter() {
-    // Determine states logically allowing UI flow blocking until validated properly, improving safety (can be removed if user wants raw bypassing)
-    bool canProceed = vehicleController
-        .text
-        .isNotEmpty; // Just verifying emptiness; enforce validation directly below or optionally lock this logic!
-
-    return InkWell(
-      onTap: canProceed
-          ? () {
-              if (isValidVehicle) {
-                Get.to(
-                  ReportProofScreen(
-                    typev: "report",
-                    vehicleNumber: vehicleController.text,
-                  ),
-                );
-              } else {
-                Get.snackbar(
-                  "Invalid Vehicle Number",
-                  "Please check the details against valid RTO formatting",
-                  snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: Colors.redAccent,
-                  colorText: Colors.white,
-                  margin: const EdgeInsets.all(16),
-                  borderRadius: 8,
-                );
-              }
-            }
-          : null,
-      borderRadius: BorderRadius.circular(16),
+  @override
+  Widget build(BuildContext context) {
+    // Ensures modal reacts beautifully and bounds tightly above phone virtual keyboards limits layout forms mappings limits layout limits
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
-        height: 56,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: canProceed ? const Color(0XFF184B8C) : Colors.grey.shade300,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: canProceed
-              ? [
-                  BoxShadow(
-                    color: const Color(0XFF184B8C).withOpacity(0.3),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : [],
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         ),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                "Verify & Continue",
-                style: TextStyle(
-                  color: canProceed ? Colors.white : Colors.grey.shade500,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
+        child: Column(
+          mainAxisSize: MainAxisSize
+              .min, // Compresses to only show HSRP limit boundaries map map
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              if (canProceed)
-                const Padding(
-                  padding: EdgeInsets.only(left: 8.0),
-                  child: Icon(
-                    Icons.arrow_forward_rounded,
-                    color: Colors.white,
-                    size: 18,
+            ),
+            const SizedBox(height: 28),
+
+            Text(
+              widget.initialVehicleNumber == null
+                  ? "Type Registration manually"
+                  : "We read this number",
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1E212D),
+              ),
+            ),
+            if (widget.initialVehicleNumber != null) ...[
+              const SizedBox(height: 8),
+              const Text(
+                "Edit it if the camera made a mistake, then continue.",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+            ],
+            SizedBox(
+              height: widget.initialVehicleNumber == null ? 24 : 20,
+            ),
+
+            // --- NATIVE PRESERVED REPLICA OF INDIAN HSRP layout boundaries limit limit spaces map limits layouts mapping boundary
+            Container(
+              height: 55,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isPristine
+                      ? Colors.grey.shade300
+                      : (isValidVehicle
+                            ? Colors.green.shade500
+                            : Colors.redAccent.shade400),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 4,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade800,
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(6),
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Colors.orange,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            "IND",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: vehicleController,
+                      onChanged: _validateVehicle,
+                      textCapitalization: TextCapitalization.characters,
+                      keyboardType: TextInputType.text,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[A-Za-z0-9]'),
+                        ),
+                        LengthLimitingTextInputFormatter(11),
+                      ],
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                        color: Colors.black87,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: "MH12AB1234",
+                        hintStyle: TextStyle(
+                          color: Colors.grey.shade300,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                        border: InputBorder.none,
+                        isCollapsed: true,
+                      ),
+                      autofocus:
+                          true, // Trigger instantly form constraint mapped layouts boundaries mapping maps boundary constraint form limits mapped constraint mapping layouts constraints limits boundaries boundaries boundaries limit bound boundaries mapping
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12.0),
+                    child: vehicleController.text.isEmpty
+                        ? const SizedBox.shrink()
+                        : Icon(
+                            isValidVehicle
+                                ? Icons.check_circle_rounded
+                                : Icons.cancel_rounded,
+                            size: 20,
+                            color: isValidVehicle
+                                ? Colors.green.shade600
+                                : Colors.redAccent.shade400,
+                          ),
+                  ),
+                ],
+              ),
+            ),
+
+            if (!isPristine && !isValidVehicle)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  "Ensure format matches valid RTO rules. (Ex: DL01AA1111)",
+                  style: TextStyle(fontSize: 11, color: Colors.red),
+                ),
+              ),
+
+            const SizedBox(height: 32),
+
+            // --- SUBMIT ACTION mapped mapping forms layouts standard map map space layout mapped form
+            SizedBox(
+              height: 52,
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed:
+                    isValidVehicle && !isLookingUpVehicle ? _onManualSubmit : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isValidVehicle
+                      ? const Color(0xFF2A5EE8)
+                      : Colors.grey.shade300,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-            ],
-          ),
+                child: isLookingUpVehicle
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            "Checking registration...",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        "Validate Number",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color:
+                              isValidVehicle ? Colors.white : Colors.grey.shade500,
+                        ),
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );

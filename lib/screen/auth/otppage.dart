@@ -5,15 +5,24 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/api_service.dart';
+import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
+import 'package:parkingmudde/screen/auth/permissionspage.dart';
 import 'package:pinput/pinput.dart';
 
 class Otppage extends StatefulWidget {
   final String mobile;
   final String referralCode;
   final String? testOtp;
+  final bool requireVehicleOnSuccess;
 
-  const Otppage({super.key, required this.mobile, required this.referralCode, this.testOtp});
+  const Otppage({
+    super.key,
+    required this.mobile,
+    required this.referralCode,
+    this.testOtp,
+    this.requireVehicleOnSuccess = false,
+  });
 
   @override
   State<Otppage> createState() => _OtppageState();
@@ -55,9 +64,19 @@ class _OtppageState extends State<Otppage> {
 
     if (result["success"] == true) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString("user_id", result["user_id"]);
+      await prefs.setString("user_id", result["user_id"].toString());
 
-      Get.offAll(() => Dash());
+      final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
+      
+      if (!hasSeenPermissions) {
+        Get.offAll(() => PermissionsPage(requireVehicleOnSuccess: widget.requireVehicleOnSuccess));
+      } else {
+        Get.offAll(
+          () => widget.requireVehicleOnSuccess
+              ? const AddVehicleScreen(fromRegistration: true)
+              : const Dash(),
+        );
+      }
     } else {
       Get.snackbar(
         "Invalid OTP",

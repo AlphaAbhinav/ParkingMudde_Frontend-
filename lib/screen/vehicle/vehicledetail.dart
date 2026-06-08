@@ -16,6 +16,17 @@ class VehicleDetailPage extends StatefulWidget {
 class _VehicleDetailPageState extends State<VehicleDetailPage> {
   bool _isDeleting = false;
 
+  void _showTransferComingSoon() {
+    Get.snackbar(
+      "Coming Soon",
+      "Vehicle ownership transfer will be available in an upcoming update.",
+      backgroundColor: const Color(0xFF2A5EE8),
+      colorText: Colors.white,
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(16),
+    );
+  }
+
   // ─── Delete Reason Bottom Sheet ───────────────────────────────────────────
 
   void showDeleteReasonSheet({
@@ -258,8 +269,12 @@ class _VehicleDetailPageState extends State<VehicleDetailPage> {
                   "${vehicle['brand_name'] ?? vehicle['owner_first_name'] ?? '—'} ${vehicle['model_name'] ?? vehicle['owner_last_name'] ?? ''}".trim(),
                 ),
                 _infoRow(
+                  "Vehicle Type",
+                  vehicle["vehicle_type"]?.toString() ?? "—",
+                ),
+                _infoRow(
                   "Fuel Type",
-                  vehicle["fuel_type"]?.toString() ?? vehicle["vehicle_type"]?.toString() ?? "—",
+                  vehicle["fuel_type"]?.toString() ?? "—",
                 ),
                 _infoRow(
                   "Year of Purchase",
@@ -297,6 +312,34 @@ class _VehicleDetailPageState extends State<VehicleDetailPage> {
             const SizedBox(height: 28),
 
             // Action buttons
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2A5EE8),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: _showTransferComingSoon,
+                icon: const Icon(
+                  Icons.swap_horiz_rounded,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  "Transfer Ownership",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
             Row(
               children: [
                 Expanded(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:parkingmudde/widgets/ad_banner.dart';
 
 class HelpSupportPage extends StatelessWidget {
   const HelpSupportPage({super.key});
@@ -8,15 +9,76 @@ class HelpSupportPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return _InfoShell(
       title: "Help & Support",
-      children: const [
-        _InfoTile(title: "Phone", body: "+91 98765 43210"),
-        _InfoTile(title: "Email", body: "support@parkingmudde.com"),
-        _InfoTile(title: "Hours", body: "Monday to Saturday, 9 AM to 7 PM"),
-        _InfoTile(
+      children: [
+        const _InfoTile(title: "Phone", body: "+91 98765 43210"),
+        const _InfoTile(title: "Email", body: "support@parkingmudde.com"),
+        const _InfoTile(title: "Hours", body: "Monday to Saturday, 9 AM to 7 PM"),
+        const _InfoTile(
           title: "Address",
           body: "Parking Mudde Support Desk, New Delhi, India",
         ),
+        const SizedBox(height: 16),
+        const Text(
+          "Quick Support",
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+        ),
+        const SizedBox(height: 12),
+        _SupportActionTile(
+          icon: Icons.chat_bubble_outline,
+          title: "In-App Chat",
+          onTap: () {
+            Get.snackbar("Coming Soon", "In-App Chat support is coming soon!");
+          },
+        ),
+        _SupportActionTile(
+          icon: Icons.quickreply_outlined,
+          title: "WhatsApp Support",
+          onTap: () {
+            Get.snackbar("Coming Soon", "WhatsApp support is coming soon!");
+          },
+        ),
       ],
+    );
+  }
+}
+
+class _SupportActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _SupportActionTile({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xFF2A5EE8), size: 28),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -50,14 +112,24 @@ class FaqPage extends StatelessWidget {
 
     return _InfoShell(
       title: "FAQs",
-      children: faqs
-          .map(
-            (faq) => _InfoTile(
-              title: faq["question"]!,
-              body: faq["answer"]!,
-            ),
-          )
-          .toList(),
+      children: [
+        ...faqs
+            .map(
+              (faq) => _InfoTile(
+                title: faq["question"]!,
+                body: faq["answer"]!,
+              ),
+            )
+            .toList(),
+        const SizedBox(height: 12),
+        const AdBanner(
+          accentColor: Color(0xFF0F6B3D),
+          brandName: "Your Brand Here",
+          tagline: "Advertise to an engaged community of vehicle owners & drivers.",
+          logoIcon: Icons.local_offer_rounded,
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 }

@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
 class CouponStoreScreen extends StatefulWidget {
-  final int userCoins;
+  final int coinsbackBalance;
 
-  const CouponStoreScreen({super.key, required this.userCoins});
+  const CouponStoreScreen({super.key, required this.coinsbackBalance});
 
   @override
   State<CouponStoreScreen> createState() => _CouponStoreScreenState();
@@ -26,8 +27,7 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    currentCoins =
-        widget.userCoins; // Track dynamic balance deduction optimally
+    currentCoins = widget.coinsbackBalance;
 
     fetchCoupons();
     fetchMyCoupons();
@@ -79,6 +79,7 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
           offerType: c["coupon_type"],
           coinCost: c["cost"],
           description: c["description"],
+          couponCode: c["coupon_code"],
           purchased: true,
         );
       }).toList();
@@ -120,10 +121,9 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
       }
 
       setState(() {
-        myCoupons.add(coupon);
-        currentCoins -=
-            coupon.coinCost; // Dynamic immediate UI subtraction sync!
+        currentCoins -= coupon.coinCost;
       });
+      fetchMyCoupons();
 
       Get.snackbar(
         "Coupon Secured!",
@@ -522,11 +522,39 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
                   ),
                 ),
                 const SizedBox(width: 16),
-                Icon(
-                  Icons.qr_code_2_rounded,
-                  size: 40,
-                  color: Colors.grey.shade400,
-                ), // Preserving your exact core UX!
+                GestureDetector(
+                  onTap: () {
+                    if (coupon.couponCode != null) {
+                      Clipboard.setData(ClipboardData(text: coupon.couponCode!));
+                      Get.snackbar(
+                        "Copied!",
+                        "Coupon code copied to clipboard",
+                        snackPosition: SnackPosition.BOTTOM,
+                        backgroundColor: Colors.black87,
+                        colorText: Colors.white,
+                        margin: const EdgeInsets.all(16),
+                      );
+                    }
+                  },
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.copy_rounded,
+                        size: 24,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        coupon.couponCode ?? "PROCESSING...",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.blueGrey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -687,6 +715,7 @@ class CouponModel {
   final String offerType;
   final int coinCost;
   final String description;
+  final String? couponCode;
   final bool purchased;
 
   CouponModel({
@@ -696,6 +725,7 @@ class CouponModel {
     required this.offerType,
     required this.coinCost,
     required this.description,
+    this.couponCode,
     this.purchased = false,
   });
 }

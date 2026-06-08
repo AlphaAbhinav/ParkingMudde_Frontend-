@@ -80,12 +80,68 @@ class ApiService {
     return getStoredUser();
   }
 
-  // ================= WRONG PARKING REPORT =================
+  // ================= AI INTEGRATION =================
+  static Future<Map<String, dynamic>> getAIVerdict({
+    required List<XFile> images,
+    required double lat,
+    required double lng,
+  }) async {
+    try {
+      if (images.length < 4) {
+        return {"success": false, "message": "4 photos required for AI"};
+      }
+
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse("https://wrongparkingdetection.onrender.com/v1/detect/wrong-parking"),
+      );
+
+      request.fields['lat'] = lat.toString();
+      request.fields['lng'] = lng.toString();
+
+      for (int i = 0; i < 4; i++) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'photos',
+            await images[i].readAsBytes(),
+            filename: images[i].name,
+            contentType: MediaType('image', 'jpeg'),
+          ),
+        );
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return {
+          "success": true,
+          "score": decoded["score"] ?? 0,
+          "verdict": decoded["verdict"] ?? "UNKNOWN",
+          "reasons": jsonEncode(decoded["reasons"] ?? []),
+        };
+      } else {
+        return {"success": false, "message": "AI model returned ${response.statusCode}"};
+      }
+    } catch (e) {
+      print("AI Error: \$e");
+      return {"success": false, "message": "Failed to connect to AI model"};
+    }
+  }
+
   static Future<Map<String, dynamic>> createWrongParkingReport({
     required String vehicleNumber,
     required List<XFile> images,
     XFile? videoFile,
     required String capturedAt,
+    String? selectedIssue,
+    String? selectedIssueCode,
+    int? aiScore,
+    String? aiVerdict,
+    String? aiReasons,
+    double? lat,
+    double? lng,
   }) async {
     try {
       var request = http.MultipartRequest(
@@ -99,10 +155,25 @@ class ApiService {
 
       request.headers['x-user-id'] = userId ?? "";
 
+      // Use real GPS if provided, otherwise fall back to stored prefs
+      final double reportLat = lat ?? prefs.getDouble("latitude") ?? 19.0760;
+      final double reportLng = lng ?? prefs.getDouble("longitude") ?? 72.8777;
+
       request.fields['vehicle_number'] = vehicleNumber;
-      request.fields['lat'] = "19.0760";
-      request.fields['lng'] = "72.8777";
+      request.fields['lat'] = reportLat.toString();
+      request.fields['lng'] = reportLng.toString();
       request.fields['captured_at'] = capturedAt;
+      if (selectedIssue != null && selectedIssue.isNotEmpty) {
+        request.fields['selected_issue'] = selectedIssue;
+      }
+      if (selectedIssueCode != null && selectedIssueCode.isNotEmpty) {
+        request.fields['selected_issue_code'] = selectedIssueCode;
+      }
+      
+      if (aiScore != null) request.fields['ai_score'] = aiScore.toString();
+      if (aiVerdict != null) request.fields['ai_verdict'] = aiVerdict;
+      if (aiReasons != null) request.fields['ai_reasons'] = aiReasons;
+
 
       if (videoFile != null) {
         request.fields['evidence_mode'] = "VIDEO";
@@ -149,12 +220,16 @@ class ApiService {
           "success": true,
           "message": "Report submitted successfully",
           "data": data,
+          "coins_charged": data["coins_charged"] ?? 0,
+          "coinsback_on_confirm": data["coinsback_on_confirm"] ?? 0,
         };
       }
       if (response.statusCode == 402) {
+        final body = jsonDecode(response.body);
         return {
           "success": false,
-          "message": "Not enough coins to report vehicle",
+          "insufficient_coins": true,
+          "message": body["detail"] ?? "Not enough PM Coins to file a report.",
         };
       }
 
@@ -238,6 +313,9 @@ class ApiService {
     String? gender,
     String? dateOfBirth,
     String? location,
+    String? alternateMobileNumber,
+    String? emergencyContactOne,
+    String? emergencyContactTwo,
     XFile? profileImage,
   }) async {
     try {
@@ -261,6 +339,12 @@ class ApiService {
         "gender": gender,
         "date_of_birth": dateOfBirth,
         "location": location?.isEmpty == true ? null : location,
+        if (alternateMobileNumber != null && alternateMobileNumber.isNotEmpty)
+          "alternate_mobile_number": alternateMobileNumber,
+        if (emergencyContactOne != null && emergencyContactOne.isNotEmpty)
+          "emergency_contact_one": emergencyContactOne,
+        if (emergencyContactTwo != null && emergencyContactTwo.isNotEmpty)
+          "emergency_contact_two": emergencyContactTwo,
       };
 
       if (profileImageData != null) {
@@ -326,6 +410,11 @@ class ApiService {
     String? dateOfBirth,
     String? referralCode,
     String? location,
+    String? drivingLicenseNumber,
+    String? aadhaarNumber,
+    String? societyName,
+    String? tower,
+    String? flatNumber,
     double? latitude,
     double? longitude,
     XFile? profileImage,
@@ -356,6 +445,11 @@ class ApiService {
           "date_of_birth": dateOfBirth?.isEmpty == true ? null : dateOfBirth,
           "referral_code": referralCode?.isEmpty == true ? null : referralCode,
           "location": location?.isEmpty == true ? null : location,
+          "driving_license_number": drivingLicenseNumber?.isEmpty == true ? null : drivingLicenseNumber,
+          "aadhaar_number": aadhaarNumber?.isEmpty == true ? null : aadhaarNumber,
+          "society_name": societyName?.isEmpty == true ? null : societyName,
+          "tower": tower?.isEmpty == true ? null : tower,
+          "flat_number": flatNumber?.isEmpty == true ? null : flatNumber,
           "latitude": latitude,
           "longitude": longitude,
           "profile_image": profileImageData,
@@ -504,6 +598,10 @@ class ApiService {
     String? vehicleNumber,
     String? purchaseYear,
     String? insuranceExpiryDate,
+    String? pollutionExpiryDate,
+    String? description,
+    String? kmDriven,
+    String? fuelType,
     String? ownerRelationship,
   }) async {
     try {
@@ -520,7 +618,10 @@ class ApiService {
           "model_name": lastName,
           "purchase_year": purchaseYear,
           "vehicle_type": vehicleType,
-          "fuel_type": vehicleType,
+          "fuel_type": fuelType,
+          "description": description,
+          "km_driven": kmDriven,
+          "pollution_expiry_date": pollutionExpiryDate,
           "registration_number": registrationNumber,
           "insurance_expiry_date": insuranceExpiryDate,
           "registered_mobile": registeredMobile,
@@ -559,6 +660,10 @@ class ApiService {
     String? vehicleNumber,
     String? purchaseYear,
     String? insuranceExpiryDate,
+    String? pollutionExpiryDate,
+    String? description,
+    String? kmDriven,
+    String? fuelType,
     String? ownerRelationship,
   }) async {
     try {
@@ -575,7 +680,10 @@ class ApiService {
           "model_name": lastName,
           "purchase_year": purchaseYear,
           "vehicle_type": vehicleType,
-          "fuel_type": vehicleType,
+          "fuel_type": fuelType,
+          "description": description,
+          "km_driven": kmDriven,
+          "pollution_expiry_date": pollutionExpiryDate,
           "registration_number": registrationNumber,
           "insurance_expiry_date": insuranceExpiryDate,
           "registered_mobile": registeredMobile,
@@ -646,13 +754,51 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['vehicles'];
+        List<dynamic> vehicles = data['vehicles'] ?? [];
+        if (vehicles.isNotEmpty) {
+          vehicles[0]['transfer_status'] = 'pending';
+        }
+        return vehicles;
       } else {
         return [];
       }
     } catch (e) {
       print("Get Vehicles Exception: $e");
       return [];
+    }
+  }
+
+  // ================= LOOKUP VEHICLE BY NUMBER =================
+  static Future<Map<String, dynamic>> lookupVehicleByNumber(String vehicleNumber) async {
+    try {
+      // TODO: Connect to real backend endpoint when available.
+      // Mocking response for now.
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // Simulate 80% chance of registered, 20% unregistered for testing
+      bool isRegistered = vehicleNumber.contains('123') ? false : true;
+
+      if (isRegistered) {
+        return {
+          "success": true,
+          "registered": true,
+          "data": {
+            "vehicle_number": vehicleNumber,
+            "owner_name": "Test User",
+            "city": "Test City",
+            "mobile_number": "+919876543210"
+          }
+        };
+      } else {
+        return {
+          "success": true,
+          "registered": false,
+          "message": "Vehicle not found"
+        };
+      }
+    } catch (e) {
+      print("Lookup Vehicle Exception: $e");
+      return {"success": false, "message": "Network error"};
     }
   }
 
@@ -727,6 +873,7 @@ class ApiService {
   static Future<Map<String, dynamic>> createHelpedVehicleActivity({
     required String userId,
     required String vehicleNumber,
+    String? parkingError,
     String? location,
   }) async {
     try {
@@ -736,6 +883,7 @@ class ApiService {
         body: jsonEncode({
           "user_id": int.parse(userId),
           "vehicle_number": vehicleNumber,
+          "parking_error": parkingError,
           "location": location,
         }),
       );
@@ -754,6 +902,10 @@ class ApiService {
     required String userId,
     int? parkingSpotId,
     required String parkingName,
+    String? vehicleNumber,
+    double? latitude,
+    double? longitude,
+    int? durationHours,
     int? amount,
   }) async {
     try {
@@ -764,6 +916,10 @@ class ApiService {
           "user_id": int.parse(userId),
           "parking_spot_id": parkingSpotId,
           "parking_name": parkingName,
+          "vehicle_number": vehicleNumber,
+          "latitude": latitude,
+          "longitude": longitude,
+          "duration_hours": durationHours,
           "amount": amount,
         }),
       );
@@ -775,6 +931,271 @@ class ApiService {
     } catch (e) {
       return {"success": false, "message": "Network error"};
     }
+  }
+
+  // ================= GET PARKING ALERTS =================
+  static Future<Map<String, dynamic>> getParkingAlerts(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/parking/alerts/$userId"),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Parking Alerts Exception: $e");
+    }
+
+    return {
+      "raised_by_you": [],
+      "against_you": [],
+      "counts": {"raised_by_you": 0, "against_you": 0},
+    };
+  }
+
+  // ================= GET USER DOCUMENTS =================
+  static Future<List<dynamic>> getUserDocuments(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/documents/user/$userId"),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Get User Documents Exception: $e");
+    }
+    return [];
+  }
+
+  // ================= UPLOAD USER DOCUMENT =================
+  static Future<Map<String, dynamic>> uploadUserDocument({
+    required String userId,
+    required String documentType,
+    required String documentLabel,
+    required XFile file,
+  }) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse("$baseUrl/v1/documents/upload"),
+      );
+      request.fields['user_id'] = userId;
+      request.fields['document_type'] = documentType;
+      request.fields['document_label'] = documentLabel;
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          await file.readAsBytes(),
+          filename: file.name,
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Upload Document Exception: $e");
+    }
+    return {"success": false, "message": "Document upload failed"};
+  }
+
+  // ================= DELETE USER DOCUMENT =================
+  static Future<Map<String, dynamic>> deleteUserDocument({
+    required String userId,
+    required String documentId,
+  }) async {
+    try {
+      final response = await http.delete(
+        Uri.parse("$baseUrl/v1/documents/$documentId?user_id=$userId"),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Delete Document Exception: $e");
+    }
+    return {"success": false, "message": "Document delete failed"};
+  }
+
+  // ================= PURCHASE WALLET PACKAGE (Request-type only) =================
+  static Future<Map<String, dynamic>> purchaseWalletPackage({
+    required String packageId,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString("user_id") ?? "";
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/wallet/packages/purchase"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"user_id": int.parse(userId), "package_id": packageId}),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      final body = jsonDecode(response.body);
+      return {"success": false, "message": body["detail"] ?? "Request failed"};
+    } catch (e) {
+      print("Purchase Wallet Package Exception: $e");
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
+  // ================= RAZORPAY: CREATE ORDER =================
+  static Future<Map<String, dynamic>> createRazorpayOrder({
+    required String packageId,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userIdStr = prefs.getString("user_id") ?? "";
+      final userId = int.tryParse(userIdStr) ?? 0;
+
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/wallet/razorpay/create-order"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"user_id": userId, "package_id": packageId}),
+      ).timeout(const Duration(seconds: 15));
+      
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      final body = jsonDecode(response.body);
+      return {"success": false, "message": body["detail"] ?? "Could not create order"};
+    } catch (e) {
+      print("Create Razorpay Order Exception: $e");
+      return {"success": false, "message": "Error connecting to server: $e"};
+    }
+  }
+
+  // ================= RAZORPAY: VERIFY PAYMENT =================
+  static Future<Map<String, dynamic>> verifyRazorpayPayment({
+    required String packageId,
+    required String razorpayPaymentId,
+    required String razorpayOrderId,
+    required String razorpaySignature,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userIdStr = prefs.getString("user_id") ?? "";
+      final userId = int.tryParse(userIdStr) ?? 0;
+
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/wallet/razorpay/verify"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "user_id": userId,
+          "package_id": packageId,
+          "razorpay_payment_id": razorpayPaymentId,
+          "razorpay_order_id": razorpayOrderId,
+          "razorpay_signature": razorpaySignature,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      final body = jsonDecode(response.body);
+      return {"success": false, "message": body["detail"] ?? "Verification failed"};
+    } catch (e) {
+      print("Verify Razorpay Payment Exception: $e");
+      return {"success": false, "message": "Error connecting to server: $e"};
+    }
+  }
+
+  // ================= GET VISITORS =================
+  static Future<Map<String, dynamic>> getMyVisitors(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/visitors/user/$userId"),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Get My Visitors Exception: $e");
+    }
+    return {"linked": false, "message": "Unable to fetch visitors", "visitors": []};
+  }
+
+  // ================= CREATE VISITOR PASS =================
+  static Future<Map<String, dynamic>> createVisitorPass({
+    required String userId,
+    required String name,
+    required String mobileNumber,
+    required String purpose,
+    String? vehicleNumber,
+    String? expectedAt,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/visitors/pass"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "user_id": userId,
+          "name": name,
+          "mobile_number": mobileNumber,
+          "purpose": purpose,
+          "vehicle_number": vehicleNumber,
+          "expected_at": expectedAt,
+        }),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Create Visitor Pass Exception: $e");
+    }
+    return {"success": false, "message": "Unable to create visitor pass"};
+  }
+
+  // ================= EMERGENCY ALERT ACTIVITY =================
+  static Future<Map<String, dynamic>> createEmergencyAlertActivity({
+    required String userId,
+    required String vehicleNumber,
+    required String situation,
+    String? location,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/notifications/emergency-alert"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "user_id": int.parse(userId),
+          "vehicle_number": vehicleNumber,
+          "situation": situation,
+          "location": location,
+        }),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Emergency Alert Exception: $e");
+    }
+    return {"success": false, "message": "Unable to submit emergency alert"};
+  }
+
+  // ================= TRIGGER REPORT ACTION =================
+  static Future<Map<String, dynamic>> triggerReportAction({
+    required String reportId,
+    required String action,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/reports/$reportId/action"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"action": action}),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Trigger Report Action Exception: $e");
+    }
+    return {"success": false, "message": "Action request failed"};
   }
 
   // ================= GET MY PARKING BOOKINGS =================
@@ -889,6 +1310,60 @@ class ApiService {
     } catch (e) {
       print("My Coupons Exception: $e");
       return [];
+    }
+  }
+
+  // ================= TRANSFER VEHICLE =================
+  static Future<Map<String, dynamic>> transferVehicle({
+    required String vehicleId,
+    required String currentUserId,
+    required String recipientMobile,
+  }) async {
+    try {
+      await Future.delayed(const Duration(seconds: 1));
+      return {
+        "success": true,
+        "message": "Vehicle transferred successfully to $recipientMobile",
+      };
+    } catch (e) {
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
+  // ================= GET PENDING TRANSFERS =================
+  static Future<List<dynamic>> getPendingTransfers(String userId) async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 500));
+      return [
+        {
+          "id": "mock_transfer_1",
+          "vehicle_id": "v_101",
+          "registration_number": "KA05DC9999",
+          "brand_name": "Honda",
+          "model_name": "City",
+          "sender_name": "Rajesh Kumar",
+          "sender_mobile": "98XXXXXX89",
+          "status": "pending",
+        }
+      ];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // ================= RESPOND TO TRANSFER =================
+  static Future<Map<String, dynamic>> respondToTransfer({
+    required String transferId,
+    required String action, // "accept" or "decline"
+  }) async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 800));
+      return {
+        "success": true,
+        "message": "Transfer request ${action}ed successfully.",
+      };
+    } catch (e) {
+      return {"success": false, "message": "Network error"};
     }
   }
 }

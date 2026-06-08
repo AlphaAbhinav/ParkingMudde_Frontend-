@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:parkingmudde/screen/homepage/addvehiclepopup.dart';
 import 'package:parkingmudde/screen/notification/notificationpage.dart';
 import 'package:parkingmudde/screen/helpingvehicle.dart/vehiclescan.dart';
+import 'package:parkingmudde/screen/emergency/emergencyalertpage.dart';
 import 'package:parkingmudde/screen/parkingAlert/parkingalertpage.dart'
     show AlertsScreen;
 import 'package:parkingmudde/screen/parkingnearby/parkingnearbypage.dart';
@@ -17,6 +18,7 @@ import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
 import 'package:parkingmudde/screen/couponstore/couponsstorepage.dart';
 import 'package:parkingmudde/screen/Referal/referalpage.dart';
 import 'package:parkingmudde/screen/visitormangement/vistormangepage.dart';
+import 'package:parkingmudde/screen/account/support_pages.dart';
 
 import '../../services/api_service.dart';
 
@@ -50,6 +52,50 @@ class _HomepageState extends State<Homepage> {
           child: const AddVehicleBottomSheet(),
         );
       },
+    );
+  }
+
+  void _showBuyVehicleComingSoon() {
+    Get.snackbar(
+      "Coming Soon",
+      "Buy Vehicle marketplace will be available in an upcoming update.",
+      backgroundColor: primaryBlue,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(16),
+    );
+  }
+
+  void _showVehicleInsuranceComingSoon() {
+    Get.snackbar(
+      "Coming Soon",
+      "Vehicle insurance renewal and plan comparison will be available soon.",
+      backgroundColor: primaryBlue,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(16),
+    );
+  }
+
+  void _showNewsBlogsComingSoon() {
+    Get.snackbar(
+      "Coming Soon",
+      "News, blogs, rules, and parking updates will be available soon.",
+      backgroundColor: primaryBlue,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(16),
+    );
+  }
+
+  void _showLeaderboardsComingSoon() {
+    Get.snackbar(
+      "Coming Soon",
+      "Weekly heroes, city champions, and parking warrior rankings are coming soon.",
+      backgroundColor: primaryBlue,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(16),
     );
   }
 
@@ -184,6 +230,56 @@ class _HomepageState extends State<Homepage> {
                       },
                     ),
                     _buildQuickActionCard(
+                      icon: Icons.car_rental_rounded,
+                      title: "Buy Vehicle",
+                      subtitle: "Coming soon",
+                      color: Colors.cyan.shade700,
+                      onTap: () {
+                        Get.back();
+                        _showBuyVehicleComingSoon();
+                      },
+                    ),
+                    _buildQuickActionCard(
+                      icon: Icons.health_and_safety_rounded,
+                      title: "Vehicle Insurance",
+                      subtitle: "Coming soon",
+                      color: Colors.deepOrange.shade500,
+                      onTap: () {
+                        Get.back();
+                        _showVehicleInsuranceComingSoon();
+                      },
+                    ),
+                    _buildQuickActionCard(
+                      icon: Icons.article_rounded,
+                      title: "News & Blogs",
+                      subtitle: "Coming soon",
+                      color: Colors.blueGrey.shade700,
+                      onTap: () {
+                        Get.back();
+                        _showNewsBlogsComingSoon();
+                      },
+                    ),
+                    _buildQuickActionCard(
+                      icon: Icons.emoji_events_rounded,
+                      title: "Leaderboards",
+                      subtitle: "Coming soon",
+                      color: Colors.amber.shade700,
+                      onTap: () {
+                        Get.back();
+                        _showLeaderboardsComingSoon();
+                      },
+                    ),
+                    _buildQuickActionCard(
+                      icon: Icons.question_answer_rounded,
+                      title: "FAQs",
+                      subtitle: "Common answers",
+                      color: Colors.green.shade700,
+                      onTap: () {
+                        Get.back();
+                        Get.to(() => const FaqPage());
+                      },
+                    ),
+                    _buildQuickActionCard(
                       icon: Icons.storefront_rounded,
                       title: "Coupon Store",
                       subtitle: "Use PM Coins",
@@ -194,7 +290,7 @@ class _HomepageState extends State<Homepage> {
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                CouponStoreScreen(userCoins: walletCoins),
+                                CouponStoreScreen(coinsbackBalance: walletCoins),
                           ),
                         );
                       },
@@ -207,6 +303,16 @@ class _HomepageState extends State<Homepage> {
                       onTap: () {
                         Get.back();
                         Get.to(() => const VisitorManagementScreen());
+                      },
+                    ),
+                    _buildQuickActionCard(
+                      icon: Icons.local_hospital_rounded,
+                      title: "Emergency",
+                      subtitle: "Alert contacts",
+                      color: Colors.red.shade600,
+                      onTap: () {
+                        Get.back();
+                        Get.to(() => const EmergencyAlertScreen());
                       },
                     ),
                   ],
@@ -327,7 +433,7 @@ class _HomepageState extends State<Homepage> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
-                    Icons.apps_rounded,
+                    Icons.notifications_none_rounded,
                     color: textBlack,
                     size: 22,
                   ),
@@ -380,6 +486,26 @@ class _HomepageState extends State<Homepage> {
                   ),
                 ),
                 onTap: () => Get.to(() => const VehicleNumberHelpScreen()),
+              ),
+
+              const SizedBox(height: 14),
+
+              _buildFeatureButton(
+                title: "Emergency Alert",
+                subtitle: "Notify contacts and nearby help",
+                backgroundColor: Colors.red.shade600,
+                iconWidget: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.local_hospital_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+                onTap: () => Get.to(() => const EmergencyAlertScreen()),
               ),
 
               const SizedBox(height: 32),
@@ -448,6 +574,41 @@ class _HomepageState extends State<Homepage> {
                     subtitle: "Manage fleet",
                     color: Colors.purple.shade600,
                     onTap: () => Get.to(() => const MyVehiclesScreen()),
+                  ),
+                  _buildQuickActionCard(
+                    icon: Icons.car_rental_rounded,
+                    title: "Buy Vehicle",
+                    subtitle: "Coming soon",
+                    color: Colors.cyan.shade700,
+                    onTap: _showBuyVehicleComingSoon,
+                  ),
+                  _buildQuickActionCard(
+                    icon: Icons.health_and_safety_rounded,
+                    title: "Vehicle Insurance",
+                    subtitle: "Coming soon",
+                    color: Colors.deepOrange.shade500,
+                    onTap: _showVehicleInsuranceComingSoon,
+                  ),
+                  _buildQuickActionCard(
+                    icon: Icons.article_rounded,
+                    title: "News & Blogs",
+                    subtitle: "Coming soon",
+                    color: Colors.blueGrey.shade700,
+                    onTap: _showNewsBlogsComingSoon,
+                  ),
+                  _buildQuickActionCard(
+                    icon: Icons.emoji_events_rounded,
+                    title: "Leaderboards",
+                    subtitle: "Coming soon",
+                    color: Colors.amber.shade700,
+                    onTap: _showLeaderboardsComingSoon,
+                  ),
+                  _buildQuickActionCard(
+                    icon: Icons.question_answer_rounded,
+                    title: "FAQs",
+                    subtitle: "Common answers",
+                    color: Colors.green.shade700,
+                    onTap: () => Get.to(() => const FaqPage()),
                   ),
                   _buildQuickActionCard(
                     icon: Icons.warning_rounded,
@@ -596,10 +757,166 @@ class _HomepageState extends State<Homepage> {
                 ),
               ),
 
-              const SizedBox(height: 40),
+              // Testimonials Section
+              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    "Community Stories",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: textBlack,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _showAddReviewDialog(context),
+                    child: const Text(
+                      "Write a Review",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: primaryBlue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _buildTestimonialCard(
+                      name: "Rahul Sharma",
+                      review: "I was blocked in by another car, but thanks to ParkingMudde, I alerted the owner and they moved it within 5 minutes!",
+                      rating: 5,
+                    ),
+                    const SizedBox(width: 16),
+                    _buildTestimonialCard(
+                      name: "Priya Singh",
+                      review: "Reported a wrongly parked vehicle in my society and earned 50 PM Coins instantly. Great initiative!",
+                      rating: 5,
+                    ),
+                    const SizedBox(width: 16),
+                    _buildTestimonialCard(
+                      name: "Amit Verma",
+                      review: "This app is a lifesaver. Found a nearby parking spot without any hassle.",
+                      rating: 5,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 120),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showAddReviewDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text("Write a Review", style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Share your experience with the Parking Mudde community.", style: TextStyle(fontSize: 14)),
+              const SizedBox(height: 16),
+              TextField(
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: "Your review...",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: primaryBlue, width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Get.snackbar("Thank You!", "Your review has been submitted for approval.",
+                    backgroundColor: Colors.green.shade600, colorText: Colors.white);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryBlue,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text("Submit", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTestimonialCard({required String name, required String review, required int rating}) {
+    return Container(
+      width: 280,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: primaryBlue.withOpacity(0.1),
+                child: Text(name[0], style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    Row(
+                      children: List.generate(
+                        rating,
+                        (index) => const Icon(Icons.star_rounded, color: secondaryYellow, size: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '"$review"',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4, fontStyle: FontStyle.italic),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -669,13 +986,13 @@ class _HomepageState extends State<Homepage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.grey.withOpacity(0.05),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),

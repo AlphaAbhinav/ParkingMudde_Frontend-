@@ -1,0 +1,1325 @@
+﻿Old Features
+Application features Algorithm & Use cases
+Login & Sign Up:
+At the time of signing up, the user will fill in the given below details and will proceed with Add vehicle to successfully register in the app.
+Sign Up details Required:
+Open the app > Splash Screen will appear
+Onboarding screens will appear, if downloading for the first time, else > login screen
+Login Screen
+Put your Registered Mobile No.
+If you are an existing user then,
+If you are a new user then, Fill in the details in the Signup form
+Enter your First Name*
+Enter your Last Name*
+Enter your driving license* (DL API)
+Enter your aadhaar number (optional) (Aadhaar API)
+Enter your Email ID (optional)
+Mobile No.* (When login in using a mobile number, then it will be auto-available in the column)
+Enter the Referral Code if available, else leave it blank
+Tick the checkbox to accept the terms of use & privacy policy
+Click on the Let’s Signup Button > verification screen
+OTP verification (SMS API or Firebase SMS API)
+Directed to the Home page Or Add your vehicle (in case of the new user)
+Register Vehicle:
+After successful signup now users have to add their vehicle to login into the app.Here users will fill in the details given below to add their vehicle
+Details Required:
+It can be an Owner/Driver (Default on owner)
+Enter Vehicle Name* (Limit up to 9 characters)
+Enter the Brand name *
+Enter the Model name*
+Provide a Description
+Enter the Year of purchase* - Validation will be there for 4 digits
+Select the Fuel Type* - Petrol/Diesel/CNG/Electric Vehicle
+Provide your KM Driven
+Enter your Vehicle Registration Number* (VehicleRC API)
+Enter the Vehicle Insurance Expiry or renewal date*
+Enter the Vehicle Pollution Expiry or renewal date*
+Click on Add vehicle
+In the case of the driver, 3 columns will be extra added for verification in the above form i.e. Vehicle Owner Name*, and Vehicle owner Mobile No* Vehicle owner relationship.
+Note:- Once a vehicle is added cannot be removed by the user-end. But, its ownership can be transferred, This is subject to approval from the PM team.
+My Account:
+On this screen, you can
+update your profile picture, and
+profile settings like complete name, Dob, email id, alternate number, emergency contact I, and emergency contact II
+Here you can track how many alerts are raised by you and raised against you,
+Update your aadhaar details, Update your Driving license details, and
+Contact us - Help & Support.
+To update the profile picture:
+Go to my Account from the home page bottom bar or from the navigation bar
+Click on the blank picture circle above your name and number
+Upload your picture from the camera or gallery
+Adjust and set the picture as you need
+Once done, click on upload.Now, view your profile picture updated.
+To update the profile settings:
+Go to My Account from the home page bottom bar or from the navigation bar
+Click on Edit my profile
+Update the details you want
+Here you can update Name, Dob, Email id, Alternate Number, Emergency contact I, and Emergency Contact II.To Add your Alternate Number:
+Click on the Alternate number column
+Select the number from your phonebook contacts
+OTP verification (SMS API)
+Once done, click on Add button
+To Add your Emergency Contact I:
+Click on the Emergency Contact I column
+Select the number from your phonebook contacts
+OTP verification (SMS API)
+Once done, click on Add button
+To Add your Emergency Contact II:
+Click on the Emergency Contact II column
+Select the number from your phonebook contacts
+OTP verification (SMS API)
+Once done, click on Add button
+To update your Aadhaar details: (if not given or verified at the time of signup)
+Go to My Account from the home page bottom bar or from the navigation bar
+Click on Verify your aadhaar
+Enter your aadhaar Number
+Once done, click on Verify
+An OTP verification will be done on your aadhaar-linked mobile number (Aadhaar API)
+My wallet:
+Here you can
+see your coins balance
+Load your wallet with coins packages (These will be added to the coins balance and can be used for everything redeem rewards, services), (SMS API)
+Vehicle documents expiry and renewal alert packages 1 year, 3 years, 5 years(SMS API)
+All-in-one solution packages Silver, Gold, and Platinum(SMS API)
+(Note:- Kindly make three sections for packages that can be input by the backend Where > Users can buy coins packages clubbed with vehicle documents expiry & renewal
+> But All-in-one solution packages will be purchased individually only.)
+Coinsback
+Rewards
+Track all transactions
+Their details
+Steps to add coins: > Choose your Plan Screen
+Click on Choose your plan button
+Select the coin package
+Paytm Payment gateway will open
+Once purchased, you are directed to view your balance and track transactions
+Steps to view the transaction and its details:
+Track all transactions available under the balance section
+To view details
+Click on the eye icon (available on the right of each transaction)
+Here you can see the Date, Amount, Purpose,
+Coinsback:
+This section will show the count of Total Coinsback Earned from all sources
+Coinsback Sources - Signup, Add vehicle, Add parking space, Compensation on reporting a vehicle, Helping a vehicle with parking error, Helping an emergency victim, and Referring the app to friends and family.
+Rewards:
+This section will show the count of Total Rewards Bought or redeemed
+If clicked, On this screen, you will get a wide range of multiple renowned brands FLAT OFF coupons which you can avail of using your coinsback earned. Here You will find brand coupons with the image, brand name, __Rs. Or __% OFF and Once clicked on the coupon it will give you the Terms & Conditions of the coupon
+Once bought you can see and copy the coupon code from the redeemed coupon
+Alerts: Scan & Connect (Reporting, Helping, Emergency Alerts)
+For the first time in India whereby an application or in other words with a mobile you can now
+Reporting Alerts:
+A charge of ___ coins will be placed to use Reporting Alerts
+Connect with a vehicle owner/driver through In-app Alert, SMS, IVR-Masked Call (SMS API)
+SOS vehicle to authorities for wrong parking, (SMS API)
+On every report, Penalize ___ coins/coinsback whose vehicle got reported(Offender) Will be deducted from coins balance or Coinsback balance as per availability and compensate 50% of ___ coinsback who have reported(Sufferer). Will be added to the Coinsback Balance
+If, The offender is a registered User:
+Go to Reporting Alerts from the home page or the bottom bar center scan item.
+Pay ___ Coins as a charge
+Scan or Manually input the Vehicle Registration Number you want to report/connect
+Verify the vehicle info - Vehicle Registration Number(Shown in number plate format), Vehicle Type, Vehicle Owner Last Name with the first name as XXXX, Vehicle Brand, and Vehicle Model
+Select the parking mudde (Alerts) you are facing (will come dynamically from the backend)
+Reporting Process will start, where
+You have to upload 4 real-time clicked photo proofs of the wrong parked vehicle from the front, back, left & right.
+Once done, click on Upload
+Automatic In-app Alarm-like alert and SMS will be sent to the offender (SMS API)
+Now, the offender can click on the “On the way button” from the alarm-like alert Notification screen. & (SMS API)
+If clicked then, the app will notify the sufferer “Sit back & Relax we have notified the VO he is on the way”
+If not clicked and ignored then, the app will notify the sufferer “Sit back & relax we are trying to connect with the VO”
+Then the sufferer will get an option to click on a Click-to-call button where the user will get connected with the offender on his registered contact number through a server-based IVR-masked call. (Click-to-call API)
+If still no response, then the sufferer can go for the SOS option to connect with the local road authorities using a “Parking Helpline Number” and report the vehicle for wrong parking.
+The offender is a Non - registered User:
+Go to Reporting Alerts from the home page or the bottom bar center and scan the item
+Scan or Manually input the Vehicle Registration Number you want to report/connect
+If the user is not a registered user with us
+A message box will appear “Stuck with Unregistered Vehicle?<br> Don’t worry report the vehicle now” <br> <br> SOS button
+Once clicked on SOS the sufferer can connect with the local road authorities using a “Parking Helpline Number” and report the vehicle for wrong parking.
+In such a case, a Fixed 100 coinsback will be compensated to the sufferer for suffering an unfavorable situation.
+Helping Alerts:
+Help the community in solving their parking errors,
+Get ___ Coinsback as an award for helping Will be added to the Coinsback Balance
+The offender is a registered User:
+Go to Helping Alerts from the home page or the bottom bar center and scan the item
+Scan or Manually input the Vehicle Registration Number you want to help
+Verify the vehicle info - Vehicle Registration Number(Shown in number plate format), Vehicle Type, Vehicle Owner Last Name with the first name as XXXX, Vehicle Brand, and Vehicle Model
+Select the Parking Error (will come dynamically from the backend)
+The Helping Process will start, where
+You have to upload 1 real-time clicked photo proof of the parking error
+Once done, click on upload
+Automatic In-app alert (Alarm-like alert) and SMS will be sent to the offender (SMS API)
+For every help, you will get ___ coinsback on helping a vehicle with a parking error.
+The offender is a Non - registered User:
+Go to Helping Alerts from the home page or the bottom bar center and scan the item
+Scan or Manually input the Vehicle Registration Number you want to help
+If the vehicle is not registered with us
+You will get a pop-up message “You will surely find this vehicle one day” <center>Thanks for your help.</center> Let’s refer to & add all your known vehicle owners/drivers. <button>Refer Now</button>
+Emergency Alerts:
+Alert the emergency contacts and nearby hospitals of a road accident victim. About the situation specification, photo & live location.
+Note - This will only work if the user who is using the emergency alert must have 2 emergency contacts if not then it will give an error message and a button to update the emergency contacts.  (SMS API x 2)
+Get ___ Coinsback as an award for helping Will be added to the Coinsback Balance
+The offender is a registered User:
+Go to Emergency Alerts from the home page or the bottom bar center and scan the item
+Scan or Manually input the Vehicle Registration Number you want to alert the emergency contacts of
+Verify the vehicle info - Vehicle Registration Number(Shown in number plate format), Vehicle Type, Vehicle Owner Last Name with the first name as XXXX, Vehicle Brand, and Vehicle Model
+You have to upload 1 real-time clicked photo proof of the parking error
+Specify the situation of the victim
+Once done, click on upload
+Automatically app will send an SMS to the vehicle’s emergency contacts and the nearby 1-5km range hospitals of the location from where this situation is reported. (SMS API x __)
+For every help, you will get ___ coinsback on helping a vehicle in unfavorable situations.
+The offender is a Non - registered User:
+Go to Emergency Alerts from the home page or the bottom bar center and scan the item
+Scan or Manually input the Vehicle Registration Number you want to alert the emergency contacts of
+If the vehicle is not registered with us
+You will get a pop-up message “You will surely find this vehicle one day” <center>Really Great Work!.</center> Let’s Call! To nearby hospitals and inform them about the situation <button>Call Now Now</button> (Click-to-call API) (In this users will be directed to the emergency hospital helpline number from their dial-pad.
+Parking Alerts:
+In this screen all the alerts reporting alerts, helping & emergency alerts raised by you and raised against you.
+Alerts Raised by you:
+Steps to view details of Helping Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of the helping alerts
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view details of the selected alert
+Here you can see the Vehicle helped (Vehicle Registration Number Shown in number plate format), alert used, vehicle helped date of help, and coinsback earned.
+Steps to view details of Reporting Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of reporting alert
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view details of the selected alert
+Here you can see the Vehicle reported (Vehicle Registration Number Shown in number plate format), the alert used, the vehicle reported date, and compensation earned.
+Steps to view details of Emergency Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of the helping alerts
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view details of the selected alert
+Here you can see the Vehicle helped (Vehicle Registration Number Shown in number plate format), alert used, vehicle helped date of help, and coinsback earned.
+Alerts Raised against you:
+Steps to view details of Helping Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of the helping alerts
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view details of the selected alert
+Here you can see the Vehicle helped (Vehicle Registration Number Shown in number plate format), alert used, vehicle helped date of help
+Steps to view details of Reporting Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of reporting alert
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view the details of the selected alert
+Here you can see the Vehicle reported (Vehicle Registration Number Shown in number plate format), alert used, vehicle reported date, and Penalty charged.
+Steps to view details of Emergency Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of the helping alerts
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view the details of the selected alert
+Here you can see the Vehicle helped (Vehicle Registration Number Shown in number plate format), the alert used, and the vehicle helped date of help.
+Find Parking Space:
+In this feature, users will have two options: First, parking spaces registered on google maps(Free & Paid) and 2nd “private parking space” registered by the PM registered parking owner. (Paid)
+To find a parking space:
+Go to Find parking
+You can find parking spaces listed on google within the range between 1km - 10km
+Click on any parking spot
+You can click on navigate option at the bottom
+You will be directed to the maps app and will get the directions for the selected parking space
+Book Parking Space:Steps: Select Vehicle> Select & open available Parking Space and come to the space description screen> Click on Book this space> select the available date & time slot you are looking to book> Verify the Booking details> Apply the coupon code (optional)> Click on Confirm Booking> Directed to the My Bookings Screen (SMS API)
+Note - A condition of minimum___coins will be needed to use Book Parking
+The space description screen will show pictures, prices, location, description & instructions, facilities
+15mins, 30 mins, 1 hour, 2 hours, 4 hours, 6 hours Slots type will be there
+30 mins gap will be there after every available slot
+15 mins cancelation period time from the time booking was made (after this no refund will be given)(SMS API)
+Steps to book a Parking Space by a Vehicle owner:
+Got to Book parking from the home page
+Select the vehicle from your vehicle list
+Select the parking space
+See the space details and description
+Click on the book in this space
+Select the Date
+Select the time slot
+View & verify the details of the booking
+Apply the coupon if any
+Click on Confirm booking (Booking confirmation SMS will be sent to the VO)
+Direct to My BookingsScreen.
+My bookings:
+On this screen Vehicle Owner can track their bookings and here you can view all the details regarding your booked parking space like parking space details, location to navigate, Entry & Exit OTP, Vehicle selected, Status of booking, Cancel option, and option to connect with the parking owner(Click-to–call API).
+My Vehicles:
+On this screen,
+you can view, and track all your vehicles
+and update details like Km Driven and Description
+Can post your owned vehicle on sale.
+Transfer your sold vehicle ownershipTo edit your vehicle details:
+Go to my vehicles from the homepage and the navigation bar
+Select the vehicle you want to edit
+Click on the edit button from the vehicle info container
+You can now edit the details
+Once updated, Click on the Save button
+To post your vehicle on sale:
+Go to my vehicles from the homepage and the navigation bar
+Select the owned vehicle you want to post on the sale
+Click on the Post on Sale button from the vehicle info container (showing vehicle brand, Model, and type)
+Now Update your Vehicle Condition, Current KM Driven, and Estimated Value
+Click on the Sell Now button
+You can see, your vehicle on the Buy vehicle platform.
+Buy Vehicle:
+This feature helps in
+Making vehicles accessible and available for sale in PAN INDIA
+You can see how many users have viewed your vehicle
+and What ratings are given by users
+Click-to-call To connect with the seller-buyer by paying a nominal charge of ___ Coins.
+Click-to-call to connect with a seller:
+Go to buy a vehicle from the home page
+Select which wheeler type of vehicle you are looking for
+View the wide range of sellers' vehicle postings
+Open & know details about the vehicle you like
+If you have any doubts or you are interested in a deal
+Click on the Call-to-call button
+A charge of ___ coins will be applied
+Vehicle Transfer Ownership:
+In case the added vehicle is sold then transfer ownership from the Vehicle Details Screen<Selected Vehicle<My vehicles Screen.
+Now you will update the new owner details like New Owner Name, New Owner Number, Date of Sale, and Proof of sales(upload file), now the app will remove the vehicle from the current owner and will look for the new owner by the number you have input and will send the request to be accepted for the successful transfer of the vehicle to the new owner.
+The process to transfer vehicle ownership:
+Go to My vehicles> Select Vehicle> Vehicle details screen
+Fill in all details to transfer your vehicle ownership
+Enter New Owner's name
+Enter New owner contact (Otp Verification - SMS API)
+Select Transfer Date
+Upload Proof of transfer
+Click on submit button
+My Referrals:
+On this screen,
+You can view, track, redeem, your referrals, and can earn lots of coinsback while achieving different milestones.
+Invite friends using social media platforms and through other modes
+Here you can see the total number of successful referrals (but not yet used to redeem your milestone),
+You can see the balance of successful referrals, Total Referrals Earned to date, Total referrals redeemed to claim the milestone, and Total Referrals Claim.
+Steps to Claim your referral Bonus:
+Go to My referrals
+Click on Claim your referral bonus
+Check which Milestone is unlocked to redeem
+Click on redeem button
+All the coinsback will be added to your coinsback balance
+Steps to track your referrals & their journey:
+Go to My referrals
+Click on Track your Referrals
+View & Select the referral you want to view
+Click on the View button
+Here you can see your referral journey whether he/she has added the vehicle and on which date (to count it as a successful referral).
+Register your Private Parking Space:
+Now, all parking space owners will get a one-stop solution for the muddes in being a parking space owner.
+Will live on the subject to the approval by the backend(SMS API)
+Follow the steps required:
+Go to Register your Space
+Add up to 5 photos of your parking space from your gallery*
+Add Parking Name, (Limit up to 9 characters)*
+Add Description & Instructions for your parking*
+Select Parking Type - Two-wheeler, Three-Wheeler, Four-Wheeler, Above*
+Select Pricing for Two-wheeler, Three-Wheeler, Four-Wheeler, Above* (coins/min)
+Add availability for Two-wheeler, Three Wheeler, Four Wheeler, and Above* (Nos.)
+Pin the location on the map*
+Add Complete Address*
+Add Pincode*
+Space Ownership Proof - (Upload file)*
+Switch for the availability of your parking (optional)
+Select the opening time & Closing time for your parking space*
+Checkbox the Facilities available in your parking space*
+Click on the “Save your listing” button
+You will be directed to the My Parkings to see and edit your parking space added.After registration, your parking will be live after approval from the company.
+My Parkings:
+On this screen Parking space, owners can view, and track all the bookings received.
+Here you can accept/decline an upcoming booking,
+you can connect with the vehicle owner if required,
+can cancel the booking with the condition within 15 minutes time of the booking being made.
+Edit your space:
+Go to My parking from the homepage bottom bar or navigation bar
+Select & open the parking space you want to edit
+Click on Edit your space and update all the details
+click on save.
+Steps followed by a Parking Space owner after booking has been made:
+The parking space owner will receive a booking request to accept/decline(SMS API & In-app Alarm like an alert)
+Directed to the My parking screen> Upcoming bookings
+Here you can accept/decline the booking request
+To start booking you need to put the entry OTP received from VO
+If not accepted within 15 mins from the time of booking made it will be auto-canceled, and notifications(SMS API) will float to both PO & VO)
+Once started, then
+The booking will be moved to the Ongoing bookings tab
+Here you can connect with the vehicle owner (Click-to-call API)
+Where you can verify the booking details and put the end OTP
+Once Ended, the booking will be moved to the Completed bookings tab
+All the earnings of a parking space owner can be tracked and withdrawn from My Earnings Screen.
+My Earnings:
+A wallet for parking space owners to track all their income from their rented space.
+Withdraw all your earnings in real cash.
+On the earnings made a ___% commission will be deducted before crediting to the earnings wallet.
+To withdraw you need a minimum of 10000 earned coins/1 month (Earnings) (Whichever is greater
+On every withdrawal to the bank account, the user has to pay a ___% Convenience fee
+To view details of your income transactions:
+Go to my earnings from the navigation bar
+View your earnings balance in earned coins
+On the right side of transactions, you will see a blue eye icon to view details of the transaction
+Once clicked, You can view the date, parking name on which earned, vehicle parked, vehicle type, commission to parking mudde( i.e. __% per booking), Park In Time, and Park Out time
+To withdraw your income:
+Go to my earnings
+Click on Let’s Withdraw button
+Select or add your bank account
+To add your bank account provide a few details:
+Account holder name
+Account number
+ISFC Code
+Account type
+Bank Name
+Bank Address
+Mobile Number & Email ID (These two will be auto-filled by the app as given at the time of sign up but you can change them if you want)
+Click on Add button
+Now refresh and select your added bank account
+Enter the Desired amount of earned coins to withdraw (Which will show the conversion in Rs.___ in bold)
+Click on Confirm Withdraw(SMS API)
+To track your withdrawal transactions status:
+Go to my earnings
+Click on the Let’s Withdraw button
+Click on the Withdrawal History link
+See transaction status.
+Vehicle Insurance:
+Available on Home Page Screen
+Will associate with third-party companies for API on a commission basis.
+Bell Icon - Notifications:
+Available on Home Page Screen, Top-right corner side.
+On this screen, you find all the notifications and updates related to the app and services
+Secondly, you can track all the query tickets raised.
+News & Blogs:
+Available on Home Page Screen, under the features section
+In this feature, you will get daily updates on rules/regulations, current affairs, and news on parking vehicles. Here you can click on read more to read the complete news and visit the source of the information.
+Frequently Asked Questions:
+Available on Home Page Screen, under the News & Blogs section
+In this feature, you will find all the answers to your questions, if you don’t find any answers you can connect with us.
+Upcoming Features:
+Future will see soon
+Vehicle service records history, Get your vehicle serviced at your doorstep, Get a Smart & Safe parking E-pass, Get the location & directions for your towed vehicle, Helping Hand - Get roadside assistance helping hand for your vehicle within 30 minutes on your current location.
+Help & Support:
+To connect with us for all your muddes regarding the services or the application. You can connect by raising a request query ticket, Calling to connect with a support agent, and WhatsApp chat support.
+Steps to Connect through Raising query ticket:(SMS API)
+Go to Help & support from the Top bar home page or my account contact us
+Under Queries tab
+Click on Raise Ticket
+Select the Query from the list
+Write the subject of the request
+Describe your query
+Click on raise
+Your query ticket is raised and now you do in-app chatting with the support agent
+Steps to Connect through Call:(SMS API)
+Go to Help & support from the Top bar home page or my account contact us
+Under Queries tab
+Click on Call
+Directed to the dial pad with the support number
+Dail to connect and resolve
+Steps to Connect through Whatsapp:(Whatsapp API)
+Go to Help & support from the Top bar home page or my account contact us
+Under Queries tab
+Click on Whatsapp
+Directed to the support Whatsapp chat
+Start writing your query to resolve
+Customer testimonials:
+In this, all the uploaded by backend testimonials will be shown
+Refund Panel
+Refund allowed - Booking a space - To VO in case of booking is canceled before the 15th minute passed of the time booking made, Incase of booking canceled by the PO 15 minutes prior to the booking start time. (All the transactions are in coins only)
+Ads Banners Space (Scrolling banner’s section)
+AdB1 - On the homepage under FAQs (center)
+AdB2 - On all Alerts screens i.e. On Scan or Manually input the VRN screen (bottom)
+AdB3 - On Choose your plan screen (Top)
+AdB4 - Parking Alerts Main screen (bottom)
+AdB5 -
+All these AdB1’s will come individually from backend
+2026 App Final Features
+2026 Application features Algorithm & Use cases
+Onboarding Screens:
+Screen Functionality Instructions & Tutorials:
+Login & Sign Up:
+At the time of signing up, the user will fill in the given below details and will proceed with Add vehicle to successfully register in the app.
+Sign Up details Required:
+Open the app > Splash Screen will appear
+Onboarding screens will appear, if downloading for the first time, else > login screen
+Login Screen
+Put your Registered Mobile No.
+If you are an existing user then,
+If you are a new user then, Fill in the details in the Signup form
+Enter your First Name*
+Select your Society Name* (Already from the list added defined from the backend or Choose “Suggest Society” to add there society)
+Select Tower & Flat No.
+Enter your driving license* (DL API) Optional for Now
+Enter your aadhaar number (optional) (Aadhaar API) Optional for Now
+Enter your Email ID
+Mobile No.* (When login in using a mobile number, then it will be auto-available in the column)
+Enter the Referral Code if available, else leave it blank
+Tick the checkbox to accept the terms of use & privacy policy
+Click on the Submit Button > verification screen
+OTP verification (SMS API or Firebase SMS API)
+Directed to the Home page with Pop up for Add your vehicle (in case of the new user)
+Permission Screen:
+Title: Enable these to unlock full power 🔓 ✅ Camera (scan number plates) ✅ Location (nearby parking & hospitals) ✅ Notifications (alerts + SOS) ✅ SMS (only for OTP & critical alerts)
+CTA: Enable & Continue
+Suggest Society:
+Form will open in which society and personal details
+Society Name
+Address Pin Location
+Society Personal Name
+Society Personal Number
+A message pop up will show that we will contact you shortly or you can contact us.
+Register Vehicle:
+After successful signup now users have to add their vehicle to login into the app.Here users will fill in the details given below to add their vehicle
+Details Required:
+It can be an Owner/Driver (Default on owner)
+Enter Vehicle Name* (Limit up to 9 characters) (Editable)
+Enter the Brand name *
+Enter the Model name*
+Enter the Year of purchase* - Validation will be there for 4 digits
+Select the Fuel Type* - Petrol/Diesel/CNG/Electric Vehicle
+Provide your KM Driven(Editable)
+Enter your Vehicle Registration Number* (VehicleRC API) Optional for Now
+Enter the Vehicle Insurance Expiry or renewal date*Optional for Now
+Enter the Vehicle Pollution Expiry or renewal date*Optional for Now
+Click on Add vehicle
+In the case of the driver, 3 columns will be extra added for verification in the above form i.e. Vehicle Owner Name*, and Vehicle owner Mobile No* Vehicle owner relationship.
+Note:- Once a vehicle is added cannot be removed by the user-end. But, its ownership can be transferred, This is subject to approval from the PM team.
+Vehicle Verified Badge
+After adding vehicle: ✅ “Verification Pending” ✅ “Verified ✅” badge once PM team approves
+My Account: (Home Page)
+On this screen, you can
+update your
+profile picture, and profile settings like complete name, Dob, email id, alternate number, emergency contact I, and emergency contact II.
+Here you can track how many alerts are raised by you and raised against you,
+Update your aadhaar details, Update your Driving license details, Optional For Now
+Contact us - Help & Support.
+To update the profile picture:
+Go to my Account from the home page bottom bar or from the navigation bar
+Click on the blank picture circle above your name and number
+Upload your picture from the camera or gallery
+Adjust and set the picture as you need
+Once done, click on upload.Now, view your profile picture updated.
+To update the profile settings:
+Go to My Account from the home page bottom bar or from the navigation bar
+Click on Edit my profile
+Update the details you want
+Here you can update Name, Dob, Email id, Alternate Number, Emergency contact I, and Emergency Contact II.To Add your Alternate Number:
+Click on the Alternate number column
+Select the number from your phonebook contacts
+OTP verification (SMS API)
+Once done, click on Add button
+To Add your Emergency Contact I:
+Click on the Emergency Contact I column
+Select the number from your phonebook contacts
+OTP verification (SMS API)
+Once done, click on Add button
+To Add your Emergency Contact II:
+Click on the Emergency Contact II column
+Select the number from your phonebook contacts
+OTP verification (SMS API)
+Once done, click on Add button
+To update your DL details: (if not given or verified at the time of signup)
+Go to My Account from the home page bottom bar or from the navigation bar
+Click on Verify your DL
+Enter your DL Number
+Once done, click on Verify
+An OTP verification will be done on your aadhaar-linked mobile number (DL API)
+To update your Aadhaar details: (if not given or verified at the time of signup)
+Go to My Account from the home page bottom bar or from the navigation bar
+Click on Verify your aadhaar
+Enter your aadhaar Number
+Once done, click on Verify
+An OTP verification will be done on your aadhaar-linked mobile number (Aadhaar API)
+My wallet:(Home Page)
+Here you can
+see your coins balance
+Load your wallet with coins packages (These will be added to the coins balance and can be used for everything redeem rewards, services), (SMS API)
+Vehicle documents expiry and renewal alert packages 1 year, 3 years, 5 years(SMS API)
+All-in-one solution packages Silver, Gold, and Platinum(SMS API)
+(Note:- Kindly make three sections for packages that can be input by the backend Where > Users can buy coins packages clubbed with vehicle documents expiry & renewal
+> But All-in-one solution packages will be purchased individually only.)
+Coinsback
+Rewards
+Track all transactions
+Their details
+Steps to add coins: > Choose your Plan Screen
+Click on Choose your plan button
+Select the coin package
+Paytm Payment gateway will open
+Once purchased, you are directed to view your balance and track transactions
+Steps to view the transaction and its details:
+Track all transactions available under the balance section
+To view details
+Click on the eye icon (available on the right of each transaction)
+Here you can see the Date, Amount, Purpose,
+Coinsback:
+This section will show the count of Total Coinsback Earned from all sources
+Coinsback Sources - Signup, Add vehicle, Add parking space, Compensation on reporting a vehicle, Helping a vehicle with parking error, Helping an emergency victim, and Referring the app to friends and family.
+Rewards:
+This section will show the count of Total Rewards Bought or redeemed
+If clicked, On this screen, you will get a wide range of multiple renowned brands FLAT OFF coupons which you can avail of using your coinsback earned. Here You will find brand coupons with the image, brand name, __Rs. Or __% OFF and Once clicked on the coupon it will give you the Terms & Conditions of the coupon
+Once bought you can see and copy the coupon code from the redeemed coupon
+Alerts: Scan & Connect (Reporting, Helping, Emergency Alerts)(Home Page)
+For the first time in India whereby an application or in other words with a mobile you can now
+Reporting Alerts:
+A charge of ___ coins will be placed to use Reporting Alerts
+Connect with a vehicle owner/driver through In-app Alert, SMS, IVR-Masked Call (SMS API)
+SOS vehicle to authorities for wrong parking, (SMS API)
+On every report, Penalize ___ coins/coinsback whose vehicle got reported(Offender) Will be deducted from coins balance or Coinsback balance as per availability and compensate 50% of ___ coinsback who have reported(Sufferer). Will be added to the Coinsback Balance
+If, The offender is a registered User:
+Go to Reporting Alerts from the home page or the bottom bar center scan item.
+Pay ___ Coins as a charge
+Scan or Manually input the Vehicle Registration Number you want to report/connect
+Verify the vehicle info - Vehicle Registration Number(Shown in number plate format), Vehicle Type, Vehicle Owner Last Name with the first name as XXXX, Vehicle Brand, and Vehicle Model
+Select the parking mudde (Alerts) you are facing (will come dynamically from the backend)
+Reporting Process will start, where
+You have to upload 4 real-time clicked photo or video proofs of the wrong parked vehicle from the front, back, left & right.
+Once done, click on Upload
+Automatic In-app Alarm-like alert and SMSwill be sent to the offender(SMS API)
+Now, the offender can click on the “On the way button” from the alarm-like alert Notification screen. & (SMS API)
+If clicked then, the app will notify the sufferer “Sit back & Relax we have notified the VO he is on the way”
+If not clicked and ignored then, the app will notify the sufferer “Sit back & relax we are trying to connect with the VO”
+After 30 seconds, Then the sufferer will get an option to click on a Click-to-call button where the user will get connected with the offender on his registered contact number through a server-based IVR-masked call. (Click-to-call API)
+After 60 seconds, If still no response, then the sufferer can go for the SOS option to connect with the local road authorities using a “Parking Helpline Number” and report the vehicle for wrong parking.
+Step 4: Rule Engine Decision
+AI results + Geo results go to rules engine.
+Final output
+✅ Legal flags triggered ✅ Wrong Parking Score (0–100) ✅ Verdict: Correct / Suspicious / Wrong ✅ Next action: In-app alert → Call masked IVR → SOS
+Blacklist / Repeat Offender System
+If a vehicle gets reported repeatedly:
+Show warning badge
+Higher penalty coins
+Reduced trust score
+Parking Score for every user
+A public score like: ⭐ 4.2/5 Parking Etiquette Rating Based on:
+reports against them
+resolved speed
+helps done
+community feedback
+The offender is a Non - registered User:
+Go to Reporting Alerts from the home page or the bottom bar center and scan the item
+Scan or Manually input the Vehicle Registration Number you want to report/connect
+If the user is not a registered user with us
+A message box will appear “Stuck with Unregistered Vehicle?<br> Don’t worry report the vehicle now” <br> <br> SOS button
+Once clicked on SOS the sufferer can connect with the local road authorities using a “Parking Helpline Number” and report the vehicle for wrong parking.
+In such a case, a Fixed 100 coinsback will be compensated to the sufferer for suffering an unfavorable situation.
+Helping Alerts:
+Help the community in solving their parking errors,
+Get ___ Coinsback as an award for helping Will be added to the Coinsback Balance
+The offender is a registered User:
+Go to Helping Alerts from the home page or the bottom bar Help Button
+Scan or Manually input the Vehicle Registration Number you want to help
+Verify the vehicle info - Vehicle Registration Number(Shown in number plate format), Vehicle Type, Vehicle Owner Last Name with the first name as XXXX, Vehicle Brand, and Vehicle Model
+Select the Parking Error (will come dynamically from the backend)
+The Helping Process will start, where
+You have to upload 1 real-time clicked photo or video proof of the parking error
+Once done, click on upload
+Automatic In-app alert (Alarm-like alert) and SMS will be sent to the offender(SMS API)
+For every help, you will get ___ coinsback on helping a vehicle with a parking error.
+The offender is a Non - registered User:
+Go to Helping Alerts from the home page or the bottom bar center and scan the item
+Scan or Manually input the Vehicle Registration Number you want to help
+If the vehicle is not registered with us
+You will get a pop-up message “You will surely find this vehicle one day” <center>Thanks for your help.</center> Let’s refer to & add all your known vehicle owners/drivers. <button>Refer Now</button>
+Emergency Alerts:
+Alert the emergency contacts and nearby hospitals of a road accident victim. About the situation specification, photo & live location.
+Note - This will only work if the user who is using the emergency alert must have 2 emergency contacts if not then it will give an error message and a button to update the emergency contacts.  (SMS API x 2)
+Get ___ Coinsback as an award for helping Will be added to the Coinsback Balance
+The offender is a registered User:
+Go to Emergency Alerts from the home page or the bottom bar and scan Icon
+Scan or Manually input the Vehicle Registration Number you want to alert the emergency contacts of
+Verify the vehicle info - Vehicle Registration Number(Shown in number plate format), Vehicle Type, Vehicle Owner Last Name with the first name as XXXX, Vehicle Brand, and Vehicle Model
+You have to upload 1 real-time clicked photo or video proof of the parking situation
+Specify the situation of the victim
+Once done, click on upload
+Automatically app will send an SMS to the vehicle’s emergency contacts and the nearby 1-5km range hospitals of the location from where this situation is reported. (SMS API x __)
+For every help, you will get ___ coinsback on helping a vehicle in unfavorable situations.
+The offender is a Non - registered User:
+Go to Emergency Alerts from the home page or the bottom bar center and scan the item
+Scan or Manually input the Vehicle Registration Number you want to alert the emergency contacts of
+If the vehicle is not registered with us
+You will get a pop-up message “You will surely find this vehicle one day” <center>Really Great Work!.</center> Let’s Call! To nearby hospitals and inform them about the situation <button>Call Now Now</button> (Click-to-call API) (In this users will be directed to the emergency hospital helpline number from their dial-pad.
+Parking Alerts: (Home Page)
+In this screen all the alerts reporting alerts, helping & emergency alerts raised by you and raised against you.
+Alerts Raised by you:
+Steps to view details of Helping Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of the helping alerts
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view details of the selected alert
+Here you can see the Vehicle helped (Vehicle Registration Number Shown in number plate format), alert used, vehicle helped date of help, and coinsback earned.
+Steps to view details of Reporting Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of reporting alert
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view details of the selected alert
+Here you can see the Vehicle reported (Vehicle Registration Number Shown in number plate format), the alert used, the vehicle reported date, and compensation earned.
+Steps to view details of Emergency Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of the helping alerts
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view details of the selected alert
+Here you can see the Vehicle helped (Vehicle Registration Number Shown in number plate format), alert used, vehicle helped date of help, and coinsback earned.
+Alerts Raised against you:
+Steps to view details of Helping Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of the helping alerts
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view details of the selected alert
+Here you can see the Vehicle helped (Vehicle Registration Number Shown in number plate format), alert used, vehicle helped date of help
+Steps to view details of Reporting Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of reporting alert
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view the details of the selected alert
+Here you can see the Vehicle reported (Vehicle Registration Number Shown in number plate format), alert used, vehicle reported date, and Penalty charged.
+Steps to view details of Emergency Alerts:
+Go to Parking Alerts from the Navigation Bar
+Click the blue eye icon left side of the helping alerts
+Select the alert for which you want to see details
+Again, click on the blue eye icon to view the details of the selected alert
+Here you can see the Vehicle helped (Vehicle Registration Number Shown in number plate format), the alert used, and the vehicle helped date of help.
+Find Parking Space:
+In this feature, users will have two options: First, parking spaces registered on google maps(Free & Paid) and 2nd “private parking space” registered by the PM registered parking owner. (Paid)
+To find a parking space:
+Go to Find parking
+You can find parking spaces listed on google within the range between 1km - 10km
+Click on any parking spot
+You can click on navigate option at the bottom
+You will be directed to the maps app and will get the directions for the selected parking space
+Book Parking Space:Steps: Select Vehicle> Select & open available Parking Space and come to the space description screen> Click on Book this space> select the available date & time slot you are looking to book> Verify the Booking details> Apply the coupon code (optional)> Click on Confirm Booking> Directed to the My Bookings Screen (SMS API)
+Note - A condition of minimum___coins will be needed to use Book Parking
+The space description screen will show pictures, prices, location, description & instructions, facilities
+15mins, 30 mins, 1 hour, 2 hours, 4 hours, 6 hours Slots type will be there
+30 mins gap will be there after every available slot
+15 mins cancelation period time from the time booking was made (after this no refund will be given)(SMS API)
+Steps to book a Parking Space by a Vehicle owner:
+Got to Book parking from the home page
+Select the vehicle from your vehicle list
+Select the parking space
+See the space details and description
+Click on the book in this space
+Select the Date
+Select the time slot
+View & verify the details of the booking
+Apply the coupon if any
+Click on Confirm booking (Booking confirmation SMS will be sent to the VO)
+Direct to My BookingsScreen.
+My bookings:
+On this screen Vehicle Owner can track their bookings and here you can view all the details regarding your booked parking space like parking space details, location to navigate, Entry & Exit OTP, Vehicle selected, Status of booking, Cancel option, and option to connect with the parking owner(Click-to–call API).
+My Vehicles:
+On this screen,
+you can view, and track all your vehicles
+and update details like Km Driven, etc.
+Can post your owned vehicle on sale.
+Transfer your sold vehicle ownershipTo edit your vehicle details:
+Go to my vehicles from the homepage and the navigation bar
+Select the vehicle you want to edit
+Click on the edit button from the vehicle info container
+You can now edit the details
+Once updated, Click on the Save button
+To post your vehicle on sale:
+Go to my vehicles from the homepage and the navigation bar
+Select the owned vehicle you want to post on the sale
+Click on the Post on Sale button from the vehicle info container (showing vehicle brand, Model, and type)
+Now Update your Vehicle Condition, Current KM Driven, and Estimated Value
+Click on the Sell Now button
+You can see, your vehicle on the Buy vehicle platform.
+Buy Vehicle:
+This feature helps in
+Making vehicles accessible and available for sale in PAN INDIA
+You can see how many users have viewed your vehicle
+and What ratings are given by users
+Click-to-call To connect with the seller-buyer by paying a nominal charge of ___ Coins.
+Click-to-call to connect with a seller:
+Go to buy a vehicle from the home page
+Select which wheeler type of vehicle you are looking for
+View the wide range of sellers' vehicle postings
+Open & know details about the vehicle you like
+If you have any doubts or you are interested in a deal
+Click on the Call-to-call button
+A charge of ___ coins will be applied
+Vehicle Transfer Ownership:
+In case the added vehicle is sold then transfer ownership from the Vehicle Details Screen<Selected Vehicle<My vehicles Screen.
+Now you will update the new owner details like New Owner Name, New Owner Number, Date of Sale, and Proof of sales(upload file), now the app will remove the vehicle from the current owner and will look for the new owner by the number you have input and will send the request to be accepted for the successful transfer of the vehicle to the new owner.
+The process to transfer vehicle ownership:
+Go to My vehicles> Select Vehicle> Vehicle details screen
+Fill in all details to transfer your vehicle ownership
+Enter New Owner's name
+Enter New owner contact (Otp Verification - SMS API)
+Select Transfer Date
+Upload Proof of transfer
+Click on submit button
+My Referrals: (Home Page)
+On this screen,
+You can view, track, redeem, your referrals, and can earn lots of coinsback while achieving different milestones.
+Invite friends using social media platforms and through other modes
+Here you can see the total number of successful referrals (but not yet used to redeem your milestone),
+You can see the balance of successful referrals, Total Referrals Earned to date, Total referrals redeemed to claim the milestone, and Total Referrals Claim.
+Steps to Claim your referral Bonus:
+Go to My referrals
+Click on Claim your referral bonus
+Check which Milestone is unlocked to redeem
+Click on redeem button
+All the coinsback will be added to your coinsback balance
+Steps to track your referrals & their journey:
+Go to My referrals
+Click on Track your Referrals
+View & Select the referral you want to view
+Click on the View button
+Here you can see your referral journey whether he/she has added the vehicle and on which date (to count it as a successful referral).
+Register your Private Parking Space:
+Now, all parking space owners will get a one-stop solution for the muddes in being a parking space owner.
+Will live on the subject to the approval by the backend(SMS API)
+Follow the steps required:
+Go to Register your Space
+Add up to 5 photos of your parking space from your gallery*
+Add Parking Name, (Limit up to 9 characters)*
+Add Description & Instructions for your parking*
+Select Parking Type - Two-wheeler, Three-Wheeler, Four-Wheeler, Above*
+Select Pricing for Two-wheeler, Three-Wheeler, Four-Wheeler, Above* (coins/min)
+Add availability for Two-wheeler, Three Wheeler, Four Wheeler, and Above* (Nos.)
+Pin the location on the map*
+Add Complete Address*
+Add Pincode*
+Space Ownership Proof - (Upload file)*
+Switch for the availability of your parking (optional)
+Select the opening time & Closing time for your parking space*
+Checkbox the Facilities available in your parking space*
+Click on the “Save your listing” button
+You will be directed to the My Parkings to see and edit your parking space added.After registration, your parking will be live after approval from the company.
+My Parkings:
+On this screen Parking space, owners can view, and track all the bookings received.
+Here you can accept/decline an upcoming booking,
+you can connect with the vehicle owner if required,
+can cancel the booking with the condition within 15 minutes time of the booking being made.
+Edit your space:
+Go to My parking from the homepage bottom bar or navigation bar
+Select & open the parking space you want to edit
+Click on Edit your space and update all the details
+click on save.
+Steps followed by a Parking Space owner after booking has been made:
+The parking space owner will receive a booking request to accept/decline(SMS API & In-app Alarm like an alert)
+Directed to the My parking screen> Upcoming bookings
+Here you can accept/decline the booking request
+To start booking you need to put the entry OTP received from VO
+If not accepted within 15 mins from the time of booking made it will be auto-canceled, and notifications(SMS API) will float to both PO & VO)
+Once started, then
+The booking will be moved to the Ongoing bookings tab
+Here you can connect with the vehicle owner (Click-to-call API)
+Where you can verify the booking details and put the end OTP
+Once Ended, the booking will be moved to the Completed bookings tab
+All the earnings of a parking space owner can be tracked and withdrawn from My Earnings Screen.
+My Earnings:
+A wallet for parking space owners to track all their income from their rented space.
+Withdraw all your earnings in real cash.
+On the earnings made a ___% commission will be deducted before crediting to the earnings wallet.
+To withdraw you need a minimum of 10000 earned coins/1 month (Earnings) (Whichever is greater
+On every withdrawal to the bank account, the user has to pay a ___% Convenience fee
+To view details of your income transactions:
+Go to my earnings from the navigation bar
+View your earnings balance in earned coins
+On the right side of transactions, you will see a blue eye icon to view details of the transaction
+Once clicked, You can view the date, parking name on which earned, vehicle parked, vehicle type, commission to parking mudde( i.e. __% per booking), Park In Time, and Park Out time
+To withdraw your income:
+Go to my earnings
+Click on Let’s Withdraw button
+Select or add your bank account
+To add your bank account provide a few details:
+Account holder name
+Account number
+ISFC Code
+Account type
+Bank Name
+Bank Address
+Mobile Number & Email ID (These two will be auto-filled by the app as given at the time of sign up but you can change them if you want)
+Click on Add button
+Now refresh and select your added bank account
+Enter the Desired amount of earned coins to withdraw (Which will show the conversion in Rs.___ in bold)
+Click on Confirm Withdraw(SMS API)
+To track your withdrawal transactions status:
+Go to my earnings
+Click on the Let’s Withdraw button
+Click on the Withdrawal History link
+See transaction status.
+Vehicle Insurance:
+Available on Home Page Screen
+Will associate with third-party companies for API on a commission basis.
+Bell Icon - Notifications:(Home page)
+Available on Home Page Screen, Top-right corner side.
+On this screen, you find all the notifications and updates related to the app and services
+Secondly, you can track all the query tickets raised.
+News & Blogs:(Home page)
+Available on Home Page Screen, under the features section
+In this feature, you will get daily updates on rules/regulations, current affairs, and news on parking vehicles. Here you can click on read more to read the complete news and visit the source of the information.
+Visitor Management (Home page)
+Vehicle Owner of a community > Option to add the approved parking for Visitor >
+Gate Application > Parking Allowed/Not Allowed
+Leaderboards:(Home page)
+Frequently Asked Questions:(Home page)
+Available on Home Page Screen, under the News & Blogs section
+In this feature, you will find all the answers to your questions, if you don’t find any answers you can connect with us.
+Upcoming Features:(Home page)
+Future you will see soon
+Vehicle service records history, Get your vehicle serviced at your doorstep, Get a Smart & Safe parking E-pass, Get the location & directions for your towed vehicle, Helping Hand - Get roadside assistance helping hand for your vehicle within 30 minutes on your current location.
+Help & Support:(Home page)
+To connect with us for all your muddes regarding the services or the application. You can connect by raising a request query ticket, Calling to connect with a support agent, and WhatsApp chat support.
+Steps to Connect through Raising query ticket:(SMS API)
+Go to Help & support from the Top bar home page or my account contact us
+Under Queries tab
+Click on Raise Ticket
+Select the Query from the list
+Write the subject of the request
+Describe your query
+Click on raise
+Your query ticket is raised and now you do in-app chatting with the support agent
+Steps to Connect through Call:(SMS API)
+Go to Help & support from the Top bar home page or my account contact us
+Under Queries tab
+Click on Call
+Directed to the dial pad with the support number
+Dail to connect and resolve
+Steps to Connect through Whatsapp:(Whatsapp API)
+Go to Help & support from the Top bar home page or my account contact us
+Under Queries tab
+Click on Whatsapp
+Directed to the support Whatsapp chat
+Start writing your query to resolve
+Customer testimonials: (Home page)
+In this, all the uploaded by backend testimonials will be shown
+Refund Panel
+Refund allowed - Booking a space - To VO in case of booking is canceled before the 15th minute passed of the time booking made, Incase of booking canceled by the PO 15 minutes prior to the booking start time. (All the transactions are in coins only)
+Ads Banners Space (Scrolling banner’s section) (Showcase the ads like it filled but not overlapped)
+AdB1 - On the homepage in multiple shapes, sizes, locations, placements.
+AdB2 - On all Alerts screens i.e. On Scan or Manually input the VRN screen (bottom) in multiple shapes, sizes, locations, placements.
+AdB3 - On Choose your plan screen (Top)
+AdB4 - Parking Alerts Main screen in multiple shapes, sizes, locations, placements.
+AdB5 - My vehicles in multiple shapes, sizes, locations, placements.
+All these AdB’s will come individually from backend
+Onboarding Screens
+ONBOARDING SCREENS (Amaze + Educate + Motivate)
+Goal: user should feel “Wow, this app is necessary” within 20 seconds.
+Recommended: 5 onboarding screens + 1 permission screen (Use swipe + progress dots + short text + big icons)
+✅ Onboarding Screen 1 — “India’s First Parking Community App”
+Title: India’s First Parking Community App 🇮🇳Subtitle: One app that connects vehicle owners, parking owners & communities to solve parking issues instantly.Highlights (chips): ✅ Report Wrong Parking ✅ Help Parking Errors ✅ Emergency Alerts
+CTA Button: Continue →Microcopy: “Takes 30 seconds. Saves hours.”
+✅ Onboarding Screen 2 — “Stop Wrong Parking Without Fighting”
+Title: Wrong Parking? Now solve it in 60 seconds.Subtitle: Scan number plate → alert owner → masked call → SOS if needed.Bullet points:
+No confrontation
+No personal number revealed
+Proof-based reporting
+Coinsback compensation
+CTA: Next →Microcopy: “Peacefully solve parking muddes.”
+✅ Onboarding Screen 3 — “Help Others, Earn Coinsback”
+Title: Be a Helper. Earn Rewards.Subtitle: Help someone with simple vehicle errors and get Coinsback.Examples shown: ✅ Light ON ✅ Door Open ✅ Handbrake issue ✅ Flat tyre
+CTA: Next →Microcopy: “Good karma now has value.”
+✅ Onboarding Screen 4 — “Emergency? One Tap Can Save Lives”
+Title: Road Accident? Alert family + nearby hospital.Subtitle: Emergency alert sends live location + photo to emergency contacts and nearby hospitals.Note: Only works if emergency contacts are set.
+CTA: Set emergency contacts now →Skip: I’ll do later
+✅ Onboarding Screen 5 — “Your Coins Wallet = Your Superpower”
+Title: Earn, Spend, Redeem — all inside the app.Subtitle: Coins help you report, connect, book, and redeem rewards.Coinsback comes from:
+Signup
+Add vehicle
+Helping
+Reporting compensation
+Referrals
+CTA: Start Now →
+Alerts
+B) ALERTS MODULE UI: “SCAN & CONNECT”
+On home page keep Center Floating Action Button: 📸 Scan & Connect
+When clicked → open 3 large cards:
+✅ Reporting Alert (Wrong parking) ✅ Helping Alert (Parking errors) ✅ Emergency Alert (Accident support)
+C) REPORTING ALERTS (Wrong Parking / Unfavourable Situation)
+This is your most viral feature. Make it feel like a “police-level action flow” 😄
+✅ Reporting Alert Categories (Dynamic from backend)
+User selects issue type after scanning:
+🚫 Wrong Parking Issues
+Parked in my reserved spot
+Blocking my car / double parked
+Parked in No Parking zone
+Blocking society entry/exit gate
+Blocking driveway / ramp
+Blocking fire exit
+Blocking ambulance access
+Parked on footpath
+Parked on wrong side
+Parked in handicapped slot
+Parked in EV charging spot
+Parked on zebra crossing
+Blocking shop entrance / shutter
+Parking in front of my house
+Parking causing traffic jam
+✅ Show icons + short labels
+✅ Reporting Proof Screen UX
+Instruction line: “Upload proof from 4 sides (front/back/left/right). This keeps reporting fair.”
+✅ Buttons: 📷 Capture Front 📷 Capture Back 📷 Capture Left 📷 Capture Right
+CTA Button: Submit & Alert Owner
+✅ Microcopy: “No personal number is shared. Fully masked.”
+✅ Reporting Timeline Screen (After submit)
+Show progress bar style:
+✅ Step 1: In-app alert sent ✅ Step 2: SMS sent ⏳ Step 3: Waiting 30 seconds 📞 Step 4: Masked call option 🚨 Step 5: SOS Helpline
+Buttons shown gradually:
+On the way (for offender)
+Call Owner (after 30s)
+SOS Helpline (after 60s)
+✅ Reporting: “Your report has been sent anonymously. No personal number is shared.” “We’ve notified the vehicle owner. If no response, you can escalate safely.”
+D) HELPING ALERTS (Parking Errors)
+Helping is your community-building + Coinsback earning loop.
+✅ Helping “Parking Errors” List (Super Valuable)
+This is what user selects after scanning:
+🚗 Safety / Urgent
+Headlights ON
+Indicator ON
+Door open
+Boot open
+Window open
+Engine ON (idle)
+Handbrake not engaged
+Hazard light ON
+Car rolling risk
+🔧 Vehicle Risk
+Flat tyre
+Low air tyre
+Side mirror folded / broken
+Fuel cap open
+Oil leak visible
+Smoke from engine
+🚦 Parking Mistakes
+Parked too close (blocking)
+Parked outside marking
+Parked on slope without support
+Parked in visitor slot
+Parked on ramp / turn
+Car alarm continuously ringing
+Smoke coming from vehicle
+Fuel leakage suspected
+Vehicle left unattended long time
+Suspicious vehicle / security concern
+✅ Helping Upload Proof: Only 1 photo/video required.
+✅ Alert message to offender: “Someone from your community noticed an issue with your vehicle. Please check immediately.”
+✅ Reward: “Congrats! You earned +__ Coinsback for helping.”
+✅ Helping: “Thank you for helping the vehicle community. You earned Coinsback.” “A safer India begins with small actions.”
+E) EMERGENCY ALERTS (Accident / Victim Support)
+This feature should look serious + official.
+✅ Emergency Situation Types (User selects)
+Minor accident (vehicle damaged)
+Serious accident (injury suspected)
+Person unconscious
+Bleeding / medical emergency
+Vehicle overturned
+Fire risk / smoke
+Hit & run case
+Need ambulance immediately
+✅ Emergency Submission Screen
+Required: ✅ Photo/video proof (1) ✅ Situation selection ✅ Auto live location ✅ “Call emergency number” optional CTA
+✅ After submission confirmation
+Title: Emergency alert sent ✅Subtitle: Emergency contacts + nearby hospitals have been notified.Buttons: 📞 Call 108 📍 Share Live Location on WhatsApp ✅ Mark Safe / Close Case
+✅ Emergency: “This alert can save a life. You did the right thing.”
+Leaderboards
+F) LEADERBOARD (Home Page Motivation System)
+This will add addiction + daily engagement.
+✅ Leaderboard Types (Tabs)
+🏆 Weekly Heroes
+Ranking based on:
+Helping alerts completed ✅
+Emergency helps ✅
+Successful referrals ✅
+Community rating ⭐
+🚨 Parking Warriors (Reporting)
+Based on:
+Genuine reports (proof verified) ✅
+“Resolved cases” count ✅
+Coinsback earned ✅
+👑 City Champions
+Top helpers by city.
+✅ Gamification Titles (Fun + Indian vibe)
+Parking Protector 🛡️
+Society Hero 🏢
+Street Guardian 🚦
+Road Samaritan ❤️
+ParkingMudde Legend 👑
+✅ Show badges + progress bar: “2 more helps to unlock Parking Protector badge”
+✅ Reward for top 10 weekly: “Extra Coinsback + Rewards Coupon”
+Home Page Structure
+G) HOME PAGE SECTIONS (Best UX Layout)
+Home Page Block Layout:
+Top greeting + Wallet coins
+Ad Image/Video Slider
+3 CTA Tiles
+Report
+Help
+Emergency
+Visitor Parking (Approved visitors list + Add visitor option)
+Find Parking CTA
+Leaderboard Preview
+News & Blogs
+FAQs
+Upcoming Features
+Testimonials
+Referral
+Help & Support
+At the end Slogan - Mudde Anek Solution Ek
+Ad Banner zones
+Extra but important
+While reporting a vehicle, helping a vehicle or using emergency alerts if any vehicle is not found n the database then, a message "Sorry! This Vehicle Owner {@VAR} vehicle owner number plate, is not a registered user of parkingmudde app. Let's invite now. >then, on the center bottom a button "Invite Now"
+Once clicked on Invite Now, a form will open> asking about the Name of the Vehicle owner & Number> And then a screen will appear asking for alert them now> Once clicked the user will be directed to the his message compose screen where in To: Offender Number (Which is input given by suffer) and message as per template and then message will be sent by sufferes side with using thier message charges applicable
+If Clicked on Invite Now and sufferer don't have the vehicle owner details then, suffer will click on question in blue link "don't have the details" given under the button "Submit" available on the screen "input of vehicle owner name & number" > Once clicked on the link the user will get a message "Thanks to take the initiative to help the community, We will alert the vehicle owner" > This will create any enqury in the backend with the avaiable details#
+Website/Other App Screenshots
+APP SCREENSHOTS IN THESE FLOWS (Placement)
+✅ For your app preview screens / website screens, use:
+Onboarding Screen 1 (India first)
+Scan & Connect selection screen (3 alerts)
+Reporting proof upload screen
+On-the-way / masked call flow screen
+Helping alert screen (door open / light on)
+Emergency alert screen (hospital notification)
+Wallet + rewards screen
+Leaderboard screen
+Ai/ML Detection System
+Wrong Parking Detection System (AI/ML) — Explained for Developer
+1) What this system does (Goal)
+The Wrong Parking Detection System will automatically judge whether a vehicle is:
+✅ Correctly Parked⚠️ Suspicious / Likely Wrong Parking❌ Wrong / Illegal Parking (Reportable + SOS Eligible)
+It will use a hybrid model:
+✅ Hybrid Approach
+AI Vision (Camera Proof) → Detect vehicle location + posture + environment (road marking, zebra crossing, bus stop, footpath etc.)
+Geo-fencing + Maps (GPS context) → Detect if vehicle is near restricted zones (intersection, hospital entry, traffic signal, junction etc.)
+Rule Engine (Legal Compliance) → Apply Indian Motor Vehicle rules as decision rules
+Evidence Validation → Proof required (photos + video + time + location)
+Final Decision → Wrong parking score + verdict + action steps
+✅ 2) Parking Laws & Rules to implement (from your doc)
+These are the core legal clauses that define wrong parking in India:
+A) MV Act Section 122 (Danger / Obstruction / Inconvenience)
+Wrong if vehicle is:
+Creating danger
+Creating obstruction
+Causing undue inconvenience on public placeLaw of Parking
+✅ App interpretation:If vehicle blocks movement, entrance/exit, roadway, pedestrian access → mark as wrong
+B) MV Act Section 127 (Towing / Immobilization)
+Vehicle can be towed if:
+Parked in a place where parking is legally prohibited
+Left unattended 10 hours or more
+Creating a traffic hazard → immediate removal authorizedLaw of Parking
+✅ App interpretation:If detected in legal prohibition zone → mark towable wrong parkingIf long-stationary evidence exists → mark as abandoned / unattended
+C) MVDR 2017 Regulation 22 (Stopping + Parking restrictions)
+This is the most important for AI detection.
+C1) Vehicle shall not STOP in:
+Narrow road / obstructed view
+Near/on sharp bend
+Acceleration/deceleration lane
+On or 5m before pedestrian crossing
+Level crossing
+Within 5m of traffic light / Give Way / Stop sign
+Bus stand (if not bus)
+Yellow box marking
+No Stopping sign zoneLaw of Parking
+C2) Vehicle shall not PARK in:
+Any “no stopping” zone
+Main roads where speed limit ≥ 50 km/h
+Footpath / cycle track / pedestrian crossing
+50m before or after intersection/junction
+Blocking access to parking spaces
+Near bus stop / hospital / school entry
+In tunnels
+Bus lanes
+In front of entrance/exit of property
+Continuous yellow line on kerb side
+Away from the edge of footpath
+Opposite another parked vehicle
+Obstruct any other vehicle/person
+Alongside another parked vehicle (double parking)
+Beyond allowed duration
+Wrong vehicle category zone
+Disabled parking misuse
+Occupying excessive space / wrong in parking bay
+No Parking sign zoneLaw of Parking
+✅ App will use these as rule conditions.
+✅ 3) Mobile App Detection Flow (End-to-End)
+Step 1: User initiates “Report Wrong Parking”
+User selects:✅ “Wrong Parking / Obstruction”
+Then app guides user:
+Evidence Collection Screen (Mandatory)
+User must capture:
+Front photo
+Back photo
+Left photo
+Right photo(+ optional 5 sec video)
+✅ AI runs instantly on each photo
+Step 2: AI detects “Context” from media
+The system extracts:
+Vision AI outputs
+Vehicle bounding box + plate location
+“Parked on footpath?” probability
+“On zebra crossing?” probability
+“Near junction?” probability
+“Blocking entrance?” probability
+“Double parked?” probability
+“In no parking sign zone?” probability
+“In yellow box zone?” probability
+“In bus stop/bus lane zone?” probability
+Step 3: Geo + Map Rules check
+App uses:
+GPS lat/long of photo capture
+Direction + heading
+Optional: maps road metadata
+✅ Detect proximity to:
+Junction / intersection
+Pedestrian crossing
+Traffic light
+Hospital / school entrance
+Bus stop/bus lane
+Tunnel zones (if mapped)
+No-parking geofence zones (future: city data)
+Step 4: Rule Engine Decision
+AI results + Geo results go to rules engine.
+Final output
+✅ Legal flags triggered✅ Wrong Parking Score (0–100)✅ Verdict: Correct / Suspicious / Wrong✅ Next action: In-app alert → Call masked IVR → SOS
+✅ 4) Wrong Parking Score System (Recommended)
+To make this consistent + scalable, use scoring.
+Score Bands
+0–29 → Safe / No violation detected
+30–59 → Suspicious (manual review or ask user for extra proof)
+60–100 → Wrong Parking confirmed (auto-enable reporting + SOS logic)
+Example Score Weights
+On footpath / cycle track → +35
+On pedestrian crossing / within 5m → +35
+Within 50m of intersection → +25
+Double parked → +25
+Blocking entrance/exit → +30
+On yellow box → +30
+On main road speed ≥50 km/h → +20
+Near bus stop / hospital gate → +25
+Continuous yellow line zone → +20
+No parking sign visible → +40
+No stopping sign visible → +45
+✅ 5) Detailed List of Wrong Parking Detection Algorithms (AI/ML + Rule Engine)
+Below is the complete list your mobile app can use.
+A) Computer Vision Models (Camera Based)
+1. Vehicle Detection + Classification
+Algorithm: YOLOv8 / EfficientDet / RetinaNetOutput: Vehicle type, bounding box, confidence
+2. Number Plate Detection (VRN ROI)
+Algorithm: Plate detector + OCROutput: Plate location + text
+Even if OCR fails, reporting can continue using manual VRN.
+3. Road Segmentation (Footpath vs Road vs Crossing)
+Algorithm: Semantic Segmentation (DeepLabV3+, SegFormer)Detect pixels belonging to:
+Road
+Footpath
+Zebra crossing
+Cycle lane
+Yellow box area
+Bus lane
+Parking bay markings (where visible)
+✅ This is the backbone of “wrong parking on restricted surface”.
+4. Parking Orientation Detection (Angle + Alignment)
+Algorithm: Keypoint estimation + bounding box angleDetect if vehicle is:
+Parked diagonally across lane
+Not aligned in parking bay
+Taking excessive space
+5. Double Parking Detection
+Algorithm: Multi-object detection + lane position comparisonRule:If vehicle is parallel to a parked vehicle and occupying traffic lane → wrong parking.
+6. Obstruction Detection (Blocking a Path / Gate / Lane)
+Algorithm: Scene graph reasoning + foreground overlapDetect:
+Gate / driveway entry blocked
+Exit blocked
+Fire hydrant block (if sign visible)
+Parking slot entry blocked
+7. Crosswalk / Pedestrian Zone Violation
+Algorithm: Zebra crossing detection + distance estimationRule:Vehicle overlaps crossing → illegalVehicle within 5m (approximation) → illegal
+8. Signboard Detection (No Parking / No Stopping)
+Algorithm: Object detection model trained on Indian traffic signsDetect:
+No Parking sign
+No Stopping sign
+Stop / Give Way signs
+✅ Extremely powerful because it triggers direct legal violation.
+9. Sharp Bend / Obstructed View Detection (Optional Advance)
+Algorithm: Road curvature estimation from image + map geometryUse caution: hard to be highly accurate without map data.
+B) Geo-Fencing + Mapping Algorithms (GPS Based)
+10. Intersection / Junction Proximity Check
+Algorithm: Map API + radius rulesRule:If within 50m of intersection or junction → illegal parking
+11. Traffic Signal Proximity Check
+Rule:If within 5m of traffic light / stop sign → illegal stopping/parking
+12. Bus Stop / Bus Lane Zone Check
+Rule:If within bus stop geofence OR bus lane segment → illegal
+13. Hospital / School Entry Zone Check
+Rule:If within defined entrance geofence OR “likely blocking entry” → wrong parking
+15. Parking Duration Violation Check
+Rule:If allowed duration exists and exceeded → illegal(Phase 2: integrate paid parking providers)
+C) Rule Engine Logic (Legal Decisioning)
+16. Legal Prohibition Rule Match
+If any clause triggered → label as wrong parking with reason:
+“Footpath parking”
+“Blocking entrance”
+“Double parking”
+“Near crossing”
+“Near junction”
+“No parking sign zone”
+etc.
+17. Evidence Confidence Threshold Check
+Rule:If AI confidence < threshold → ask user for more proofExample:“Please upload 1 more clear photo from side angle.”
+18. Duplicate Report Prevention
+Rule:If same VRN + same location + same reason within X minutes→ prevent spam and reduce misuse
+19. Registered vs Unregistered Vehicle Handling
+Registered → In-app alert + IVR call + SOS ladder
+Unregistered → SOS-only route(as per your feature flow)
+✅ 6) Developer Implementation Structure (Recommended)
+Modules
+1) Evidence Capture Module
+4-photo mandatory
+GPS + timestamp forced ON
+image compression + upload pipeline
+2) AI Inference Engine
+Runs:
+local lightweight model OR server inferenceOutputs JSON:
+{
+"plate_detected": true,
+"footpath_prob": 0.81,
+"crosswalk_prob": 0.12,
+"double_park_prob": 0.67,
+"no_parking_sign_prob": 0.05,
+"score": 72,
+"verdict": "WRONG_PARKING",
+"reason_codes": ["FOOTPATH", "DOUBLE_PARK"]
+}
+3) Rule Engine
+configurable rules via backend
+allows city/state variations later
+4) Decision Ladder Module (Your existing flow)
+Step 1: In-app alarm + SMS
+Step 2: “On the way” action
+Step 3: Masked IVR call
+Step 4: SOS parking helpline
+✅ 7) “Wrong Parking Reasons” List (App UI Labels)
+This should be the final list inside the app to select/report.
+Core Violations (must include)
+Blocking my car exit
+Blocking property entrance/exit
+Parked on footpath
+Parked on pedestrian crossing
+Double parked (parked next to another vehicle)
+Parked in No Parking Zone
+Stopped in No Stopping Zone
+Parked near junction/intersection
+Parked near traffic light / stop sign
+Parked at bus stop / bus lane
+Parked on yellow box marking
+Parked in narrow road / obstructing lane
+Parked opposite another parked vehicle
+Wrong category parking (e.g. car in 2W space)
+Disabled parking misuse
+Overstayed parking duration
+Parked away from kerb/edge
+Causing danger / obstruction / inconvenience
+✅ 8) Safety + Anti-Abuse (Must-have)
+Because people may misuse reporting:
+✅ Require 4 proof photos✅ Blur faces automatically (privacy)✅ Penalize false reporting after repeated invalid reports✅ Rate-limit reporting per user per hour✅ Store hash of images to detect duplicates
+✅ 9) Output Screens your UI/UX must show
+Report Result Screen
+Show:
+Verdict badge: ✅/⚠️/❌
+Wrong parking score
+“Detected reasons”
+Next step CTA button:
+“Send Alert”
+“Call Vehicle Owner”
+“SOS Parking Helpline”
+✅ 10) What you still need to collect for “Deep Accuracy”
+To make system extremely strong you will later need:
+Citywise No Parking Zones dataset
+Local authority parking rules per state (future expansion)
+ML dataset of Indian roads + signage + common wrong parking scenarios
+But even without that, your vision + rule-engine hybrid will work very well.
+✅ Final Deliverable Summary for Developer
+Your developer should build:
+✅ AI Detection Pipeline (vehicle + environment + signs)✅ Geo Rules Engine (intersection/crossing/bus stop radiuses)✅ Wrong Parking Scoring (0–100)✅ Legally mapped reason codes (from MV Act + MVDR)
+Law of Parking
+✅ Action ladder integration with your reporting flow (alert → IVR → SOS)
+Community Panel

@@ -10,7 +10,17 @@ import '../../providers/wallet_provider.dart';
 class ReportProofScreen extends StatefulWidget {
   final String? typev;
   final String? vehicleNumber;
-  const ReportProofScreen({super.key, this.typev, this.vehicleNumber});
+  final Map<String, dynamic>? vehicleLookupData;
+  final String? selectedIssueTitle;
+  final String? selectedIssueCode;
+  const ReportProofScreen({
+    super.key,
+    this.typev,
+    this.vehicleNumber,
+    this.vehicleLookupData,
+    this.selectedIssueTitle,
+    this.selectedIssueCode,
+  });
 
   @override
   State<ReportProofScreen> createState() => _ReportProofScreenState();
@@ -18,6 +28,7 @@ class ReportProofScreen extends StatefulWidget {
 
 class _ReportProofScreenState extends State<ReportProofScreen> {
   final ImagePicker _picker = ImagePicker();
+  final TextEditingController situationController = TextEditingController();
 
   List<XFile> images = [];
   List<Uint8List> imageBytes = [];
@@ -27,10 +38,124 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
   final offenderData = {
     "vehicle": "MH12**1234",
-    "owner": "R**** S****",
-    "mobile": "+91 ******4321",
+    "owner": "Not available",
+    "mobile": "Not available",
     "area": "Andheri East, Mumbai",
   };
+
+  Map<String, dynamic> get _lookupVehicle {
+    return widget.vehicleLookupData?["vehicle"] as Map<String, dynamic>? ?? {};
+  }
+
+  String? _readString(Map<String, dynamic> source, List<String> keys) {
+    for (final key in keys) {
+      final value = source[key]?.toString().trim();
+      if (value != null && value.isNotEmpty && value.toLowerCase() != "null") {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  String get _targetVehicleNumber {
+    return widget.vehicleNumber?.trim().isNotEmpty == true
+        ? widget.vehicleNumber!.trim()
+        : _readString(_lookupVehicle, [
+              "vehicle_number",
+              "vehicleNumber",
+              "registration_number",
+              "registrationNumber",
+            ]) ??
+        offenderData["vehicle"]!;
+  }
+
+  String get _registeredOwnerName {
+    final lookupData = widget.vehicleLookupData ?? {};
+    final lookupName = _readString(lookupData, [
+      "owner_name",
+      "ownerName",
+      "app_user_name",
+      "appUserName",
+    ]);
+    if (lookupName != null) {
+      return lookupName;
+    }
+
+    final name =
+        "${_readString(_lookupVehicle, [
+              "owner_first_name",
+              "ownerFirstName",
+            ]) ?? ""} ${_readString(_lookupVehicle, [
+              "owner_last_name",
+              "ownerLastName",
+            ]) ?? ""}"
+            .trim();
+    return name.isEmpty ? offenderData["owner"]! : name;
+  }
+
+  String get _registeredOwnerMobile {
+    final lookupData = widget.vehicleLookupData ?? {};
+    return _readString(lookupData, [
+          "owner_mobile",
+          "ownerMobile",
+          "app_user_mobile",
+          "appUserMobile",
+        ]) ??
+        _readString(_lookupVehicle, [
+          "registered_mobile",
+          "registeredMobile",
+          "mobile_number",
+          "mobileNumber",
+        ]) ??
+        offenderData["mobile"]!;
+  }
+
+  String get _registeredVehicleType {
+    return _readString(_lookupVehicle, [
+          "vehicle_type",
+          "vehicleType",
+          "type",
+        ]) ??
+        "Registered vehicle";
+  }
+
+  String get _maskedOwnerName {
+    final name = _registeredOwnerName.trim();
+    if (name.isEmpty || name == offenderData["owner"]) return "Not available";
+    return name;
+  }
+
+  String get _maskedContact {
+    final mobile = _registeredOwnerMobile.replaceAll(RegExp(r'[^0-9]'), '');
+    if (mobile.length < 4) return "Not available";
+    if (mobile.length >= 10) return "${mobile.substring(0, 2)}${'X' * (mobile.length - 2)}";
+    return "XX${'X' * (mobile.length - 2)}";
+  }
+
+  bool get _isHelpFlow => widget.typev == "help";
+  bool get _isEmergencyFlow => widget.typev == "emergency";
+  bool get _requiresSinglePhoto => _isHelpFlow || _isEmergencyFlow;
+  String get _issueTitle {
+    if (widget.selectedIssueTitle?.trim().isNotEmpty == true) {
+      return widget.selectedIssueTitle!.trim();
+    }
+    if (_isHelpFlow) return "Parking error";
+    if (_isEmergencyFlow) return "Emergency situation";
+    return "Wrong parking issue";
+  }
+
+  static const List<String> _reportAngleLabels = [
+    "Front",
+    "Back",
+    "Left",
+    "Right",
+  ];
+
+  @override
+  void dispose() {
+    situationController.dispose();
+    super.dispose();
+  }
 
   // Original Backend method 1
   Future<void> pickImage() async {
@@ -39,14 +164,17 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       return;
     }
 
-    if (images.length >= 4) {
-      showSnack("Maximum 4 images allowed");
+    final maxImages = _requiresSinglePhoto ? 1 : 4;
+    if (images.length >= maxImages) {
+      showSnack(_requiresSinglePhoto ? "Only 1 photo is required" : "Maximum 4 images allowed");
       return;
     }
 
     final XFile? file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80, // Increased quality to prevent corruption
+      source: ImageSource.camera,
+      imageQuality: 60, // Compressed for AI Model
+      maxWidth: 1024,
+      maxHeight: 1024,
     );
 
     if (file == null) return;
@@ -72,7 +200,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       return;
     }
 
-    final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
+    final XFile? file = await _picker.pickVideo(source: ImageSource.camera);
 
     if (file == null) return;
 
@@ -106,7 +234,19 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
   // Original Backend Submit logic preserved explicitly
   Future<void> submitReport() async {
-    if (videoFile == null && images.length < 4) {
+    if (isLoading) return;
+
+    if (_isEmergencyFlow && situationController.text.trim().isEmpty) {
+      showSnack("Please specify the emergency situation");
+      return;
+    }
+
+    if (_requiresSinglePhoto && images.isEmpty) {
+      showSnack("Please upload 1 real-time photo proof");
+      return;
+    }
+
+    if (!_requiresSinglePhoto && videoFile == null && images.length < 4) {
       showSnack("Please upload all 4 photos (front, back, left, right)");
       return;
     }
@@ -117,23 +257,69 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
     final storedUser = await ApiService.getStoredUser();
     final currentUserId = storedUser?["user_id"]?.toString();
-    final targetVehicle = widget.vehicleNumber ?? "MH12AB1234";
+    final targetVehicle = _targetVehicleNumber;
+
+    if ((_isHelpFlow || _isEmergencyFlow) &&
+        (currentUserId == null || currentUserId.isEmpty)) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      showSnack("Session invalid. Please login again.");
+      return;
+    }
 
     Map<String, dynamic> result;
-    if (widget.typev == "help" && currentUserId != null) {
-      result = await ApiService.createHelpedVehicleActivity(
-        userId: currentUserId,
+    if (_isEmergencyFlow) {
+      result = await ApiService.createEmergencyAlertActivity(
+        userId: currentUserId!,
         vehicleNumber: targetVehicle,
+        situation: situationController.text.trim(),
+        location: offenderData["area"],
+      );
+    } else if (_isHelpFlow) {
+      result = await ApiService.createHelpedVehicleActivity(
+        userId: currentUserId!,
+        vehicleNumber: targetVehicle,
+        parkingError: _issueTitle,
         location: offenderData["area"],
       );
     } else {
+      int? aiScore;
+      String? aiVerdict;
+      String? aiReasons;
+
+      // Read real GPS coordinates from stored prefs
+      final double reportLat = storedUser?["latitude"] as double? ?? 19.0760;
+      final double reportLng = storedUser?["longitude"] as double? ?? 72.8777;
+
+      if (images.length == 4) {
+        final aiResult = await ApiService.getAIVerdict(
+          images: images,
+          lat: reportLat,
+          lng: reportLng,
+        );
+        if (aiResult["success"] == true) {
+          aiScore = aiResult["score"];
+          aiVerdict = aiResult["verdict"];
+          aiReasons = aiResult["reasons"];
+        }
+      }
+
       result = await ApiService.createWrongParkingReport(
         vehicleNumber: targetVehicle,
         images: images,
         videoFile: videoFile,
         capturedAt: DateTime.now().toString().split('.').first,
+        selectedIssue: _issueTitle,
+        selectedIssueCode: widget.selectedIssueCode,
+        aiScore: aiScore,
+        aiVerdict: aiVerdict,
+        aiReasons: aiReasons,
+        lat: reportLat,
+        lng: reportLng,
       );
     }
+
+    if (!mounted) return;
 
     setState(() {
       isLoading = false;
@@ -143,16 +329,98 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       // Refresh wallet balance using Provider
       await context.read<WalletProvider>().fetchWallet();
 
-      showSnack(
-        widget.typev == "help"
-            ? "Help activity submitted successfully"
-            : "Report submitted successfully",
-      );
+      final reportId = result["data"] is Map
+          ? result["data"]["report_id"]?.toString()
+          : null;
+      final coinsCharged = result["coins_charged"] ?? 0;
+      final coinsbackOnConfirm = result["coinsback_on_confirm"] ?? 0;
+      final aiScoreRes = result["data"] is Map ? result["data"]["ai_score"] ?? 0 : 0;
+      final aiVerdictRes = result["data"] is Map ? result["data"]["ai_verdict"] ?? "UNDER_REVIEW" : "UNDER_REVIEW";
+      final aiReasonsRes = result["data"] is Map ? result["data"]["ai_reasons"] : null;
 
-      Get.to(() => ThankYouReportScreen(typecv: widget.typev));
+      Get.to(
+        () => ThankYouReportScreen(
+          typecv: widget.typev,
+          reportId: reportId,
+          coinsCharged: coinsCharged,
+          coinsbackOnConfirm: coinsbackOnConfirm,
+          aiScore: aiScoreRes,
+          aiVerdict: aiVerdictRes,
+          aiReasons: aiReasonsRes,
+        ),
+      );
+    } else if (result["insufficient_coins"] == true) {
+      // 402 — show rich dialog
+      _showInsufficientCoinsDialog(result["message"] ?? "Not enough PM Coins.");
     } else {
       showSnack("❌ ${result['message']}");
     }
+  }
+
+  void _showInsufficientCoinsDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.account_balance_wallet_rounded,
+                    color: Colors.orange.shade700, size: 40),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Insufficient PM Coins",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                style: TextStyle(
+                    color: Colors.blueGrey.shade500,
+                    fontSize: 13,
+                    height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Get.back(); // Go back to home where wallet is accessible
+                  },
+                  icon: const Icon(Icons.add_card_rounded, color: Colors.white),
+                  label: const Text("Top Up Wallet",
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF184B8C),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text("Cancel",
+                    style: TextStyle(color: Colors.blueGrey.shade400)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -173,7 +441,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
           onPressed: () => Get.back(),
         ),
         title: Text(
-          widget.typev == "help" ? "Vehicle Details" : "Report Evidence",
+          widget.typev == "help"
+              ? "Helping Evidence"
+              : widget.typev == "emergency"
+              ? "Emergency Evidence"
+              : "Report Evidence",
           style: const TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w800,
@@ -186,9 +458,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
           child: Container(color: Colors.grey.shade200, height: 1),
         ),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
+      body: Stack(
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -198,8 +472,8 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     /// Top Evidence Header
-                    const Text(
-                      "Review & Attach",
+                    Text(
+                      _isEmergencyFlow ? "Emergency Details" : "Review & Attach",
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
@@ -208,7 +482,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      "Secure submission portal against wrong parking.",
+                      _isEmergencyFlow
+                          ? "Add a photo and specify the victim situation."
+                          : _isHelpFlow
+                          ? "Add 1 photo proof of the parking error."
+                          : "Upload proof from 4 sides. This keeps reporting fair.",
                       style: TextStyle(
                         color: Colors.grey.shade500,
                         fontSize: 14,
@@ -222,6 +500,40 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                     _offenderCard(),
 
                     const SizedBox(height: 28),
+
+                    _selectedIssueCard(),
+
+                    const SizedBox(height: 28),
+
+                    if (_isEmergencyFlow) ...[
+                      const Text(
+                        "Situation Specification",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: situationController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          hintText: "Describe the accident or emergency condition",
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                    ],
 
                     /// Upload Titles Section
                     const Row(
@@ -253,8 +565,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                         ),
                         children: [
                           TextSpan(
-                            text:
-                                "Upload 4 distinct photos (all angles) OR 1 full video showing layout limits.",
+                            text: _requiresSinglePhoto
+                                ? "Upload 1 real-time photo proof."
+                                : "Capture Front, Back, Left and Right photos OR 1 clear video.",
                             style: TextStyle(
                               color: Colors.blueGrey.shade500,
                               fontWeight: FontWeight.w600,
@@ -285,7 +598,125 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
               ),
             ),
           );
-        },
+            },
+          ),
+          if (isLoading) _requestLoadingOverlay(),
+        ],
+      ),
+    );
+  }
+
+  Widget _requestLoadingOverlay() {
+    final isHelp = widget.typev == "help";
+
+    return Positioned.fill(
+      child: AbsorbPointer(
+        child: Container(
+          color: Colors.black.withOpacity(0.34),
+          child: Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 28),
+              padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.18),
+                    blurRadius: 30,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    height: 36,
+                    width: 36,
+                    child: CircularProgressIndicator(
+                      color: Color(0XFF184B8C),
+                      strokeWidth: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    isHelp ? "Submitting help request" : "Submitting report",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFF1E293B),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    isHelp
+                        ? "Notifying the vehicle owner privately..."
+                        : "Uploading proof and checking the request...",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.blueGrey.shade500,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _selectedIssueCard() {
+    final isHelp = _isHelpFlow;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isHelp ? const Color(0xFFF2F0FF) : const Color(0xFFEFF5FE),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isHelp ? const Color(0xFFCEC9FF) : const Color(0xFFC8D8F6),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isHelp ? Icons.handshake_rounded : Icons.report_problem_rounded,
+            color: isHelp ? const Color(0xFF4C42ED) : const Color(0XFF184B8C),
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isHelp ? "Selected parking error" : "Selected report issue",
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _issueTitle,
+                  style: const TextStyle(
+                    color: Color(0xFF1E293B),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -347,7 +778,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                 _infoRow(
                   icon: Icons.directions_car_rounded,
                   title: "Target Vehicle",
-                  value: offenderData["vehicle"]!,
+                  value: _targetVehicleNumber,
                   isHighlight: true,
                 ),
                 Padding(
@@ -357,8 +788,8 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
                 _infoRow(
                   icon: Icons.person,
-                  title: "Registered To",
-                  value: offenderData["owner"]!,
+                  title: "Owner Name",
+                  value: _maskedOwnerName,
                 ),
                 Padding(
                   padding: const EdgeInsets.only(left: 36, bottom: 8),
@@ -367,8 +798,8 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
                 _infoRow(
                   icon: Icons.phone_android_rounded,
-                  title: "Contact Number",
-                  value: offenderData["mobile"]!,
+                  title: "Contact Privacy",
+                  value: _maskedContact,
                 ),
                 Padding(
                   padding: const EdgeInsets.only(left: 36, bottom: 8),
@@ -376,9 +807,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                 ),
 
                 _infoRow(
-                  icon: Icons.map_outlined,
-                  title: "Location Area",
-                  value: offenderData["area"]!,
+                  icon: Icons.category_rounded,
+                  title: "Vehicle Type",
+                  value: _registeredVehicleType,
                 ),
               ],
             ),
@@ -453,9 +884,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
   /// Big Touch Action Squares showing what state users are inside of smartly
   Widget _uploadActions() {
-    bool hasMaxPhotos = images.length >= 4;
+    bool hasMaxPhotos = images.length >= (_requiresSinglePhoto ? 1 : 4);
     bool photoModeBlocked = videoFile != null;
-    bool videoModeBlocked = images.isNotEmpty;
+    bool videoModeBlocked = images.isNotEmpty || _requiresSinglePhoto;
 
     return Row(
       children: [
@@ -465,8 +896,12 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
             opacity: photoModeBlocked ? 0.4 : 1.0,
             child: _uploadButton(
               icon: Icons.add_a_photo_outlined,
-              title: hasMaxPhotos ? "Limit Reached" : "Photos",
-              subtitle: "${images.length}/4 chosen",
+              title: hasMaxPhotos
+                  ? "Limit Reached"
+                  : (_requiresSinglePhoto
+                      ? "Capture Proof"
+                      : "Capture ${_reportAngleLabels[images.length]}"),
+              subtitle: "${images.length}/${_requiresSinglePhoto ? 1 : 4} captured",
               colorTint: const Color(0XFF184B8C),
               onTap: pickImage,
             ),
@@ -479,8 +914,8 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
             opacity: videoModeBlocked ? 0.4 : 1.0,
             child: _uploadButton(
               icon: Icons.video_call_outlined,
-              title: videoFile != null ? "Video Applied" : "Record Video",
-              subtitle: videoFile != null ? "Max lengths set" : "1 long clip",
+              title: videoFile != null ? "Video Captured" : "Record Video",
+              subtitle: videoFile != null ? "Ready to submit" : "1 clear clip",
               colorTint: Colors.green.shade600,
               onTap: pickVideo,
             ),
@@ -643,7 +1078,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                     ),
                     padding: const EdgeInsets.all(8),
                     child: Text(
-                      "Angle ${index + 1}",
+                      _requiresSinglePhoto
+                          ? "Proof"
+                          : _reportAngleLabels[index],
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 11,
@@ -738,7 +1175,10 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
   /// Modern fixed Super-App Submission Banner style
   Widget _submitFooterBtn() {
-    bool hasPassedRequirements = (images.length == 4 || videoFile != null);
+    bool hasPassedRequirements = _requiresSinglePhoto
+        ? images.isNotEmpty &&
+            (!_isEmergencyFlow || situationController.text.trim().isNotEmpty)
+        : (images.length == 4 || videoFile != null);
 
     return InkWell(
       onTap: isLoading
@@ -799,7 +1239,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                     const SizedBox(width: 10),
                     Text(
                       hasPassedRequirements
-                          ? 'Transmit Proof Report'
+                          ? _isEmergencyFlow
+                                ? 'Send Emergency Alert'
+                                : _isHelpFlow
+                                ? 'Send Helping Alert'
+                                : 'Submit & Alert Owner'
                           : 'Incomplete Evidence Required',
                       style: TextStyle(
                         color: hasPassedRequirements

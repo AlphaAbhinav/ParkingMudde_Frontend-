@@ -1,23 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class VisitorModel {
-  final String name;
-  final String mobile;
-  final String purpose;
-  final String vehicleNo;
-  final String dateTime;
-  final String status; // Pending / Approved / Exited
-
-  VisitorModel({
-    required this.name,
-    required this.mobile,
-    required this.purpose,
-    required this.vehicleNo,
-    required this.dateTime,
-    required this.status,
-  });
-}
+import '../../services/api_service.dart';
 
 class VisitorManagementScreen extends StatefulWidget {
   const VisitorManagementScreen({super.key});
@@ -28,49 +12,60 @@ class VisitorManagementScreen extends StatefulWidget {
 }
 
 class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
-  // Preloaded variables preserved completely
-  final List<VisitorModel> visitors = [
-    VisitorModel(
-      name: "Rahul Sharma",
-      mobile: "XXXXXX1234",
-      purpose: "Delivery",
-      vehicleNo: "DL 01 AB 1234",
-      dateTime: "12 Jan, 10:30 AM",
-      status: "Pending",
-    ),
-    VisitorModel(
-      name: "Amit Verma",
-      mobile: "XXXXXX9876",
-      purpose: "Guest",
-      vehicleNo: "UP 16 CD 5678",
-      dateTime: "11 Jan, 6:15 PM",
-      status: "Approved",
-    ),
-    VisitorModel(
-      name: "Sneha Kapoor",
-      mobile: "XXXXXX5521",
-      purpose: "Housekeeping",
-      vehicleNo: "MH 04 AB 9811",
-      dateTime: "11 Jan, 08:00 AM",
-      status: "Exited",
-    ),
-  ];
+  static const Color primaryBlue = Color(0XFF184B8C);
+
+  bool isLoading = true;
+  bool isLinked = true;
+  String? userId;
+  String? message;
+  List<dynamic> visitors = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVisitors();
+  }
+
+  Future<void> _loadVisitors() async {
+    setState(() => isLoading = true);
+    final user = await ApiService.getStoredUser();
+    final storedUserId = user?["user_id"]?.toString();
+    if (storedUserId == null || storedUserId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        userId = null;
+        visitors = [];
+        isLinked = false;
+        message = "Please login to manage visitor entries.";
+        isLoading = false;
+      });
+      return;
+    }
+
+    final result = await ApiService.getMyVisitors(storedUserId);
+    if (!mounted) return;
+    setState(() {
+      userId = storedUserId;
+      isLinked = result["linked"] == true;
+      message = result["message"]?.toString();
+      visitors = result["visitors"] is List ? result["visitors"] : [];
+      isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF6F8FA,
-      ), // Premium off-white super-app base
+      backgroundColor: const Color(0xFFF6F8FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: false, // More standard modern design
+        centerTitle: false,
         scrolledUnderElevation: 1,
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new,
-            color: Color(0XFF184B8C),
+            color: primaryBlue,
             size: 22,
           ),
           onPressed: () => Get.back(),
@@ -81,7 +76,6 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
             fontSize: 17,
             fontWeight: FontWeight.w800,
             color: Color(0xFF1E293B),
-            letterSpacing: 0.3,
           ),
         ),
         bottom: PreferredSize(
@@ -89,60 +83,58 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
           child: Container(color: Colors.grey.shade200, height: 1),
         ),
       ),
-
-      /// Fully Styled extended floating action trigger
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => showAddVisitorSheet(context),
-        backgroundColor: const Color(0XFF184B8C),
-        elevation: 4,
-        icon: const Icon(
-          Icons.person_add_alt_1_rounded,
-          color: Colors.white,
-          size: 20,
-        ),
-        label: const Text(
-          "Pre-Approve Entry",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-        ),
-      ),
-
-      body: visitors.isEmpty
-          ? _buildEmptyState()
-          : ListView.builder(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(
-                top: 24,
-                left: 16,
-                right: 16,
-                bottom: 80,
+      floatingActionButton: isLinked && !isLoading
+          ? FloatingActionButton.extended(
+              onPressed: () => _showAddVisitorSheet(context),
+              backgroundColor: primaryBlue,
+              elevation: 4,
+              icon: const Icon(
+                Icons.person_add_alt_1_rounded,
+                color: Colors.white,
+                size: 20,
               ),
-              itemCount: visitors.length,
-              itemBuilder: (context, index) {
-                return _visitorCard(context, visitors[index]);
-              },
-            ),
+              label: const Text(
+                "Pre-Approve Entry",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            )
+          : null,
+      body: RefreshIndicator(
+        onRefresh: _loadVisitors,
+        color: primaryBlue,
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : !isLinked
+                ? _buildUnlinkedState()
+                : visitors.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        padding: const EdgeInsets.only(
+                          top: 24,
+                          left: 16,
+                          right: 16,
+                          bottom: 96,
+                        ),
+                        itemCount: visitors.length,
+                        itemBuilder: (context, index) {
+                          return _visitorCard(visitors[index]);
+                        },
+                      ),
+      ),
     );
   }
 
-  /// Extensively rebuilt Pass/Visitor Display Card
-  Widget _visitorCard(BuildContext context, VisitorModel visitor) {
-    Color statusColor = visitor.status == "Approved"
-        ? Colors.green.shade600
-        : visitor.status == "Exited"
-        ? Colors.blueGrey.shade400
-        : Colors.amber.shade700;
-
-    Color statusBgColor = visitor.status == "Approved"
-        ? Colors.green.shade50
-        : visitor.status == "Exited"
-        ? Colors.blueGrey.shade50
-        : Colors.amber.shade50;
-
-    IconData statusIcon = visitor.status == "Approved"
-        ? Icons.how_to_reg_rounded
-        : visitor.status == "Exited"
-        ? Icons.output_rounded
-        : Icons.pending_actions_rounded;
+  Widget _visitorCard(dynamic visitor) {
+    final status = visitor["status"]?.toString() ?? "PENDING";
+    final vehicleNumber = visitor["vehicle_number"]?.toString() ?? "";
+    final statusColor = _statusColor(status);
+    final statusIcon = _statusIcon(status);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -161,359 +153,223 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// Core Pass Data
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          // Subtle elegant profile ring
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0XFF184B8C).withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.account_circle,
-                              color: Color(0XFF184B8C),
-                              size: 26,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  visitor.name,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.phone_iphone_rounded,
-                                      size: 12,
-                                      color: Colors.blueGrey,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      visitor.mobile,
-                                      style: TextStyle(
-                                        color: Colors.blueGrey.shade400,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    /// Dynamic Security Tag!
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: statusBgColor,
-                        border: Border.all(color: statusColor.withOpacity(0.2)),
-                        borderRadius: BorderRadius.circular(20),
+                        color: primaryBlue.withOpacity(0.1),
+                        shape: BoxShape.circle,
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      child: const Icon(
+                        Icons.account_circle,
+                        color: primaryBlue,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(statusIcon, color: statusColor, size: 12),
-                          const SizedBox(width: 4),
                           Text(
-                            visitor.status.toUpperCase(),
-                            style: TextStyle(
-                              color: statusColor,
-                              fontSize: 10,
+                            visitor["name"]?.toString() ?? "Visitor",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
                               fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
+                              color: Colors.black87,
                             ),
+                          ),
+                          const SizedBox(height: 4),
+                          _infoLine(
+                            Icons.phone_iphone_rounded,
+                            visitor["mobile_number"]?.toString() ?? "",
                           ),
                         ],
                       ),
                     ),
+                    _statusChip(status, statusColor, statusIcon),
                   ],
                 ),
-
                 const SizedBox(height: 16),
                 const Divider(height: 1),
                 const SizedBox(height: 16),
-
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _infoPair(
+                          _infoLine(
                             Icons.assignment_ind_outlined,
-                            visitor.purpose,
+                            visitor["purpose"]?.toString() ?? "Visit",
                           ),
                           const SizedBox(height: 8),
-                          _infoPair(
+                          _infoLine(
                             Icons.access_time_rounded,
-                            visitor.dateTime,
+                            _formatDate(visitor["expected_at"] ?? visitor["created_at"]),
                           ),
                         ],
                       ),
                     ),
-                    // Only generate car plate representation if exists safely
-                    if (visitor.vehicleNo.trim().isNotEmpty)
-                      _miniLicensePlateView(visitor.vehicleNo)
+                    if (vehicleNumber.trim().isNotEmpty)
+                      _miniLicensePlateView(vehicleNumber)
                     else
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          "Walk-In",
-                          style: TextStyle(
-                            color: Colors.black45,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
+                      _walkInChip(),
                   ],
                 ),
               ],
             ),
           ),
-
-          /// Unified Security Control Action Deck (Only presented if actionable logic state requires!)
-          if (visitor.status == "Pending")
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                border: Border(
-                  top: BorderSide(color: Colors.grey.shade100, width: 2),
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(18),
-                ),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              border: Border(
+                top: BorderSide(color: Colors.grey.shade100, width: 2),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () {},
-                      style: TextButton.styleFrom(
-                        backgroundColor: Colors.red.shade50,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.do_not_disturb_alt_rounded,
-                            color: Colors.red.shade700,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            "Deny Entry",
-                            style: TextStyle(
-                              color: Colors.red.shade700,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () {},
-                      style: TextButton.styleFrom(
-                        backgroundColor: Colors.green.shade600,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.check_circle_outline,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            "Grant Access",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(18),
               ),
             ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.admin_panel_settings_rounded,
+                  size: 17,
+                  color: Colors.blueGrey.shade500,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _statusHelpText(status),
+                    style: TextStyle(
+                      color: Colors.blueGrey.shade600,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  /// Visually graceful empty zero-list backup!
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.gpp_good_outlined,
-                size: 50,
-                color: Colors.blueGrey,
-              ),
+  String _statusHelpText(String status) {
+    switch (status.toUpperCase()) {
+      case "PENDING":
+        return "Waiting for society admin/security approval.";
+      case "APPROVED":
+        return "Approved by society admin/security.";
+      case "CHECKED_IN":
+        return "Visitor is checked in by gate security.";
+      case "CHECKED_OUT":
+        return "Visitor has checked out.";
+      case "REJECTED":
+        return "Visitor pass was rejected by society admin/security.";
+      default:
+        return "Society admin/security manages this visitor pass.";
+    }
+  }
+
+  Widget _statusChip(String status, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        border: Border.all(color: color.withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            status.replaceAll("_", " "),
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
             ),
-            const SizedBox(height: 24),
-            Text(
-              "Secure Campus Log",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: Colors.blueGrey.shade800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "All upcoming visitors and delivery gate entries directed to you will permanently log exactly here.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.blueGrey.shade400,
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _infoPair(IconData icon, String value) {
+  Widget _infoLine(IconData icon, String value) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 14, color: Colors.blueGrey.shade400),
         const SizedBox(width: 8),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: Colors.blueGrey.shade600,
+        Flexible(
+          child: Text(
+            value.isEmpty ? "N/A" : value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.blueGrey.shade600,
+            ),
           ),
         ),
       ],
     );
   }
 
-  /// Highly Accurate Authentic Representation Indian vehicle plate replication
   Widget _miniLicensePlateView(String regNumber) {
     return Container(
-      height: 32,
-      padding: const EdgeInsets.only(right: 12),
+      height: 30,
+      constraints: const BoxConstraints(maxWidth: 130),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: Colors.grey.shade400, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade800,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                bottomLeft: Radius.circular(4),
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            color: Colors.blue.shade800,
+            alignment: Alignment.center,
+            child: const Text(
+              "IND",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 7,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            child: const Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  "IND",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 7,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
           ),
-          const SizedBox(width: 10),
-          Text(
-            regNumber.toUpperCase(),
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 15,
-              color: Colors.black87,
-              letterSpacing: 1.2,
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                regNumber.toUpperCase(),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  color: Colors.black87,
+                  letterSpacing: 0.6,
+                ),
+              ),
             ),
           ),
         ],
@@ -521,188 +377,342 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
     );
   }
 
-  /// Masterfully reconstructed Entry popup generator
-  void showAddVisitorSheet(BuildContext context) {
-    showModalBottomSheet(
-      backgroundColor: Colors
-          .transparent, // Fixes muddy layout from your legacy color block wrapper
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: EdgeInsets.fromLTRB(
-          24,
-          16,
-          24,
-          MediaQuery.of(context).viewInsets.bottom + 30,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Top Pull-notch layout styling!
-            Container(
-              width: 48,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Title Action Bar
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0XFF184B8C).withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.qr_code_scanner_rounded,
-                        color: Color(0XFF184B8C),
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      "Authorize Guest Pass",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.blueGrey.shade900,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  onPressed: () => Get.back(),
-                  icon: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.close_rounded, size: 20),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Super-cleaned unified input forms abstracted out neatly preventing bloated repeating code!
-            _buildStyledFormField(
-              label: "Guest First/Last Name",
-              hint: "Rahul Sharma",
-              icon: Icons.badge_outlined,
-              isCapital: true,
-            ),
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStyledFormField(
-                    label: "Contact #",
-                    hint: "XXXXX 54321",
-                    icon: Icons.dialpad_rounded,
-                    isNum: true,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStyledFormField(
-                    label: "Reason",
-                    hint: "Family Visit",
-                    icon: Icons.label_important_outline,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-            _buildStyledFormField(
-              label: "Vehicle Registration Num",
-              hint: "MH 14 XX 1234",
-              icon: Icons.commute_rounded,
-              isCapital: true,
-            ),
-
-            const SizedBox(height: 32),
-
-            /// Big secure confirmation entry
-            InkWell(
-              onTap: () {
-                Get.back(); // Emulating confirmation!
-                Get.snackbar(
-                  "Gateway Generated!",
-                  "Approval pass propagated securely into campus database array successfully.",
-                  backgroundColor: Colors.green.shade800,
-                  colorText: Colors.white,
-                  icon: const Icon(
-                    Icons.check_circle_outline,
-                    color: Colors.white,
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                height: 56,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: const Color(0XFF184B8C),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0XFF184B8C).withOpacity(0.4),
-                      blurRadius: 15,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Transmit Entry Security Pass",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+  Widget _walkInChip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Text(
+        "Walk-In",
+        style: TextStyle(
+          color: Colors.black45,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
   }
 
-  /// Modern TextForm Extractor saving lines and visually guaranteeing pixel matching rules across inputs
-  Widget _buildStyledFormField({
+  Widget _buildEmptyState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(40),
+      children: [
+        const SizedBox(height: 120),
+        const Icon(Icons.gpp_good_outlined, size: 50, color: Colors.blueGrey),
+        const SizedBox(height: 24),
+        Text(
+          "Secure Campus Log",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            color: Colors.blueGrey.shade800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "Upcoming visitors and delivery gate entries directed to you will appear here.",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.blueGrey.shade400,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUnlinkedState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(40),
+      children: [
+        const SizedBox(height: 120),
+        const Icon(Icons.apartment_rounded, size: 50, color: primaryBlue),
+        const SizedBox(height: 24),
+        const Text(
+          "Community Link Required",
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          message ??
+              "Ask your community admin to add your resident record using your account mobile number.",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.blueGrey.shade500,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showAddVisitorSheet(BuildContext context) {
+    final nameController = TextEditingController();
+    final mobileController = TextEditingController();
+    final purposeController = TextEditingController();
+    final vehicleController = TextEditingController();
+    DateTime? expectedAt;
+
+    showModalBottomSheet(
+      backgroundColor: Colors.transparent,
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: EdgeInsets.fromLTRB(
+              24,
+              16,
+              24,
+              MediaQuery.of(ctx).viewInsets.bottom + 30,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primaryBlue.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: primaryBlue,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "Authorize Guest Pass",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.blueGrey.shade900,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Get.back(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _field(
+                    controller: nameController,
+                    label: "Visitor Name",
+                    hint: "Rahul Sharma",
+                    icon: Icons.badge_outlined,
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _field(
+                          controller: mobileController,
+                          label: "Mobile",
+                          hint: "10-digit mobile",
+                          icon: Icons.dialpad_rounded,
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _field(
+                          controller: purposeController,
+                          label: "Purpose",
+                          hint: "Delivery",
+                          icon: Icons.label_important_outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _field(
+                    controller: vehicleController,
+                    label: "Vehicle Number",
+                    hint: "Optional",
+                    icon: Icons.commute_rounded,
+                    textCapitalization: TextCapitalization.characters,
+                  ),
+                  const SizedBox(height: 14),
+                  InkWell(
+                    onTap: () async {
+                      final pickedDate = await showDatePicker(
+                        context: context,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 30)),
+                        initialDate: DateTime.now(),
+                      );
+                      if (pickedDate == null) return;
+                      final pickedTime = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.now(),
+                      );
+                      if (pickedTime == null) return;
+                      setModalState(() {
+                        expectedAt = DateTime(
+                          pickedDate.year,
+                          pickedDate.month,
+                          pickedDate.day,
+                          pickedTime.hour,
+                          pickedTime.minute,
+                        );
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.event_rounded, color: Colors.blueGrey.shade400),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              expectedAt == null
+                                  ? "Select expected visit time"
+                                  : _formatDate(expectedAt!.toIso8601String()),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    height: 54,
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryBlue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onPressed: () async {
+                        await _createVisitor(
+                          nameController.text.trim(),
+                          mobileController.text,
+                          purposeController.text.trim(),
+                          vehicleController.text.trim(),
+                          expectedAt,
+                        );
+                      },
+                      icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+                      label: const Text(
+                        "Transmit Entry Security Pass",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _createVisitor(
+    String name,
+    String mobile,
+    String purpose,
+    String vehicle,
+    DateTime? expectedAt,
+  ) async {
+    if (userId == null || userId!.isEmpty) return;
+    final cleanMobile = mobile.replaceAll(RegExp(r'[^0-9]'), '');
+    if (name.isEmpty || cleanMobile.length != 10 || purpose.isEmpty) {
+      Get.snackbar(
+        "Missing Details",
+        "Enter visitor name, valid mobile number, and purpose.",
+        backgroundColor: Colors.orange.shade700,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    final result = await ApiService.createVisitorPass(
+      userId: userId!,
+      name: name,
+      mobileNumber: cleanMobile,
+      purpose: purpose,
+      vehicleNumber: vehicle,
+      expectedAt: expectedAt?.toIso8601String(),
+    );
+
+    if (result["success"] == true) {
+      Get.back();
+      await _loadVisitors();
+      Get.snackbar(
+        "Gate Pass Created",
+        "Visitor pass was added to your community gate log.",
+        backgroundColor: Colors.green.shade800,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } else {
+      Get.snackbar(
+        "Could Not Create Pass",
+        result["message"] ?? "Please try again.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  Widget _field({
+    required TextEditingController controller,
     required String label,
     required String hint,
     required IconData icon,
-    bool isNum = false,
-    bool isCapital = false,
+    TextInputType keyboardType = TextInputType.text,
+    TextCapitalization textCapitalization = TextCapitalization.sentences,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,17 +727,11 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
         ),
         const SizedBox(height: 8),
         TextFormField(
-          keyboardType: isNum ? TextInputType.number : TextInputType.text,
-          textCapitalization: isCapital
-              ? TextCapitalization.words
-              : TextCapitalization.sentences,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          controller: controller,
+          keyboardType: keyboardType,
+          textCapitalization: textCapitalization,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(
-              color: Colors.grey.shade400,
-              fontWeight: FontWeight.normal,
-            ),
             filled: true,
             fillColor: const Color(0xFFF9FAFB),
             prefixIcon: Icon(icon, color: Colors.blueGrey.shade400, size: 20),
@@ -741,14 +745,53 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                color: Color(0XFF184B8C),
-                width: 1.5,
-              ),
+              borderSide: const BorderSide(color: primaryBlue, width: 1.5),
             ),
           ),
         ),
       ],
     );
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toUpperCase()) {
+      case "APPROVED":
+      case "CHECKED_IN":
+        return Colors.green.shade600;
+      case "CHECKED_OUT":
+        return Colors.blueGrey.shade500;
+      case "REJECTED":
+        return Colors.red.shade600;
+      default:
+        return Colors.amber.shade700;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status.toUpperCase()) {
+      case "APPROVED":
+        return Icons.how_to_reg_rounded;
+      case "CHECKED_IN":
+        return Icons.login_rounded;
+      case "CHECKED_OUT":
+        return Icons.output_rounded;
+      case "REJECTED":
+        return Icons.block_rounded;
+      default:
+        return Icons.pending_actions_rounded;
+    }
+  }
+
+  String _formatDate(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? "");
+    if (date == null) return "Time not set";
+    final hour = date.hour > 12
+        ? date.hour - 12
+        : date.hour == 0
+            ? 12
+            : date.hour;
+    final minute = date.minute.toString().padLeft(2, "0");
+    final suffix = date.hour >= 12 ? "PM" : "AM";
+    return "${date.day}/${date.month}/${date.year} - $hour:$minute $suffix";
   }
 }

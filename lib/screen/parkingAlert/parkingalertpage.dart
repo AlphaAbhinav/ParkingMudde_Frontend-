@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:parkingmudde/widgets/ad_banner.dart';
+import '../../services/api_service.dart';
 
 class AlertModel {
   final String vehicleNumber;
@@ -7,6 +9,7 @@ class AlertModel {
   final int reward;
   final int penalty;
   final bool isResolved;
+  final String description;
 
   AlertModel({
     required this.vehicleNumber,
@@ -14,28 +17,9 @@ class AlertModel {
     required this.reward,
     required this.penalty,
     required this.isResolved,
+    required this.description,
   });
 }
-
-List<AlertModel> alertsRaisedByYou = [
-  AlertModel(
-    vehicleNumber: "DL 01 AB 1234",
-    date: "12 Jan 2026 • 10:45 AM",
-    reward: 10,
-    penalty: 0,
-    isResolved: true,
-  ),
-];
-
-List<AlertModel> alertsAgainstYou = [
-  AlertModel(
-    vehicleNumber: "UP 32 XY 4567",
-    date: "11 Jan 2026 • 6:20 PM",
-    reward: 0,
-    penalty: 10,
-    isResolved: false,
-  ),
-];
 
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
@@ -45,16 +29,84 @@ class AlertsScreen extends StatefulWidget {
 }
 
 class _AlertsScreenState extends State<AlertsScreen> {
+  bool isLoading = true;
+  List<AlertModel> raisedByYou = [];
+  List<AlertModel> againstYou = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAlerts();
+  }
+
+  Future<void> _loadAlerts() async {
+    setState(() => isLoading = true);
+    final user = await ApiService.getStoredUser();
+    final userId = user?["user_id"]?.toString();
+    if (userId == null || userId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        raisedByYou = [];
+        againstYou = [];
+        isLoading = false;
+      });
+      return;
+    }
+
+    final result = await ApiService.getParkingAlerts(userId);
+    if (!mounted) return;
+    setState(() {
+      raisedByYou = _mapAlerts(result["raised_by_you"]);
+      againstYou = _mapAlerts(result["against_you"]);
+      isLoading = false;
+    });
+  }
+
+  List<AlertModel> _mapAlerts(dynamic rawItems) {
+    if (rawItems is! List) return [];
+    return rawItems.map((item) {
+      final coins = int.tryParse(item["coins_delta"]?.toString() ?? "0") ?? 0;
+      final status = item["status"]?.toString().toUpperCase() ?? "SUBMITTED";
+      return AlertModel(
+        vehicleNumber: item["vehicle_number"]?.toString() ?? "N/A",
+        date: _formatDate(item),
+        reward: coins > 0 ? coins : 0,
+        penalty: coins < 0 ? coins.abs() : 0,
+        isResolved: status == "COMPLETED" ||
+            status == "CONFIRMED" ||
+            status == "APPROVED",
+        description: item["description"]?.toString() ?? "Alert activity",
+      );
+    }).toList();
+  }
+
+  String _formatDate(dynamic item) {
+    final createdAt = DateTime.tryParse(item["created_at"]?.toString() ?? "");
+    if (createdAt == null) {
+      final date = item["date"]?.toString() ?? "";
+      final time = item["time"]?.toString() ?? "";
+      return [date, time].where((part) => part.isNotEmpty).join(" ");
+    }
+    final hour = createdAt.hour > 12
+        ? createdAt.hour - 12
+        : createdAt.hour == 0
+            ? 12
+            : createdAt.hour;
+    final minute = createdAt.minute.toString().padLeft(2, "0");
+    final suffix = createdAt.hour >= 12 ? "PM" : "AM";
+    return "${createdAt.day}/${createdAt.month}/${createdAt.year} - $hour:$minute $suffix";
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF6F8FA), // Premium off-white
+        backgroundColor: const Color(0xFFF6F8FA),
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
-          centerTitle: false, // Super apps love aligned titles
+          centerTitle: false,
           scrolledUnderElevation: 1,
           leading: IconButton(
             icon: const Icon(
@@ -70,7 +122,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
               fontSize: 17,
               fontWeight: FontWeight.w900,
               color: Color(0xFF1E293B),
-              letterSpacing: 0.3,
             ),
           ),
           bottom: TabBar(
@@ -79,12 +130,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
             labelStyle: const TextStyle(
               fontWeight: FontWeight.w900,
               fontSize: 13,
-              letterSpacing: 0.4,
-            ),
-            unselectedLabelStyle: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              letterSpacing: 0.2,
             ),
             indicatorColor: const Color(0XFF184B8C),
             indicatorWeight: 3.5,
@@ -98,8 +143,17 @@ class _AlertsScreenState extends State<AlertsScreen> {
         body: TabBarView(
           physics: const BouncingScrollPhysics(),
           children: [
-            AlertsList(alerts: alertsRaisedByYou),
-            AlertsList(alerts: alertsAgainstYou, isViolationList: true),
+            AlertsList(
+              alerts: raisedByYou,
+              isLoading: isLoading,
+              onRefresh: _loadAlerts,
+            ),
+            AlertsList(
+              alerts: againstYou,
+              isViolationList: true,
+              isLoading: isLoading,
+              onRefresh: _loadAlerts,
+            ),
           ],
         ),
       ),
@@ -110,37 +164,65 @@ class _AlertsScreenState extends State<AlertsScreen> {
 class AlertsList extends StatelessWidget {
   final List<AlertModel> alerts;
   final bool isViolationList;
+  final bool isLoading;
+  final Future<void> Function()? onRefresh;
 
   const AlertsList({
     super.key,
     required this.alerts,
     this.isViolationList = false,
+    this.isLoading = false,
+    this.onRefresh,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (alerts.isEmpty) {
-      return _buildEmptyState();
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
     }
 
-    return ListView.builder(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      itemCount: alerts.length,
-      itemBuilder: (context, index) {
-        final alert = alerts[index];
-        return _buildModernAlertCard(alert);
-      },
+    if (alerts.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: onRefresh ?? () async {},
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [_buildEmptyState()],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: onRefresh ?? () async {},
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        itemCount: alerts.length + 1,
+        itemBuilder: (context, index) {
+          if (index < alerts.length) return _buildAlertCard(alerts[index]);
+          // AdB4 — bottom banner
+          return const Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 8),
+            child: AdBanner(
+              accentColor: Color(0xFF184B8C),
+              brandName: "Your Brand Here",
+              tagline: "Reach drivers who care about parking safety. Partner with ParkingMudde.",
+              logoIcon: Icons.local_police_rounded,
+            ),
+          );
+        },
+      ),
     );
   }
 
-  /// Visually sophisticated Card Ticket!
-  Widget _buildModernAlertCard(AlertModel alert) {
+  Widget _buildAlertCard(AlertModel alert) {
+    final color = isViolationList ? Colors.red.shade700 : Colors.indigo.shade700;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.shade100, width: 2),
         boxShadow: [
           BoxShadow(
@@ -152,52 +234,50 @@ class AlertsList extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ====== TICKET HEADER SECTION ====== //
           Padding(
-            padding: const EdgeInsets.only(
-              top: 20,
-              left: 16,
-              right: 16,
-              bottom: 12,
-            ),
+            padding: const EdgeInsets.all(16),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Stylized Issue Icon Element
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isViolationList
-                        ? Colors.red.shade50
-                        : Colors.indigo.shade50,
+                    color: color.withOpacity(0.08),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     isViolationList
                         ? Icons.warning_rounded
                         : Icons.report_gmailerrorred_rounded,
-                    color: isViolationList
-                        ? Colors.red.shade700
-                        : Colors.indigo.shade700,
+                    color: color,
                     size: 24,
                   ),
                 ),
-
                 const SizedBox(width: 14),
-
-                // Core details wrapper
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _miniLicensePlateView(alert.vehicleNumber),
+                          Expanded(child: _miniLicensePlateView(alert.vehicleNumber)),
+                          const SizedBox(width: 8),
                           _statusChip(alert.isResolved),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
+                      Text(
+                        alert.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.blueGrey.shade700,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           const Icon(
@@ -222,29 +302,12 @@ class AlertsList extends StatelessWidget {
               ],
             ),
           ),
-
-          // ====== DASHED TICKETING SPLIT LINE ====== //
-          Row(
-            children: List.generate(
-              40,
-              (index) => Expanded(
-                child: Container(
-                  color: index.isEven
-                      ? Colors.grey.shade200
-                      : Colors.transparent,
-                  height: 1.5,
-                ),
-              ),
-            ),
-          ),
-
-          // ====== TICKET PENALTY/REWARD RESULT INFO ====== //
           Container(
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
               borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(18),
+                bottom: Radius.circular(14),
               ),
             ),
             child: Row(
@@ -256,11 +319,7 @@ class AlertsList extends StatelessWidget {
                   hasActionValue: alert.reward > 0,
                   tintColor: Colors.green,
                 ),
-                Container(
-                  height: 30,
-                  width: 1.5,
-                  color: Colors.grey.shade300,
-                ), // Clean separating line
+                Container(height: 30, width: 1.5, color: Colors.grey.shade300),
                 _infoTile(
                   title: "Rule Penalty Deduct",
                   value: alert.penalty > 0 ? "-${alert.penalty}" : "--",
@@ -275,10 +334,10 @@ class AlertsList extends StatelessWidget {
     );
   }
 
-  /// Small exact mapping of authentic Indian Reg Plates natively displaying
   Widget _miniLicensePlateView(String regNumber) {
     return Container(
-      height: 24,
+      height: 26,
+      constraints: const BoxConstraints(maxWidth: 170),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(4),
@@ -288,42 +347,30 @@ class AlertsList extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.only(
-              top: 4,
-              bottom: 2,
-              left: 3,
-              right: 3,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade800,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(2),
-                bottomLeft: Radius.circular(2),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            color: Colors.blue.shade800,
+            alignment: Alignment.center,
+            child: const Text(
+              "IND",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 7,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            child: const Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  "IND",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 4,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              regNumber.toUpperCase(),
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
-                color: Colors.black87,
-                letterSpacing: 1.2,
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                regNumber.toUpperCase(),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  color: Colors.black87,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
@@ -332,7 +379,6 @@ class AlertsList extends StatelessWidget {
     );
   }
 
-  /// Visually sophisticated dynamic tracker pillars showing transaction outcomes safely.
   Widget _infoTile({
     required String title,
     required String value,
@@ -348,50 +394,21 @@ class AlertsList extends StatelessWidget {
             fontSize: 10,
             color: Colors.blueGrey.shade400,
             fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
           ),
         ),
         const SizedBox(height: 4),
-        hasActionValue
-            ? Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: tintColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      value,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: tintColor.withOpacity(0.9),
-                        fontSize: 13,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Text("🪙", style: TextStyle(fontSize: 10)),
-                ],
-              )
-            : Text(
-                value,
-                style: TextStyle(
-                  color: Colors.blueGrey.shade300,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
-                ),
-              ),
+        Text(
+          hasActionValue ? "$value PM Coins" : value,
+          style: TextStyle(
+            color: hasActionValue ? tintColor : Colors.blueGrey.shade300,
+            fontSize: hasActionValue ? 12 : 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
       ],
     );
   }
 
-  /// Graceful state identifier indicator
   Widget _statusChip(bool resolved) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -402,30 +419,17 @@ class AlertsList extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            resolved ? Icons.verified_rounded : Icons.history_rounded,
-            color: resolved ? Colors.green.shade600 : Colors.amber.shade800,
-            size: 11,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            resolved ? "SOLVED" : "PENDING",
-            style: TextStyle(
-              color: resolved ? Colors.green.shade800 : Colors.amber.shade900,
-              fontWeight: FontWeight.w900,
-              fontSize: 8.5,
-              letterSpacing: 0.6,
-            ),
-          ),
-        ],
+      child: Text(
+        resolved ? "SOLVED" : "PENDING",
+        style: TextStyle(
+          color: resolved ? Colors.green.shade800 : Colors.amber.shade900,
+          fontWeight: FontWeight.w900,
+          fontSize: 8.5,
+        ),
       ),
     );
   }
 
-  /// Visually impressive absence container avoiding stark whitespaces
   Widget _buildEmptyState() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 80),
@@ -464,8 +468,8 @@ class AlertsList extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             isViolationList
-                ? "You currently maintain an outstanding driving profile with zero tickets submitted against your vehicles."
-                : "No parking or reporting claims exist initiated under your device yet.",
+                ? "No alerts are currently filed against your registered vehicles."
+                : "Your reporting, helping, and emergency alerts will appear here.",
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.blueGrey.shade400,
