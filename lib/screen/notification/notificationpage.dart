@@ -30,6 +30,8 @@ class _NotificationpageState extends State<Notificationpage> {
   bool isLoading = true;
   List<dynamic> notifications = [];
   String? userId;
+  // Track which report IDs have been marked 'On the Way' to disable the button
+  final Set<String> _onTheWayDone = {};
 
   @override
   void initState() {
@@ -403,6 +405,11 @@ class _NotificationpageState extends State<Notificationpage> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                // ── On the Way button for offender ──
+                if (type == "REPORTED_VEHICLE" &&
+                    status == "SUBMITTED" &&
+                    item["report_id"] != null)
+                  _buildOnTheWayButton(item),
                 const SizedBox(height: 5),
                 Row(
                   children: [
@@ -429,6 +436,62 @@ class _NotificationpageState extends State<Notificationpage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOnTheWayButton(dynamic item) {
+    final reportId = item["report_id"]?.toString() ?? "";
+    final alreadyDone = _onTheWayDone.contains(reportId);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 2),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: alreadyDone
+              ? null
+              : () async {
+                  final result = await ApiService.triggerOnTheWay(
+                    reportId: reportId,
+                  );
+                  if (result["success"] == true) {
+                    setState(() => _onTheWayDone.add(reportId));
+                    if (mounted) {
+                      Get.snackbar(
+                        "🚗 On the Way!",
+                        "The sufferer has been notified. Please move your vehicle.",
+                        snackPosition: SnackPosition.BOTTOM,
+                        backgroundColor: Colors.green.shade800,
+                        colorText: Colors.white,
+                        margin: const EdgeInsets.all(16),
+                      );
+                    }
+                  }
+                },
+          icon: Icon(
+            alreadyDone ? Icons.check_rounded : Icons.directions_car_rounded,
+            size: 16,
+            color: Colors.white,
+          ),
+          label: Text(
+            alreadyDone ? "Notified ✔" : "🚗 I'm On the Way",
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor:
+                alreadyDone ? Colors.grey.shade400 : const Color(0xFF184B8C),
+            disabledBackgroundColor: Colors.grey.shade400,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            elevation: alreadyDone ? 0 : 2,
+          ),
+        ),
       ),
     );
   }

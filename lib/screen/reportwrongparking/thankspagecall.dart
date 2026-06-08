@@ -35,6 +35,8 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   int secondsLeft = maxSeconds;
   int elapsedSeconds = 0;
   Timer? timer;
+  Timer? pollTimer;
+  bool sitBackRelax = false; // true when offender taps On the Way
 
   bool get isHelp => widget.typecv == "help";
   bool get isEmergency => widget.typecv == "emergency";
@@ -43,7 +45,10 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   @override
   void initState() {
     super.initState();
-    if (isReport) startTimer();
+    if (isReport) {
+      startTimer();
+      _startPollingForOnTheWay();
+    }
   }
 
   void startTimer() {
@@ -61,6 +66,24 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
 
   bool get isMaskedCallEnabled => elapsedSeconds >= 30;
   bool get isSosEnabled => elapsedSeconds >= 60 || secondsLeft == 0;
+
+  /// Poll notifications every 5 seconds to detect 'On the Way' from offender
+  void _startPollingForOnTheWay() {
+    if (widget.reportId == null) return;
+    pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (sitBackRelax) {
+        pollTimer?.cancel();
+        return;
+      }
+      final notifications = await ApiService.getNotificationsForCurrentUser();
+      if (notifications.any((n) =>
+          n["status"] == "IN_PROGRESS" &&
+          n["type"] == "REPORTED_VEHICLE")) {
+        if (mounted) setState(() => sitBackRelax = true);
+        pollTimer?.cancel();
+      }
+    });
+  }
 
   Future<void> _triggerMaskedCall() async {
     if (widget.reportId != null) {
@@ -91,6 +114,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   @override
   void dispose() {
     timer?.cancel();
+    pollTimer?.cancel();
     super.dispose();
   }
 
@@ -357,7 +381,11 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
       child: Column(
         children: [
           _timelineRow("In-app alert sent to owner", true),
-          _timelineRow("SMS notification dispatched", true),
+          _timelineRow(
+            "SMS alert — Coming Soon 📲",
+            false,
+            isComingSoon: true,
+          ),
           _timelineRow(
             elapsedSeconds < 30
                 ? "Masked call unlocks in ${30 - elapsedSeconds}s"
@@ -370,28 +398,43 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                 : "SOS helpline available",
             isSosEnabled,
           ),
+          _timelineRow(
+            sitBackRelax
+                ? "😊 Sit back & relax — owner is on the way!"
+                : "Waiting for owner to tap 'On the Way'…",
+            sitBackRelax,
+          ),
         ],
       ),
     );
   }
 
-  Widget _timelineRow(String text, bool done) {
+  Widget _timelineRow(String text, bool done, {bool isComingSoon = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
           Icon(
-            done ? Icons.check_circle_rounded : Icons.hourglass_bottom_rounded,
-            color: done ? Colors.green : const Color(0xFF184B8C),
+            isComingSoon
+                ? Icons.schedule_rounded
+                : done
+                    ? Icons.check_circle_rounded
+                    : Icons.hourglass_bottom_rounded,
+            color: isComingSoon
+                ? Colors.blueGrey.shade300
+                : done
+                    ? Colors.green
+                    : const Color(0xFF184B8C),
             size: 18,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 13,
+                color: isComingSoon ? Colors.blueGrey.shade400 : null,
               ),
             ),
           ),

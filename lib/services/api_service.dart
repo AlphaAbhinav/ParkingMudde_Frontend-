@@ -859,6 +859,14 @@ class ApiService {
     }
   }
 
+  // ================= GET NOTIFICATIONS FOR CURRENT USER =================
+  static Future<List<dynamic>> getNotificationsForCurrentUser() async {
+    final user = await getStoredUser();
+    final userId = user?["user_id"]?.toString();
+    if (userId == null || userId.isEmpty) return [];
+    return getNotifications(userId);
+  }
+
   // ================= CLEAR IN-APP NOTIFICATIONS =================
   static Future<Map<String, dynamic>> clearNotifications(String userId) async {
     try {
@@ -1196,9 +1204,8 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse("$baseUrl/v1/reports/$reportId/action"),
+        Uri.parse("$baseUrl/v1/reports/$reportId/actions/$action"),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"action": action}),
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1207,6 +1214,25 @@ class ApiService {
       print("Trigger Report Action Exception: $e");
     }
     return {"success": false, "message": "Action request failed"};
+  }
+
+  // ================= ON THE WAY (Offender) =================
+  static Future<Map<String, dynamic>> triggerOnTheWay({
+    required String reportId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/reports/$reportId/on-the-way"),
+        headers: {"Content-Type": "application/json"},
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {"success": false, "message": "Request failed: ${response.statusCode}"};
+    } catch (e) {
+      print("OnTheWay Exception: $e");
+      return {"success": false, "message": "Network error"};
+    }
   }
 
   // ================= GET MY PARKING BOOKINGS =================
