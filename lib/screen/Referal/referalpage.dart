@@ -75,9 +75,20 @@ class _ReferralScreenState extends State<ReferralScreen> {
     }
     Share.share(
       "Join ParkingMudde and earn PM Coins.\n\n"
-      "Sign up using my link:\n"
-      "https://parkingmudde.app/invite/$referralCode\n\n"
+      "Use my invite code:\n"
+      "$referralCode\n\n"
       "Reward: $rewardPerJoin PM Coins after signup.",
+    );
+  }
+
+  void shareLinkComingSoon() {
+    Get.snackbar(
+      "Coming Soon", 
+      "Deep linking is under development. For now, please share the code directly!",
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.blueGrey.shade900,
+      colorText: Colors.white,
+      margin: const EdgeInsets.all(16),
     );
   }
 
@@ -291,35 +302,69 @@ class _ReferralScreenState extends State<ReferralScreen> {
               ],
             ),
           ),
-          InkWell(
-            onTap: shareReferral,
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(20),
-            ),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(20),
-                ),
+          Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(
+                bottom: Radius.circular(20),
               ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.share_rounded, color: primaryBlue, size: 20),
-                  SizedBox(width: 10),
-                  Text(
-                    "Share Invite Code",
-                    style: TextStyle(
-                      color: primaryBlue,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 15,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: shareReferral,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.share_rounded, color: primaryBlue, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            "Share Code",
+                            style: TextStyle(
+                              color: primaryBlue,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                ),
+                Container(width: 1, height: 30, color: Colors.grey.shade200),
+                Expanded(
+                  child: InkWell(
+                    onTap: shareLinkComingSoon,
+                    borderRadius: const BorderRadius.only(
+                      bottomRight: Radius.circular(20),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.link_rounded, color: primaryBlue, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            "Share Link",
+                            style: TextStyle(
+                              color: primaryBlue,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
