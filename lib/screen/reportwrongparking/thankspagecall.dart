@@ -64,8 +64,8 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     });
   }
 
-  bool get isMaskedCallEnabled => elapsedSeconds >= 30;
-  bool get isSosEnabled => elapsedSeconds >= 60 || secondsLeft == 0;
+  bool get isMaskedCallEnabled => false; // Disabled until SMS/Call API key is available
+  bool get isSosEnabled => false; // Disabled until SMS/Call API key is available
 
   /// Poll notifications every 5 seconds to detect 'On the Way' from offender
   void _startPollingForOnTheWay() {
@@ -191,7 +191,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
               // ── Action Buttons ──
               if (!isHelp && !isEmergency) ...[
                 _actionButton(
-                  label: "Masked Call Option",
+                  label: "Masked Call Option (Coming Soon)",
                   icon: Icons.phone_in_talk_rounded,
                   enabled: isMaskedCallEnabled,
                   onTap: _triggerMaskedCall,
@@ -200,7 +200,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
               ],
               if (!isHelp) ...[
                 _actionButton(
-                  label: isEmergency ? "Call Emergency Helpline" : "Call Parking Helpline",
+                  label: isEmergency ? "Call Emergency Helpline" : "Call Parking Helpline (Coming Soon)",
                   icon: Icons.call_rounded,
                   enabled: isCallEnabled,
                   onTap: _callHelpline,
@@ -387,16 +387,14 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
             isComingSoon: true,
           ),
           _timelineRow(
-            elapsedSeconds < 30
-                ? "Masked call unlocks in ${30 - elapsedSeconds}s"
-                : "Masked call option available",
-            elapsedSeconds >= 30,
+            "Masked call option — Coming Soon 📞",
+            false,
+            isComingSoon: true,
           ),
           _timelineRow(
-            secondsLeft > 0
-                ? "SOS unlocks in ${secondsLeft}s"
-                : "SOS helpline available",
-            isSosEnabled,
+            "SOS helpline — Coming Soon 🚨",
+            false,
+            isComingSoon: true,
           ),
           _timelineRow(
             sitBackRelax
