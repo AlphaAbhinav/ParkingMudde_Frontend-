@@ -340,6 +340,22 @@ class _AccountpageState extends State<Accountpage> {
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: (resident["status"] == "PENDING") ? Colors.orange.withOpacity(0.8) : Colors.green.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  resident["status"]?.toString().toUpperCase() ?? "PENDING",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.16),
                   borderRadius: BorderRadius.circular(999),
