@@ -22,6 +22,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
   int completedReferrals = 0;
   int pendingReferrals = 0;
   int rewardPerJoin = 10;
+  int milestoneProgress = 0;
+  int milestoneTarget = 5;
+  int milestoneReward = 50;
   List<dynamic> referralHistory = [];
   bool isLoading = true;
 
@@ -57,6 +60,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
           int.tryParse(data["pending_referrals"]?.toString() ?? "0") ?? 0;
       rewardPerJoin =
           int.tryParse(data["reward_per_join"]?.toString() ?? "10") ?? 10;
+      milestoneProgress = int.tryParse(data["milestone_progress"]?.toString() ?? "0") ?? 0;
+      milestoneTarget = int.tryParse(data["milestone_target"]?.toString() ?? "5") ?? 5;
+      milestoneReward = int.tryParse(data["milestone_reward"]?.toString() ?? "0") ?? 0;
       referralHistory = data["referrals"] is List ? data["referrals"] : [];
       isLoading = false;
     });
@@ -69,9 +75,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
     }
     Share.share(
       "Join ParkingMudde and earn PM Coins.\n\n"
-      "Use my referral code: $referralCode\n"
-      "Reward: $rewardPerJoin PM Coins after signup.\n"
-      "Download: https://parkingmudde.app",
+      "Sign up using my link:\n"
+      "https://parkingmudde.app/invite/$referralCode\n\n"
+      "Reward: $rewardPerJoin PM Coins after signup.",
     );
   }
 
@@ -136,6 +142,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
                           _hero(),
                           const SizedBox(height: 18),
                           _codeCard(),
+                          const SizedBox(height: 16),
+                          _milestoneTracker(),
                           const SizedBox(height: 16),
                           _statsGrid(),
                           const SizedBox(height: 18),
@@ -314,6 +322,98 @@ class _ReferralScreenState extends State<ReferralScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _milestoneTracker() {
+    double progress = milestoneTarget > 0 ? (milestoneProgress / milestoneTarget).clamp(0.0, 1.0) : 1.0;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Milestone Progress",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: primaryBlue,
+                ),
+              ),
+              Text(
+                "$milestoneProgress / $milestoneTarget",
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: const AlwaysStoppedAnimation<Color>(accentYellow),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (milestoneReward > 0)
+            Row(
+              children: [
+                const Icon(Icons.star_rounded, color: accentYellow, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    "${milestoneTarget - milestoneProgress} more to unlock $milestoneReward PM Coins Bonus!",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.blueGrey.shade600,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    "All milestones achieved! Great job!",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.blueGrey.shade600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
