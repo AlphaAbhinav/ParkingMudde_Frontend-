@@ -135,6 +135,8 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
     final vehicleNumber = visitor["vehicle_number"]?.toString() ?? "";
     final statusColor = _statusColor(status);
     final statusIcon = _statusIcon(status);
+    final visitorId = visitor["id"]?.toString() ?? "";
+    final isPending = status.toUpperCase() == "PENDING";
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -259,6 +261,20 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
                     ),
                   ),
                 ),
+                if (isPending && visitorId.isNotEmpty)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red.shade700,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => _confirmCancel(visitorId),
+                    icon: const Icon(Icons.cancel_outlined, size: 15),
+                    label: const Text(
+                      "Cancel Pass",
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -689,16 +705,63 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
       Get.back();
       await _loadVisitors();
       Get.snackbar(
-        "Gate Pass Created",
-        "Visitor pass was added to your community gate log.",
+        "Gate Pass Created ✓",
+        "Visitor pass pending approval. Share pass ID: ${(result['id'] ?? '').toString().split('-').first.toUpperCase()}",
         backgroundColor: Colors.green.shade800,
         colorText: Colors.white,
         snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 5),
       );
     } else {
       Get.snackbar(
         "Could Not Create Pass",
         result["message"] ?? "Please try again.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  Future<void> _confirmCancel(String visitorId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Cancel Visitor Pass"),
+        content: const Text(
+          "This will remove the pending visitor pass. Are you sure?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Keep"),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Yes, Cancel"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || userId == null) return;
+    final result = await ApiService.cancelVisitorPass(
+      visitorId: visitorId,
+      userId: userId!,
+    );
+    if (!mounted) return;
+    if (result["success"] == true) {
+      await _loadVisitors();
+      Get.snackbar(
+        "Pass Cancelled",
+        "The visitor pass has been removed.",
+        backgroundColor: Colors.blueGrey.shade700,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } else {
+      Get.snackbar(
+        "Error",
+        result["message"] ?? "Could not cancel.",
         backgroundColor: Colors.red.shade700,
         colorText: Colors.white,
         snackPosition: SnackPosition.BOTTOM,

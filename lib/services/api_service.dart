@@ -1150,10 +1150,10 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse("$baseUrl/v1/visitors/pass"),
+        Uri.parse("$baseUrl/v1/visitors/"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "user_id": userId,
+          "user_id": int.tryParse(userId) ?? 0,
           "name": name,
           "mobile_number": mobileNumber,
           "purpose": purpose,
@@ -1162,12 +1162,35 @@ class ApiService {
         }),
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
+        final data = jsonDecode(response.body);
+        return {"success": true, ...data};
       }
+      final err = jsonDecode(response.body);
+      return {"success": false, "message": err["detail"] ?? "Failed to create pass"};
     } catch (e) {
       print("Create Visitor Pass Exception: $e");
     }
     return {"success": false, "message": "Unable to create visitor pass"};
+  }
+
+  // ================= CANCEL VISITOR PASS =================
+  static Future<Map<String, dynamic>> cancelVisitorPass({
+    required String visitorId,
+    required String userId,
+  }) async {
+    try {
+      final response = await http.delete(
+        Uri.parse("$baseUrl/v1/visitors/$visitorId/cancel?user_id=$userId"),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      final err = jsonDecode(response.body);
+      return {"success": false, "message": err["detail"] ?? "Failed to cancel"};
+    } catch (e) {
+      print("Cancel Visitor Pass Exception: $e");
+    }
+    return {"success": false, "message": "Unable to cancel visitor pass"};
   }
 
   // ================= EMERGENCY ALERT ACTIVITY =================
