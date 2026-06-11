@@ -4,9 +4,13 @@ import 'package:parkingmudde/screen/homepage/homepage.dart';
 import 'package:parkingmudde/screen/notification/notificationpage.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
 import 'package:parkingmudde/screen/wallet/walletpage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:parkingmudde/screen/common/feature_walkthrough_dialog.dart';
+
 
 class Dash extends StatefulWidget {
-  const Dash({super.key});
+  final bool fromRegistration;
+  const Dash({super.key, this.fromRegistration = false});
 
   @override
   State<Dash> createState() => _DashState();
@@ -21,6 +25,27 @@ class _DashState extends State<Dash> {
     WalletScreen(totalCoins: 10),
     const Accountpage(),
   ];
+
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.fromRegistration) {
+      _showWalkthrough();
+    }
+  }
+
+  Future<void> _showWalkthrough() async {
+    // Small delay to allow the dash to render before popping the dialog
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const FeatureWalkthroughDialog(),
+      );
+    }
+  }
 
   int selectedIndex = 0;
 

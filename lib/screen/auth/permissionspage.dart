@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:parkingmudde/screen/auth/profilepicturepage.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
 
@@ -118,9 +119,9 @@ class _PermissionsPageState extends State<PermissionsPage>
     await prefs.setBool("has_seen_permissions", true);
 
     if (widget.requireVehicleOnSuccess) {
-      Get.offAll(() => const AddVehicleScreen(fromRegistration: true), transition: Transition.fadeIn);
+      Get.offAll(() => ProfilePicturePage(requireVehicleOnSuccess: widget.requireVehicleOnSuccess), transition: Transition.fadeIn);
     } else {
-      Get.offAll(() => const Dash(), transition: Transition.fadeIn);
+      Get.offAll(() => const Dash(fromRegistration: true), transition: Transition.fadeIn);
     }
   }
 

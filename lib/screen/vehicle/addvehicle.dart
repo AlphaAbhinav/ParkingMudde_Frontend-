@@ -243,12 +243,27 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
     }
 
     try {
+      final String userFullName = prefs.getString("full_name") ?? "";
+      final List<String> nameParts = userFullName.trim().split(" ");
+      final String userFirstName = nameParts.isNotEmpty ? nameParts.first : "";
+      final String userLastName = nameParts.length > 1 ? nameParts.skip(1).join(" ") : "";
+      
+      final String ownerNameStr = ownerNameController.text.trim();
+      final List<String> ownerNameParts = ownerNameStr.split(" ");
+      final String parsedOwnerFirst = ownerNameParts.isNotEmpty ? ownerNameParts.first : "";
+      final String parsedOwnerLast = ownerNameParts.length > 1 ? ownerNameParts.skip(1).join(" ") : "";
+
+      final String finalOwnerFirst = selectedRole == 1 ? parsedOwnerFirst : userFirstName;
+      final String finalOwnerLast = selectedRole == 1 ? parsedOwnerLast : userLastName;
+
       final result = isEditing
           ? await ApiService.updateVehicle(
               vehicleId: editVehicleId!,
               userId: userId,
-              firstName: finalBrand,
-              lastName: finalModel,
+              ownerFirstName: finalOwnerFirst,
+              ownerLastName: finalOwnerLast,
+              brandName: finalBrand,
+              modelName: finalModel,
               vehicleType: vehicleTypeOptions[selectedVehicleType],
               fuelType: fuelOptions[selectedFuel],
               registrationNumber: regController.text.trim(),
@@ -263,22 +278,24 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
               ownerRelationship: relationshipController.text.trim(),
             )
           : await ApiService.addVehicle(
-        userId: userId,
-        firstName: finalBrand,
-        lastName: finalModel,
-        vehicleType: vehicleTypeOptions[selectedVehicleType],
-        fuelType: fuelOptions[selectedFuel],
-        registrationNumber: regController.text.trim(),
-        registeredMobile: registeredMobile,
-        ownerRole: selectedRole == 0 ? "Owner" : "Driver",
-        vehicleNumber: vehNumController.text.trim(),
-        purchaseYear: yearController.text.trim(),
-        description: descriptionController.text.trim(),
-        kmDriven: kmDrivenController.text.trim(),
-        insuranceExpiryDate: expiryController.text.trim(),
-        pollutionExpiryDate: pollutionExpiryController.text.trim(),
-        ownerRelationship: relationshipController.text.trim(),
-      );
+              userId: userId,
+              ownerFirstName: finalOwnerFirst,
+              ownerLastName: finalOwnerLast,
+              brandName: finalBrand,
+              modelName: finalModel,
+              vehicleType: vehicleTypeOptions[selectedVehicleType],
+              fuelType: fuelOptions[selectedFuel],
+              registrationNumber: regController.text.trim(),
+              registeredMobile: registeredMobile,
+              ownerRole: selectedRole == 0 ? "Owner" : "Driver",
+              vehicleNumber: vehNumController.text.trim(),
+              purchaseYear: yearController.text.trim(),
+              description: descriptionController.text.trim(),
+              kmDriven: kmDrivenController.text.trim(),
+              insuranceExpiryDate: expiryController.text.trim(),
+              pollutionExpiryDate: pollutionExpiryController.text.trim(),
+              ownerRelationship: relationshipController.text.trim(),
+            );
 
       if (result != null && result["success"] == true) {
         if (isEditing) {
@@ -291,7 +308,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
             colorText: Colors.white,
           );
           if (widget.fromRegistration) {
-            Get.offAll(() => const Dash());
+            Get.offAll(() => const Dash(fromRegistration: true));
           } else if (widget.fromMyVehicles) {
             Get.back(result: true);
           } else {
