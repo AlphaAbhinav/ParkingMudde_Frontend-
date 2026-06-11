@@ -5,7 +5,7 @@ import 'package:parkingmudde/screen/notification/notificationpage.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
 import 'package:parkingmudde/screen/wallet/walletpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:parkingmudde/screen/common/feature_walkthrough_dialog.dart';
+
 
 
 class Dash extends StatefulWidget {
@@ -18,8 +18,8 @@ class Dash extends StatefulWidget {
 
 class _DashState extends State<Dash> {
   // Ordered strictly identically to match existing tabs array mapped boundaries map bounds
-  final List<Widget> screens = [
-    const Homepage(),
+  List<Widget> get screens => [
+    Homepage(fromRegistration: widget.fromRegistration),
     const Notificationpage(),
     const VehicleNumberInputScreen(), // Triggered centrally by FAB Scan limit mapped map
     WalletScreen(totalCoins: 10),
@@ -30,22 +30,10 @@ class _DashState extends State<Dash> {
   @override
   void initState() {
     super.initState();
-    if (widget.fromRegistration) {
-      _showWalkthrough();
-    }
+
   }
 
-  Future<void> _showWalkthrough() async {
-    // Small delay to allow the dash to render before popping the dialog
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const FeatureWalkthroughDialog(),
-      );
-    }
-  }
+
 
   int selectedIndex = 0;
 

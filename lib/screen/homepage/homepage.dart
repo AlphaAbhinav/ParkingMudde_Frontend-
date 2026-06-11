@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+
 import 'package:get/get.dart';
 
 // Your core pages imported directly from original snippet
@@ -23,7 +25,8 @@ import 'package:parkingmudde/screen/account/support_pages.dart';
 import '../../services/api_service.dart';
 
 class Homepage extends StatefulWidget {
-  const Homepage({super.key});
+  final bool fromRegistration;
+  const Homepage({super.key, this.fromRegistration = false});
 
   @override
   State<Homepage> createState() => _HomepageState();
@@ -33,6 +36,16 @@ class _HomepageState extends State<Homepage> {
   Map<String, dynamic>? user;
   int walletCoins = 247; // Match Figma preview
   bool _hasCheckedVehiclePrompt = false;
+
+  final GlobalKey _reportKey = GlobalKey();
+  final GlobalKey _helpKey = GlobalKey();
+  final GlobalKey _walletKey = GlobalKey();
+  
+  late TutorialCoachMark tutorialCoachMark;
+
+  List<dynamic> _topUsers = [];
+  Map<String, dynamic>? _myProgress;
+
 
   static const Color primaryBlue = Color(0xFF2A5EE8);
   static const Color secondaryYellow = Color(0xFFFFB703);
@@ -325,10 +338,127 @@ class _HomepageState extends State<Homepage> {
     );
   }
 
+
+  void _showTutorial() {
+    tutorialCoachMark = TutorialCoachMark(
+      targets: _createTargets(),
+      colorShadow: Colors.black,
+      textSkip: "SKIP",
+      paddingFocus: 10,
+      opacityShadow: 0.8,
+    )..show(context: context);
+  }
+
+  List<TargetFocus> _createTargets() {
+    return [
+      TargetFocus(
+        identify: "reportTarget",
+        keyTarget: _reportKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Report Wrong Parking",
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 20.0),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(top: 10.0),
+                    child: Text(
+                      "Use this to report wrongly parked vehicles. Do this responsibly, as the other person will get a coin deduction!",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  )
+                ],
+              );
+            },
+          )
+        ],
+      ),
+      TargetFocus(
+        identify: "helpTarget",
+        keyTarget: _helpKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "Help a Vehicle",
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 20.0),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(top: 10.0),
+                    child: Text(
+                      "Alert an owner that their vehicle needs attention (e.g., lights left on, window open) and earn rewards!",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  )
+                ],
+              );
+            },
+          )
+        ],
+      ),
+      TargetFocus(
+        identify: "walletTarget",
+        keyTarget: _walletKey,
+        alignSkip: Alignment.topRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    "PM Coins",
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 20.0),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(top: 10.0),
+                    child: Text(
+                      "These are your PM Coins. Use them in the Coupon Store for exciting discounts!",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  )
+                ],
+              );
+            },
+          )
+        ],
+      ),
+    ];
+  }
+
   @override
   void initState() {
     super.initState();
     _loadUser();
+    if (widget.fromRegistration) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) _showTutorial();
+      });
+    }
   }
 
   Future<void> _loadUser() async {
@@ -350,6 +480,14 @@ class _HomepageState extends State<Homepage> {
             () => walletCoins =
                 int.tryParse(wallet["balance"].toString()) ?? walletCoins,
           );
+        }
+        final lb = await ApiService.getLeaderboard();
+        final me = await ApiService.getMyGamificationProgress(userId);
+        if (mounted) {
+          setState(() {
+            _topUsers = (lb["parking_warriors"] as List?)?.take(3).toList() ?? [];
+            _myProgress = me;
+          });
         }
       }
     }
@@ -451,7 +589,7 @@ class _HomepageState extends State<Homepage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Figma Header Primary Actions layout
-              _buildFeatureButton(
+              Container(key: _reportKey, child: _buildFeatureButton(
                 title: "Report Wrong Parking",
                 subtitle: "Help clear the way in seconds",
                 backgroundColor: primaryBlue,
@@ -467,10 +605,10 @@ class _HomepageState extends State<Homepage> {
                   ),
                 ),
                 onTap: () => Get.to(() => const VehicleNumberInputScreen()),
-              ),
+              )),
               const SizedBox(height: 14),
 
-              _buildFeatureButton(
+              Container(key: _helpKey, child: _buildFeatureButton(
                 title: "Help a Vehicle",
                 subtitle: "Notify owner & earn rewards",
                 backgroundColor: secondaryYellow,
@@ -486,7 +624,7 @@ class _HomepageState extends State<Homepage> {
                   ),
                 ),
                 onTap: () => Get.to(() => const VehicleNumberHelpScreen()),
-              ),
+              )),
 
               const SizedBox(height: 14),
 
@@ -557,58 +695,19 @@ class _HomepageState extends State<Homepage> {
                     color: Colors.blue.shade600,
                     onTap: () => Get.to(() => const NearbyParkingMapScreen()),
                   ),
-
-                  // 👉 Main Quick Actions grid update (Safe swap constraint boundaries mapped identically limit map spaces forms)
                   _buildQuickActionCard(
                     icon: Icons.account_balance_wallet_rounded,
                     title: "Wallet",
                     subtitle: "Manage coins",
                     color: Colors.green.shade600,
-                    onTap: () =>
-                        Get.to(() => WalletScreen(totalCoins: walletCoins)),
+                    onTap: () => Get.to(() => WalletScreen(totalCoins: walletCoins)),
                   ),
-
                   _buildQuickActionCard(
                     icon: Icons.directions_car_rounded,
                     title: "My Vehicles",
                     subtitle: "Manage fleet",
                     color: Colors.purple.shade600,
                     onTap: () => Get.to(() => const MyVehiclesScreen()),
-                  ),
-                  _buildQuickActionCard(
-                    icon: Icons.car_rental_rounded,
-                    title: "Buy Vehicle",
-                    subtitle: "Coming soon",
-                    color: Colors.cyan.shade700,
-                    onTap: _showBuyVehicleComingSoon,
-                  ),
-                  _buildQuickActionCard(
-                    icon: Icons.health_and_safety_rounded,
-                    title: "Vehicle Insurance",
-                    subtitle: "Coming soon",
-                    color: Colors.deepOrange.shade500,
-                    onTap: _showVehicleInsuranceComingSoon,
-                  ),
-                  _buildQuickActionCard(
-                    icon: Icons.article_rounded,
-                    title: "News & Blogs",
-                    subtitle: "Coming soon",
-                    color: Colors.blueGrey.shade700,
-                    onTap: _showNewsBlogsComingSoon,
-                  ),
-                  _buildQuickActionCard(
-                    icon: Icons.emoji_events_rounded,
-                    title: "Leaderboards",
-                    subtitle: "Coming soon",
-                    color: Colors.amber.shade700,
-                    onTap: _showLeaderboardsComingSoon,
-                  ),
-                  _buildQuickActionCard(
-                    icon: Icons.question_answer_rounded,
-                    title: "FAQs",
-                    subtitle: "Common answers",
-                    color: Colors.green.shade700,
-                    onTap: () => Get.to(() => const FaqPage()),
                   ),
                   _buildQuickActionCard(
                     icon: Icons.warning_rounded,
@@ -624,6 +723,7 @@ class _HomepageState extends State<Homepage> {
 
               // Outstanding Huge Promo Action Panel constraints
               Container(
+                key: _walletKey,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   gradient: const LinearGradient(
