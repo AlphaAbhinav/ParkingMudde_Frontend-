@@ -142,6 +142,9 @@ class ApiService {
     String? aiReasons,
     double? lat,
     double? lng,
+    String? razorpayOrderId,
+    String? razorpayPaymentId,
+    String? razorpaySignature,
   }) async {
     try {
       var request = http.MultipartRequest(
@@ -174,6 +177,9 @@ class ApiService {
       if (aiVerdict != null) request.fields['ai_verdict'] = aiVerdict;
       if (aiReasons != null) request.fields['ai_reasons'] = aiReasons;
 
+      if (razorpayOrderId != null) request.fields['razorpay_order_id'] = razorpayOrderId;
+      if (razorpayPaymentId != null) request.fields['razorpay_payment_id'] = razorpayPaymentId;
+      if (razorpaySignature != null) request.fields['razorpay_signature'] = razorpaySignature;
 
       if (videoFile != null) {
         request.fields['evidence_mode'] = "VIDEO";
@@ -411,6 +417,27 @@ class ApiService {
     }
   }
 
+  // ================= GET SOCIETIES =================
+  static Future<Map<String, dynamic>> getSocieties() async {
+    try {
+      final response = await http.get(Uri.parse("$baseUrl/v1/societies"));
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        List<dynamic> societiesList = [];
+        if (body is List) {
+          societiesList = body;
+        } else if (body is Map) {
+          societiesList = body["items"] ?? body["societies"] ?? [];
+        }
+        return {"success": true, "societies": societiesList};
+      } else {
+        return {"success": false, "message": "Failed to fetch societies"};
+      }
+    } catch (e) {
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
   // ================= REGISTER =================
   static Future<Map<String, dynamic>> register({
     required String name,
@@ -600,13 +627,15 @@ class ApiService {
   // ================= ADD VEHICLE =================
   static Future<Map<String, dynamic>> addVehicle({
     required String userId,
-    required String firstName,
-    required String lastName,
+    required String ownerFirstName,
+    required String ownerLastName,
     required String vehicleType,
     required String registrationNumber,
     required String registeredMobile,
     String? ownerRole,
     String? vehicleNumber,
+    String? brandName,
+    String? modelName,
     String? purchaseYear,
     String? insuranceExpiryDate,
     String? pollutionExpiryDate,
@@ -617,16 +646,16 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse("$baseUrl/v1/vehicle/add"),
+        Uri.parse("\$baseUrl/v1/vehicle/add"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_id": int.parse(userId),
-          "owner_first_name": firstName,
-          "owner_last_name": lastName,
+          "owner_first_name": ownerFirstName,
+          "owner_last_name": ownerLastName,
           "owner_role": ownerRole,
           "vehicle_number": vehicleNumber,
-          "brand_name": firstName,
-          "model_name": lastName,
+          "brand_name": brandName,
+          "model_name": modelName,
           "purchase_year": purchaseYear,
           "vehicle_type": vehicleType,
           "fuel_type": fuelType,
@@ -662,13 +691,15 @@ class ApiService {
   static Future<Map<String, dynamic>> updateVehicle({
     required String vehicleId,
     required String userId,
-    required String firstName,
-    required String lastName,
+    required String ownerFirstName,
+    required String ownerLastName,
     required String vehicleType,
     required String registrationNumber,
     required String registeredMobile,
     String? ownerRole,
     String? vehicleNumber,
+    String? brandName,
+    String? modelName,
     String? purchaseYear,
     String? insuranceExpiryDate,
     String? pollutionExpiryDate,
@@ -679,16 +710,16 @@ class ApiService {
   }) async {
     try {
       final response = await http.put(
-        Uri.parse("$baseUrl/v1/vehicle/$vehicleId"),
+        Uri.parse("\$baseUrl/v1/vehicle/\$vehicleId"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_id": int.parse(userId),
-          "owner_first_name": firstName,
-          "owner_last_name": lastName,
+          "owner_first_name": ownerFirstName,
+          "owner_last_name": ownerLastName,
           "owner_role": ownerRole,
           "vehicle_number": vehicleNumber,
-          "brand_name": firstName,
-          "model_name": lastName,
+          "brand_name": brandName,
+          "model_name": modelName,
           "purchase_year": purchaseYear,
           "vehicle_type": vehicleType,
           "fuel_type": fuelType,
@@ -782,30 +813,33 @@ class ApiService {
   // ================= LOOKUP VEHICLE BY NUMBER =================
   static Future<Map<String, dynamic>> lookupVehicleByNumber(String vehicleNumber) async {
     try {
-      // TODO: Connect to real backend endpoint when available.
-      // Mocking response for now.
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // Simulate 80% chance of registered, 20% unregistered for testing
-      bool isRegistered = vehicleNumber.contains('123') ? false : true;
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/vehicle/lookup/$vehicleNumber"),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      );
 
-      if (isRegistered) {
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
         return {
           "success": true,
-          "registered": true,
+          "registered": data["registered"] ?? false,
           "data": {
-            "vehicle_number": vehicleNumber,
-            "owner_name": "Test User",
-            "city": "Test City",
-            "mobile_number": "+919876543210"
+            "vehicle_number": data["vehicle"]["vehicle_number"],
+            "owner_name": data["owner_name"] ?? data["app_user_name"] ?? "Unknown Owner",
+            "city": data["vehicle"]["rto_code"] ?? "Unknown",
+            "mobile_number": data["owner_mobile"] ?? data["app_user_mobile"] ?? ""
           }
         };
-      } else {
+      } else if (response.statusCode == 404) {
         return {
           "success": true,
           "registered": false,
           "message": "Vehicle not found"
         };
+      } else {
+        return {"success": false, "message": "Failed to lookup vehicle"};
       }
     } catch (e) {
       print("Lookup Vehicle Exception: $e");
@@ -956,7 +990,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getParkingAlerts(String userId) async {
     try {
       final response = await http.get(
-        Uri.parse("$baseUrl/v1/parking/alerts/$userId"),
+        Uri.parse("$baseUrl/v1/notifications/alerts/$userId"),
       );
 
       if (response.statusCode == 200) {
@@ -971,6 +1005,38 @@ class ApiService {
       "against_you": [],
       "counts": {"raised_by_you": 0, "against_you": 0},
     };
+  }
+
+  // ================= GET LEADERBOARD =================
+  static Future<Map<String, dynamic>> getLeaderboard() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/leaderboard/"),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Leaderboard Exception: $e");
+    }
+    return {"weekly_heroes": [], "parking_warriors": [], "city_champions": []};
+  }
+
+  // ================= GET GAMIFICATION PROGRESS =================
+  static Future<Map<String, dynamic>?> getMyGamificationProgress(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/leaderboard/me/$userId"),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Gamification Progress Exception: $e");
+    }
+    return null;
   }
 
   // ================= GET USER DOCUMENTS =================
@@ -1060,6 +1126,35 @@ class ApiService {
     } catch (e) {
       print("Purchase Wallet Package Exception: $e");
       return {"success": false, "message": "Network error"};
+    }
+  }
+
+  // ================= RAZORPAY: CREATE REPORT ORDER =================
+  static Future<Map<String, dynamic>> createReportRazorpayOrder({
+    required String userId,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString("token");
+      
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/reports/razorpay/create-order"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${token ?? ""}',
+        },
+        body: jsonEncode({
+          "user_id": int.tryParse(userId) ?? 0,
+          "package_id": "report_fee"
+        }),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {"success": false, "message": "Failed to create report payment order."};
+      }
+    } catch (e) {
+      return {"success": false, "message": "Network error: $e"};
     }
   }
 
@@ -1424,6 +1519,56 @@ class ApiService {
       };
     } catch (e) {
       return {"success": false, "message": "Network error"};
+    }
+  }
+
+  static Future<bool> submitSupportTicket(String userId, String name, String mobile, String question) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/support/tickets"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "user_id": int.parse(userId),
+          "name": name,
+          "mobile_number": mobile,
+          "question": question,
+        }),
+      );
+      if (response.statusCode == 200) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print("Error submitting support ticket: $e");
+      return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> checkAppUpdate() async {
+    try {
+      final response = await http.get(Uri.parse("$baseUrl/v1/system/app-config"));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Error checking app update: $e");
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>> updateNotificationStatus(String notificationId, String status) async {
+    try {
+      final response = await http.put(
+        Uri.parse("$baseUrl/v1/notifications/$notificationId/status"),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({"status": status}),
+      );
+      if (response.statusCode == 200) {
+        return {"success": true};
+      }
+      return {"success": false};
+    } catch (e) {
+      return {"success": false, "message": e.toString()};
     }
   }
 }

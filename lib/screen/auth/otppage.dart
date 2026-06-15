@@ -53,6 +53,8 @@ class _OtppageState extends State<Otppage> {
 
     setState(() => isLoading = true);
 
+
+
     final result = await ApiService.verifyOtp(
       widget.mobile,
       enteredOtp,
@@ -65,6 +67,9 @@ class _OtppageState extends State<Otppage> {
     if (result["success"] == true) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString("user_id", result["user_id"].toString());
+      if (widget.requireVehicleOnSuccess) {
+        await prefs.setBool("is_new_user", true);
+      }
 
       final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
       

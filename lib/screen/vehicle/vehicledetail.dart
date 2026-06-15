@@ -281,6 +281,10 @@ class _VehicleDetailPageState extends State<VehicleDetailPage> {
                   vehicle["purchase_year"]?.toString() ?? "—",
                 ),
                 _infoRow(
+                  "KM Driven",
+                  vehicle["km_driven"]?.toString() ?? "—",
+                ),
+                _infoRow(
                   "Insurance Expiry",
                   vehicle["insurance_expiry_date"]?.toString() ?? "—",
                 ),

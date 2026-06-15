@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -59,14 +59,6 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
       "desc": "Coins help you report, connect, book, and redeem rewards.",
       "image": "assets/onboardingyellow2.png",
       "bgColor": true,
-    },
-    {
-      "title": "See More\nFeatures",
-      "desc":
-          "Explore seamless integrations & smarter vehicle protections effortlessly connected within one portal.",
-      // added tiny sub text because standard slide leaves awkward open dead zones compared to standard template constraints. Feel free to set string to "" to leave completely completely blank like wireframes
-      "image": "assets/onboardingblue.png",
-      "bgColor": false,
     },
   ];
 

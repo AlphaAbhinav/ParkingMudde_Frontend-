@@ -38,26 +38,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final emergencyTwoCtrl = TextEditingController();
   final emergencyTwoOtpCtrl = TextEditingController();
 
-  // ── OTP state: Alternate Number ──
-  bool _altOtpSent = false;
-  bool _altVerified = false;
-  bool _altOtpSending = false;
-  bool _altOtpVerifying = false;
-  String? _altSentTo;
-
-  // ── OTP state: Emergency Contact 1 ──
-  bool _ec1OtpSent = false;
-  bool _ec1Verified = false;
-  bool _ec1OtpSending = false;
-  bool _ec1OtpVerifying = false;
-  String? _ec1SentTo;
-
-  // ── OTP state: Emergency Contact 2 ──
-  bool _ec2OtpSent = false;
-  bool _ec2Verified = false;
-  bool _ec2OtpSending = false;
-  bool _ec2OtpVerifying = false;
-  String? _ec2SentTo;
+  // ── Contact state ──
+  // Removed OTP verification tracking for Alternate and Emergency contacts
 
   String gender = "Male";
 
@@ -93,18 +75,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final altNum = user["alternate_mobile_number"]?.toString() ?? "";
       final ec1 = user["emergency_contact_one"]?.toString() ?? "";
       final ec2 = user["emergency_contact_two"]?.toString() ?? "";
-      if (altNum.isNotEmpty) {
-        alternateNumberCtrl.text = altNum;
-        _altVerified = true; // already stored means previously verified
-      }
-      if (ec1.isNotEmpty) {
-        emergencyOneCtrl.text = ec1;
-        _ec1Verified = true;
-      }
-      if (ec2.isNotEmpty) {
-        emergencyTwoCtrl.text = ec2;
-        _ec2Verified = true;
-      }
+      if (altNum.isNotEmpty) alternateNumberCtrl.text = altNum;
+      if (ec1.isNotEmpty) emergencyOneCtrl.text = ec1;
+      if (ec2.isNotEmpty) emergencyTwoCtrl.text = ec2;
     });
     _loadLocalContacts();
   }
@@ -145,58 +118,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (picked != null) dobCtrl.text = "${picked.day}-${picked.month}-${picked.year}";
   }
 
-  // ── Generic: Send OTP ──
-  Future<void> _sendOtp({
-    required TextEditingController numberCtrl,
-    required Function(bool) setSending,
-    required Function(String) onSuccess,
-  }) async {
-    final number = numberCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (number.length != 10) {
-      Get.snackbar("Invalid Number", "Please enter a valid 10-digit number first.", backgroundColor: Colors.red.shade700, colorText: Colors.white);
-      return;
-    }
-    setSending(true);
-    final res = await ApiService.sendOtp(number);
-    setSending(false);
-    if (res['success'] == true) {
-      onSuccess(number);
-      final displayOtp = res['otp']?.toString() ?? res['otp_code']?.toString();
-      Get.snackbar(
-        "OTP Sent ✅",
-        displayOtp != null ? "OTP sent to $number. [Dev] OTP: $displayOtp" : "OTP sent to $number. Enter it below.",
-        backgroundColor: Colors.green.shade700,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 6),
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } else {
-      Get.snackbar("Failed to Send OTP", res['message'] ?? "Please try again.", backgroundColor: Colors.red.shade700, colorText: Colors.white);
-    }
-  }
-
-  // ── Generic: Verify OTP ──
-  Future<void> _verifyOtp({
-    required TextEditingController otpCtrl,
-    required String? sentTo,
-    required Function(bool) setVerifying,
-    required VoidCallback onSuccess,
-  }) async {
-    final otp = otpCtrl.text.trim();
-    if (otp.length < 4 || sentTo == null) {
-      Get.snackbar("Invalid OTP", "Please enter the OTP you received.", backgroundColor: Colors.orange.shade700, colorText: Colors.white);
-      return;
-    }
-    setVerifying(true);
-    final res = await ApiService.verifyOtp(sentTo, otp, '');
-    setVerifying(false);
-    if (res['success'] == true) {
-      onSuccess();
-      Get.snackbar("Number Verified ✅", "Your number $sentTo has been verified.", backgroundColor: Colors.green.shade800, colorText: Colors.white);
-    } else {
-      Get.snackbar("Incorrect OTP", res['message'] ?? "Wrong OTP. Try again.", backgroundColor: Colors.red.shade700, colorText: Colors.white);
-    }
-  }
+  // ── Generic: Verify OTP Removed ──
 
   Future<void> _onSave() async {
     if (!_formKey.currentState!.validate()) return;
@@ -218,19 +140,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     }
 
-    // Block save if unverified
-    if (alternate.isNotEmpty && !_altVerified) {
-      Get.snackbar("Verify Alternate Number", "Please verify your alternate number via OTP.", backgroundColor: Colors.orange.shade700, colorText: Colors.white);
-      return;
-    }
-    if (ec1.isNotEmpty && !_ec1Verified) {
-      Get.snackbar("Verify Emergency Contact I", "Please verify Emergency Contact I via OTP.", backgroundColor: Colors.orange.shade700, colorText: Colors.white);
-      return;
-    }
-    if (ec2.isNotEmpty && !_ec2Verified) {
-      Get.snackbar("Verify Emergency Contact II", "Please verify Emergency Contact II via OTP.", backgroundColor: Colors.orange.shade700, colorText: Colors.white);
-      return;
-    }
+    // Validation complete - OTP checks removed
 
     final fullName = "${nameCtrl.text.trim()} ${lNameCtrl.text.trim()}".trim();
     setState(() => isSaving = true);
@@ -372,80 +282,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 16),
 
               // ── Alternate Number ──
-              _buildOtpVerifiedField(
+              _buildFormField(
+                controller: alternateNumberCtrl,
                 label: "Alternate Number",
                 hint: "10-digit alternate mobile",
                 icon: Icons.phone_iphone_rounded,
-                numberCtrl: alternateNumberCtrl,
-                otpCtrl: altOtpCtrl,
-                isVerified: _altVerified,
-                isOtpSent: _altOtpSent,
-                isSending: _altOtpSending,
-                isVerifying: _altOtpVerifying,
-                onSendOtp: () => _sendOtp(
-                  numberCtrl: alternateNumberCtrl,
-                  setSending: (v) => setState(() => _altOtpSending = v),
-                  onSuccess: (number) => setState(() { _altOtpSent = true; _altVerified = false; _altSentTo = number; altOtpCtrl.clear(); }),
-                ),
-                onVerify: () => _verifyOtp(
-                  otpCtrl: altOtpCtrl,
-                  sentTo: _altSentTo,
-                  setVerifying: (v) => setState(() => _altOtpVerifying = v),
-                  onSuccess: () => setState(() { _altVerified = true; _altOtpSent = false; }),
-                ),
-                onNumberChanged: () => setState(() { _altVerified = false; _altOtpSent = false; }),
+                keyboardType: TextInputType.phone,
               ),
               const SizedBox(height: 16),
 
               // ── Emergency Contact 1 ──
-              _buildOtpVerifiedField(
+              _buildFormField(
+                controller: emergencyOneCtrl,
                 label: "Emergency Contact I",
                 hint: "10-digit emergency contact",
                 icon: Icons.phone_in_talk_rounded,
-                numberCtrl: emergencyOneCtrl,
-                otpCtrl: emergencyOneOtpCtrl,
-                isVerified: _ec1Verified,
-                isOtpSent: _ec1OtpSent,
-                isSending: _ec1OtpSending,
-                isVerifying: _ec1OtpVerifying,
-                onSendOtp: () => _sendOtp(
-                  numberCtrl: emergencyOneCtrl,
-                  setSending: (v) => setState(() => _ec1OtpSending = v),
-                  onSuccess: (number) => setState(() { _ec1OtpSent = true; _ec1Verified = false; _ec1SentTo = number; emergencyOneOtpCtrl.clear(); }),
-                ),
-                onVerify: () => _verifyOtp(
-                  otpCtrl: emergencyOneOtpCtrl,
-                  sentTo: _ec1SentTo,
-                  setVerifying: (v) => setState(() => _ec1OtpVerifying = v),
-                  onSuccess: () => setState(() { _ec1Verified = true; _ec1OtpSent = false; }),
-                ),
-                onNumberChanged: () => setState(() { _ec1Verified = false; _ec1OtpSent = false; }),
+                keyboardType: TextInputType.phone,
               ),
               const SizedBox(height: 16),
 
               // ── Emergency Contact 2 ──
-              _buildOtpVerifiedField(
+              _buildFormField(
+                controller: emergencyTwoCtrl,
                 label: "Emergency Contact II",
                 hint: "10-digit emergency contact",
                 icon: Icons.health_and_safety_rounded,
-                numberCtrl: emergencyTwoCtrl,
-                otpCtrl: emergencyTwoOtpCtrl,
-                isVerified: _ec2Verified,
-                isOtpSent: _ec2OtpSent,
-                isSending: _ec2OtpSending,
-                isVerifying: _ec2OtpVerifying,
-                onSendOtp: () => _sendOtp(
-                  numberCtrl: emergencyTwoCtrl,
-                  setSending: (v) => setState(() => _ec2OtpSending = v),
-                  onSuccess: (number) => setState(() { _ec2OtpSent = true; _ec2Verified = false; _ec2SentTo = number; emergencyTwoOtpCtrl.clear(); }),
-                ),
-                onVerify: () => _verifyOtp(
-                  otpCtrl: emergencyTwoOtpCtrl,
-                  sentTo: _ec2SentTo,
-                  setVerifying: (v) => setState(() => _ec2OtpVerifying = v),
-                  onSuccess: () => setState(() { _ec2Verified = true; _ec2OtpSent = false; }),
-                ),
-                onNumberChanged: () => setState(() { _ec2Verified = false; _ec2OtpSent = false; }),
+                keyboardType: TextInputType.phone,
               ),
 
               const SizedBox(height: 40),
@@ -483,139 +345,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  // ── Reusable OTP-verified number field ──
-  Widget _buildOtpVerifiedField({
-    required String label,
-    required String hint,
-    required IconData icon,
-    required TextEditingController numberCtrl,
-    required TextEditingController otpCtrl,
-    required bool isVerified,
-    required bool isOtpSent,
-    required bool isSending,
-    required bool isVerifying,
-    required VoidCallback onSendOtp,
-    required VoidCallback onVerify,
-    required VoidCallback onNumberChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.black87)),
-            if (isVerified) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.green.shade300)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.verified_rounded, color: Colors.green.shade700, size: 12),
-                    const SizedBox(width: 4),
-                    Text("Verified", style: TextStyle(color: Colors.green.shade700, fontSize: 11, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: numberCtrl,
-                keyboardType: TextInputType.number,
-                maxLength: 10,
-                readOnly: isVerified,
-                onChanged: (_) { if (isVerified) onNumberChanged(); },
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: hint,
-                  counterText: '',
-                  hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
-                  filled: true,
-                  fillColor: isVerified ? Colors.green.shade50 : Colors.white,
-                  prefixIcon: Icon(icon, color: isVerified ? Colors.green.shade600 : Colors.blueGrey.shade400, size: 20),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: isVerified ? Colors.green.shade300 : Colors.grey.shade200, width: 1.5),
-                  ),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0XFF184B8C), width: 1.5)),
-                  errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.redAccent.shade400, width: 1.5)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            if (!isVerified)
-              SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: isSending ? null : onSendOtp,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF184B8C),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                  ),
-                  child: isSending
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text(isOtpSent ? "Resend" : "Send OTP", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                ),
-              ),
-          ],
-        ),
-
-        // OTP input row
-        if (isOtpSent && !isVerified) ...[
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: otpCtrl,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 6),
-                  decoration: InputDecoration(
-                    hintText: "Enter OTP",
-                    counterText: '',
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal, letterSpacing: 0, fontSize: 14),
-                    filled: true,
-                    fillColor: Colors.white,
-                    prefixIcon: Icon(Icons.lock_outline_rounded, color: Colors.blueGrey.shade400, size: 20),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.orange.shade200, width: 1.5)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.orange.shade600, width: 1.5)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: isVerifying ? null : onVerify,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                  child: isVerifying
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text("Verify", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
+  // OTP fields removed
 
   ImageProvider? _storedProfileImageProvider() {
     final image = _storedProfileImage;

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/widgets/ad_banner.dart';
 
 class HelpSupportPage extends StatelessWidget {
@@ -122,6 +124,32 @@ class FaqPage extends StatelessWidget {
             )
             .toList(),
         const SizedBox(height: 12),
+        InkWell(
+          onTap: () => _openSupportForm(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A5EE8).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF2A5EE8).withOpacity(0.5)),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.support_agent_rounded, color: Color(0xFF2A5EE8)),
+                SizedBox(width: 8),
+                Text(
+                  "Can't find your answer? Connect with us",
+                  style: TextStyle(
+                    color: Color(0xFF2A5EE8),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         const AdBanner(
           accentColor: Color(0xFF0F6B3D),
           brandName: "Your Brand Here",
@@ -130,6 +158,111 @@ class FaqPage extends StatelessWidget {
         ),
         const SizedBox(height: 8),
       ],
+    );
+  }
+
+  void _openSupportForm(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString("user_id");
+    final name = prefs.getString("name") ?? "User";
+    final mobile = prefs.getString("mobile_number") ?? "";
+
+    if (userId == null) {
+      Get.snackbar("Login Required", "Please login to submit a support request.");
+      return;
+    }
+
+    final TextEditingController questionController = TextEditingController();
+    bool isSubmitting = false;
+
+    Get.bottomSheet(
+      StatefulBuilder(
+        builder: (context, setState) {
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Connect with us",
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                ),
+                const SizedBox(height: 8),
+                Text("We'll contact you at $mobile"),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: questionController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: "Type your question here...",
+                    filled: true,
+                    fillColor: Colors.grey.shade100,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2A5EE8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (questionController.text.trim().isEmpty) return;
+                            setState(() => isSubmitting = true);
+                            final success = await ApiService.submitSupportTicket(
+                              userId,
+                              name,
+                              mobile,
+                              questionController.text.trim(),
+                            );
+                            setState(() => isSubmitting = false);
+                            if (success) {
+                              Get.back();
+                              Get.snackbar(
+                                "Success",
+                                "Your question was submitted. We will contact you soon!",
+                                backgroundColor: Colors.green,
+                                colorText: Colors.white,
+                              );
+                            } else {
+                              Get.snackbar("Error", "Failed to submit request.");
+                            }
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Text(
+                            "Submit Request",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

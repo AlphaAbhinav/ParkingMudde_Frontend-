@@ -185,7 +185,7 @@ class _WalletScreenState extends State<WalletScreen> {
                               icon: Icons.card_giftcard_rounded,
                               iconColor: secondaryYellow,
                               label: "Use Coins",
-                              onTap: () => Get.to(() => CouponStoreScreen(coinsbackBalance: coinsbackBalance)),
+                              onTap: () => Get.to(() => CouponStoreScreen(coinsbackBalance: context.read<WalletProvider>().pmCoinsBalance)),
                             ),
                           ),
                         ],
@@ -225,9 +225,9 @@ class _WalletScreenState extends State<WalletScreen> {
                         subtitle:
                             "Load your wallet with coins for alerts, calls and rewards.",
                         packages: const [
-                          _WalletPackage("coins_starter", "Starter Top-up", "100 coins", "Starter PM Coins top-up", Icons.add_card_rounded),
-                          _WalletPackage("coins_plus", "Plus Top-up", "250 coins", "Best value for regular alerts and rewards", Icons.account_balance_wallet_rounded),
-                          _WalletPackage("coins_max", "Max Top-up", "500 coins", "High usage PM Coins wallet top-up", Icons.savings_rounded),
+                          _WalletPackage("coins_starter", "Starter Top-up", "100 PM Coins", "Starter PM Coins top-up", Icons.add_card_rounded, "₹100"),
+                          _WalletPackage("coins_plus", "Plus Top-up", "250 PM Coins", "Best value for regular alerts", Icons.account_balance_wallet_rounded, "₹250"),
+                          _WalletPackage("coins_max", "Max Top-up", "500 PM Coins", "High usage wallet top-up", Icons.savings_rounded, "₹500"),
                         ],
                       ),
 
@@ -370,9 +370,25 @@ class _WalletScreenState extends State<WalletScreen> {
               letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              "≈ ₹$totalValue INR",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           const Text(
-            "Earn coins by helping others and parking\nresponsibly",
+            "Earn coins by helping others and parking\\nresponsibly",
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white,
@@ -505,7 +521,7 @@ class _WalletScreenState extends State<WalletScreen> {
 
   Widget _buildRedeemRewardsPanel(int coinsbackBalance) {
     return InkWell(
-      onTap: () => Get.to(() => CouponStoreScreen(coinsbackBalance: coinsbackBalance)),
+      onTap: () => Get.to(() => CouponStoreScreen(coinsbackBalance: context.read<WalletProvider>().pmCoinsBalance)),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
@@ -543,7 +559,7 @@ class _WalletScreenState extends State<WalletScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    "Use coinsback for brand coupons and offers",
+                    "Use PM Coins for brand coupons and offers",
                     style: TextStyle(
                       color: subTextGrey.withOpacity(0.8),
                       fontWeight: FontWeight.w500,
@@ -719,22 +735,40 @@ class _WalletScreenState extends State<WalletScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          OutlinedButton(
-            onPressed: () => _purchasePackage(package),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: primaryBlue),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (package.price != null) ...[
+                Text(
+                  package.value,
+                  style: const TextStyle(
+                    color: subTextGrey,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+              OutlinedButton(
+                onPressed: () => _purchasePackage(package),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: primaryBlue, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  minimumSize: const Size(0, 36),
+                ),
+                child: Text(
+                  package.price ?? package.value,
+                  style: const TextStyle(
+                    color: primaryBlue,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
-            ),
-            child: Text(
-              package.value,
-              style: const TextStyle(
-                color: primaryBlue,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+            ],
           ),
         ],
       ),
@@ -1641,6 +1675,7 @@ class _WalletPackage {
   final String value;
   final String description;
   final IconData icon;
+  final String? price;
 
-  const _WalletPackage(this.id, this.name, this.value, this.description, this.icon);
+  const _WalletPackage(this.id, this.name, this.value, this.description, this.icon, [this.price]);
 }

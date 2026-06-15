@@ -70,7 +70,7 @@ class _ProfilePicturePageState extends State<ProfilePicturePage> {
     if (widget.requireVehicleOnSuccess) {
       Get.offAll(() => const AddVehicleScreen(fromRegistration: true), transition: Transition.fadeIn);
     } else {
-      Get.offAll(() => const Dash(fromRegistration: true), transition: Transition.fadeIn);
+      Get.offAll(() => const Dash(), transition: Transition.fadeIn);
     }
   }
 

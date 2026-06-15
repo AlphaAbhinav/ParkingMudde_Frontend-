@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:confetti/confetti.dart';
 import 'package:get/get.dart';
 import '../../services/api_service.dart';
+import 'scratch_reveal_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 
@@ -22,12 +24,14 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
 
   bool isLoading = true;
   late int currentCoins;
+  late ConfettiController _confettiController;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     currentCoins = widget.coinsbackBalance;
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
 
     fetchCoupons();
     fetchMyCoupons();
@@ -124,15 +128,12 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
         currentCoins -= coupon.coinCost;
       });
       fetchMyCoupons();
+      _confettiController.play();
 
-      Get.snackbar(
-        "Coupon Secured!",
-        "It's successfully parked in your wallet.",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green.shade800,
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+            showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => ScratchRevealDialog(coupon: coupon),
       );
     } catch (e) {
       Get.snackbar(
@@ -149,8 +150,17 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
   }
 
   @override
+  void dispose() {
+    _confettiController.dispose();
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Stack(
+      children: [
+        Scaffold(
       backgroundColor: const Color(0xFFF6F8FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -226,6 +236,17 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
         physics: const BouncingScrollPhysics(),
         children: [_storeTab(), _myCouponsTab()],
       ),
+    ),
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive,
+            shouldLoop: false,
+            colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple],
+          ),
+        ),
+      ],
     );
   }
 

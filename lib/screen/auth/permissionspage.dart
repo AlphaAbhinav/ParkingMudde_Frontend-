@@ -121,7 +121,7 @@ class _PermissionsPageState extends State<PermissionsPage>
     if (widget.requireVehicleOnSuccess) {
       Get.offAll(() => ProfilePicturePage(requireVehicleOnSuccess: widget.requireVehicleOnSuccess), transition: Transition.fadeIn);
     } else {
-      Get.offAll(() => const Dash(fromRegistration: true), transition: Transition.fadeIn);
+      Get.offAll(() => const Dash(), transition: Transition.fadeIn);
     }
   }
 

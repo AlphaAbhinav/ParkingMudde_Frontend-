@@ -4,6 +4,10 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:parkingmudde/screen/reportwrongparking/thankspagecall.dart';
 import 'package:parkingmudde/services/api_service.dart';
+
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:parkingmudde/services/razorpay_web_checkout.dart';
 import 'package:provider/provider.dart';
 import '../../providers/wallet_provider.dart';
 
@@ -35,6 +39,19 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   XFile? videoFile;
 
   bool isLoading = false;
+
+  late Razorpay _razorpay;
+  bool _razorpayEventReceived = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
 
   final offenderData = {
     "vehicle": "MH12**1234",
@@ -151,11 +168,14 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     "Right",
   ];
 
+
   @override
   void dispose() {
+    _razorpay.clear();
     situationController.dispose();
     super.dispose();
   }
+
 
   // Original Backend method 1
   Future<void> pickImage() async {
@@ -233,6 +253,128 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   }
 
   // Original Backend Submit logic preserved explicitly
+  
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    _razorpayEventReceived = true;
+    _finishSubmitReport(
+      rOrderId: response.orderId,
+      rPaymentId: response.paymentId,
+      rSignature: response.signature,
+    );
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    _razorpayEventReceived = true;
+    setState(() => isLoading = false);
+    Get.defaultDialog(
+      title: "Payment Failed",
+      middleText: response.message ?? 'Payment was not completed or was cancelled.',
+      textConfirm: "OK",
+      onConfirm: () => Get.back(),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    _razorpayEventReceived = true;
+    setState(() => isLoading = false);
+    Get.defaultDialog(
+      title: "External Wallet",
+      middleText: 'Payment via ${response.walletName} selected.',
+      textConfirm: "OK",
+      onConfirm: () => Get.back(),
+    );
+  }
+
+  Future<void> _startRazorpayPayment(String currentUserId) async {
+    final orderResult = await ApiService.createReportRazorpayOrder(userId: currentUserId);
+    
+    if (!mounted) return;
+
+    final razorpayOrderId = orderResult['razorpay_order_id']?.toString();
+    final razorpayKeyId = orderResult['razorpay_key_id']?.toString();
+
+    if (razorpayOrderId == null || razorpayOrderId.isEmpty || razorpayKeyId == null || razorpayKeyId.isEmpty) {
+      setState(() => isLoading = false);
+      Get.defaultDialog(
+        title: "API Error",
+        middleText: orderResult['message']?.toString() ?? 'Could not initiate payment from backend.',
+        textConfirm: "OK",
+        onConfirm: () => Get.back(),
+      );
+      return;
+    }
+
+    _razorpayEventReceived = false;
+    final options = {
+      'key': razorpayKeyId,
+      'order_id': razorpayOrderId,
+      'amount': orderResult['amount'],
+      'currency': orderResult['currency'] ?? 'INR',
+      'name': 'Parking Mudde',
+      'description': 'Wrong Parking Report Fee',
+      'prefill': {
+        'contact': '9999999999',
+        'email': 'payments@parkingmudde.com',
+      },
+      'retry': {'enabled': true, 'max_count': 1},
+      'theme': {'color': '#184B8C'},
+    };
+
+    if (kIsWeb) {
+      try {
+        await openRazorpayWebCheckout(
+          Map<String, dynamic>.from(options),
+          onSuccess: (response) {
+            _razorpayEventReceived = true;
+            _finishSubmitReport(
+              rOrderId: response['razorpay_order_id']?.toString(),
+              rPaymentId: response['razorpay_payment_id']?.toString(),
+              rSignature: response['razorpay_signature']?.toString(),
+            );
+          },
+          onFailure: (message) {
+            _razorpayEventReceived = true;
+            setState(() => isLoading = false);
+            Get.defaultDialog(
+              title: "Payment Failed",
+              middleText: message,
+              textConfirm: "OK",
+              onConfirm: () => Get.back(),
+            );
+          },
+          onDismiss: () {
+            _razorpayEventReceived = true;
+            setState(() => isLoading = false);
+          },
+        );
+      } catch (e) {
+        setState(() => isLoading = false);
+        Get.defaultDialog(
+          title: "Payment Error",
+          middleText: "Could not open Razorpay on web. Error: $e",
+          textConfirm: "OK",
+          onConfirm: () => Get.back(),
+        );
+      }
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        _razorpay.open(options);
+      } catch (e) {
+        setState(() => isLoading = false);
+        Get.defaultDialog(
+          title: "Plugin Error",
+          middleText: "Razorpay error: $e",
+          textConfirm: "OK",
+          onConfirm: () => Get.back(),
+        );
+      }
+    });
+  }
+
   Future<void> submitReport() async {
     if (isLoading) return;
 
@@ -259,13 +401,44 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     final currentUserId = storedUser?["user_id"]?.toString();
     final targetVehicle = _targetVehicleNumber;
 
-    if ((_isHelpFlow || _isEmergencyFlow) &&
-        (currentUserId == null || currentUserId.isEmpty)) {
+    if (currentUserId == null || currentUserId.isEmpty) {
       if (!mounted) return;
       setState(() => isLoading = false);
       showSnack("Session invalid. Please login again.");
       return;
     }
+
+    if (_isEmergencyFlow || _isHelpFlow) {
+      await _finishSubmitReport();
+    } else {
+      setState(() => isLoading = false); // hide loading for dialog
+      bool proceed = false;
+      await Get.defaultDialog(
+        title: "Report Fee",
+        middleText: "Generating this report costs ₹1. Do you want to proceed to payment?",
+        textCancel: "Cancel",
+        textConfirm: "Pay ₹1",
+        confirmTextColor: Colors.white,
+        onConfirm: () {
+          proceed = true;
+          Get.back();
+        },
+      );
+      if (!proceed) {
+        return;
+      }
+      setState(() => isLoading = true);
+      await _startRazorpayPayment(currentUserId);
+    }
+  }
+
+  Future<void> _finishSubmitReport({String? rOrderId, String? rPaymentId, String? rSignature}) async {
+    if (!mounted) return;
+    setState(() => isLoading = true);
+    
+    final storedUser = await ApiService.getStoredUser();
+    final currentUserId = storedUser?["user_id"]?.toString();
+    final targetVehicle = _targetVehicleNumber;
 
     Map<String, dynamic> result;
     if (_isEmergencyFlow) {
@@ -303,6 +476,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
         aiReasons: aiReasons,
         lat: reportLat,
         lng: reportLng,
+        razorpayOrderId: rOrderId,
+        razorpayPaymentId: rPaymentId,
+        razorpaySignature: rSignature,
       );
     }
 

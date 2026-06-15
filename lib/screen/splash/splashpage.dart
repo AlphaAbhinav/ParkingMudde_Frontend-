@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:parkingmudde/screen/auth/loginpage.dart';
 import 'package:parkingmudde/screen/auth/onboarding.dart';
+import 'package:parkingmudde/screen/homepage/mainpage.dart';
 
 class Splashpage extends StatefulWidget {
   const Splashpage({super.key});
@@ -49,12 +50,19 @@ class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
   Future<void> _navigateToNextPage() async {
     final prefs = await SharedPreferences.getInstance();
     final hasSeenOnboarding = prefs.getBool("has_seen_onboarding") ?? false;
+    final userId = prefs.getString("user_id");
 
-    Get.offAll(
-      () => hasSeenOnboarding ? const Loginpage() : const ParkingOnboarding(),
-      transition: Transition.fadeIn,
-      duration: const Duration(milliseconds: 800),
-    );
+    if (userId != null && userId.isNotEmpty) {
+      // User is already logged in, go straight to Dash!
+      Get.offAll(() => const Dash(), transition: Transition.fadeIn, duration: const Duration(milliseconds: 800));
+    } else {
+      // User is not logged in, show Onboarding or Login
+      Get.offAll(
+        () => hasSeenOnboarding ? const Loginpage() : const ParkingOnboarding(),
+        transition: Transition.fadeIn,
+        duration: const Duration(milliseconds: 800),
+      );
+    }
   }
 
   @override

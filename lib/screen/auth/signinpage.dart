@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-
 import 'package:parkingmudde/screen/auth/loginpage.dart';
 import 'package:parkingmudde/screen/auth/otppage.dart';
 import 'package:parkingmudde/screen/pageterm/termpage.dart';
 import '../../services/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:parkingmudde/screen/auth/permissionspage.dart';
+import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
+
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -39,6 +42,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
   static const Color subTextGrey = Color(0xFF999999);
   static const Color borderGrey = Color(0xFFD2D2D2);
   static const Color textBlack = Color(0xFF222222);
+
+  List<Map<String, dynamic>> _societiesList = [];
+  String? _selectedSociety;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSocieties();
+  }
+
+  Future<void> _fetchSocieties() async {
+    final res = await ApiService.getSocieties();
+    if (res['success'] == true) {
+      if (mounted) {
+        setState(() {
+          _societiesList = List<Map<String, dynamic>>.from(res['societies'] ?? []);
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -140,33 +163,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
       societyName: societyCtrl.text.trim(),
       tower: towerCtrl.text.trim(),
       flatNumber: flatCtrl.text.trim(),
+      
     );
 
     if (!mounted) return;
 
     if (result["success"] == true) {
       await ApiService.saveUserSession(result);
-      final otpResult = await ApiService.sendOtp(mobile);
-      if (!mounted) return;
-      setState(() => isLoading = false);
+              if (!mounted) return;
+        
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool("is_new_user", true);
 
-      if (otpResult["success"] == true) {
-        Get.to(
-          () => Otppage(
-            mobile: mobile,
-            referralCode: referralCtrl.text.trim(),
-            testOtp: otpResult["otp"]?.toString(),
-            requireVehicleOnSuccess: true,
-          ),
-          transition: Transition.rightToLeft,
-        );
-      } else {
-        _showSnackbarError(
-          otpResult["message"] ?? "Could not send OTP. Please try again.",
-        );
+        setState(() => isLoading = false);
+
+        // BYPASS OTP COMPLETELY for testing
+        final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
+        
+        if (!hasSeenPermissions) {
+          Get.offAll(() => const PermissionsPage(requireVehicleOnSuccess: true));
+        } else {
+          Get.offAll(() => const AddVehicleScreen(fromRegistration: true));
+        }
+        return;
       }
-      return;
-    }
 
     setState(() => isLoading = false);
     _showSnackbarError(result["message"] ?? "Registration failed.");
@@ -233,6 +253,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const SizedBox(height: 24),
+
                 _buildFigmaField(
                   label: "First name *",
                   hint: "Enter your first name",
@@ -272,12 +294,52 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 18),
-                _buildFigmaField(
-                  label: "Society name (Optional)",
-                  hint: "Enter your society name",
-                  controller: societyCtrl,
-                  textCapitalization: TextCapitalization.words,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Society name (Optional)", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: textBlack)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: _selectedSociety,
+                      hint: const Text("Select your society", style: TextStyle(color: subTextGrey, fontSize: 14)),
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: borderGrey, width: 1)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: primaryBlue, width: 1.5)),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.arrow_drop_down_rounded, color: primaryBlue),
+                      items: [
+                        ..._societiesList.map((soc) {
+                          return DropdownMenuItem<String>(
+                            value: soc['name'].toString(),
+                            child: Text(soc['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                          );
+                        }),
+                        const DropdownMenuItem<String>(
+                          value: "Other",
+                          child: Text("Other (Not listed)", style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedSociety = val;
+                          societyCtrl.text = val == "Other" ? "" : (val ?? "");
+                        });
+                      },
+                    ),
+                  ],
                 ),
+                if (_selectedSociety == "Other") ...[
+                  const SizedBox(height: 16),
+                  _buildFigmaField(
+                    label: "Enter your society manually",
+                    hint: "Type society name",
+                    controller: societyCtrl,
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                ],
                 const SizedBox(height: 18),
                 Row(
                   children: [
@@ -696,3 +758,4 @@ class _FallbackGoogleIcon extends StatelessWidget {
     );
   }
 }
+

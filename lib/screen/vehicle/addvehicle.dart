@@ -345,29 +345,31 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
-          scrolledUnderElevation:
-              0, // Clears scroll artifacts layouts mappings mapped map standard
+          scrolledUnderElevation: 0,
           titleSpacing: 0,
           leading: widget.fromRegistration ? null : IconButton(
-            icon: const Icon(
-              Icons.arrow_back,
-              color: textBlack,
-              size: 22,
-            ), // Closest minimal flat visual matching screen natively layouts limit layout forms mapped
+            icon: const Icon(Icons.arrow_back, color: textBlack, size: 22),
             onPressed: () => Get.back(),
           ),
           title: Text(
             isEditing ? "Edit Vehicle" : "Add Vehicle",
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: textBlack,
-              letterSpacing:
-                  0.0, // Ensures accurate kerning map alignment mappings mapping maps space boundaries layouts mappings
-            ),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textBlack, letterSpacing: 0.0),
           ),
-          centerTitle:
-              false, // Accurate un-centered layout mappings limits forms mapped mappings bounds mapped space boundaries maps bound spaces standard map limit
+          centerTitle: false,
+          actions: [
+            if (widget.fromRegistration)
+              TextButton(
+                onPressed: () => Get.offAll(() => const Dash(fromRegistration: true)),
+                child: const Text(
+                  "Skip",
+                  style: TextStyle(
+                    color: Color(0xFFC0CAD8),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+          ],
         ),
         body: SafeArea(
           child: Column(

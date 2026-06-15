@@ -1,5 +1,8 @@
+import 'package:parkingmudde/screen/parking_prachar/parking_prachar_screen.dart';
+import '../leaderboard/leaderboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:get/get.dart';
 
@@ -36,6 +39,7 @@ class _HomepageState extends State<Homepage> {
   Map<String, dynamic>? user;
   int walletCoins = 247; // Match Figma preview
   bool _hasCheckedVehiclePrompt = false;
+  bool _isTutorialShowing = false;
 
   final GlobalKey _reportKey = GlobalKey();
   final GlobalKey _helpKey = GlobalKey();
@@ -264,22 +268,22 @@ class _HomepageState extends State<Homepage> {
                     ),
                     _buildQuickActionCard(
                       icon: Icons.article_rounded,
-                      title: "News & Blogs",
-                      subtitle: "Coming soon",
+                      title: "Parking Prachar",
+                      subtitle: "Ads & Blogs",
                       color: Colors.blueGrey.shade700,
                       onTap: () {
                         Get.back();
-                        _showNewsBlogsComingSoon();
+                        Get.to(() => const ParkingPracharScreen());
                       },
                     ),
                     _buildQuickActionCard(
                       icon: Icons.emoji_events_rounded,
                       title: "Leaderboards",
-                      subtitle: "Coming soon",
+                      subtitle: "Top Warriors",
                       color: Colors.amber.shade700,
                       onTap: () {
                         Get.back();
-                        _showLeaderboardsComingSoon();
+                        Get.to(() => const LeaderboardScreen());
                       },
                     ),
                     _buildQuickActionCard(
@@ -339,14 +343,122 @@ class _HomepageState extends State<Homepage> {
   }
 
 
-  void _showTutorial() {
-    tutorialCoachMark = TutorialCoachMark(
-      targets: _createTargets(),
-      colorShadow: Colors.black,
-      textSkip: "SKIP",
-      paddingFocus: 10,
-      opacityShadow: 0.8,
-    )..show(context: context);
+  Future<void> _showTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasShown = prefs.getBool('hasShownTutorial') ?? false;
+    
+    // Only show if it hasn't been shown before
+    if (!hasShown) {
+      await prefs.setBool('hasShownTutorial', true);
+      if (mounted) {
+        _isTutorialShowing = true;
+        tutorialCoachMark = TutorialCoachMark(
+          targets: _createTargets(),
+          colorShadow: Colors.black,
+          textSkip: "SKIP",
+          paddingFocus: 10,
+          opacityShadow: 0.85,
+          onFinish: () {
+            _isTutorialShowing = false;
+            if (mounted) _showAddVehiclePromptIfNeeded(user?["user_id"]?.toString(), bypassCheck: true);
+          },
+          onSkip: () {
+            _isTutorialShowing = false;
+            if (mounted) _showAddVehiclePromptIfNeeded(user?["user_id"]?.toString(), bypassCheck: true);
+            return true;
+          },
+        )..show(context: context);
+      }
+    }
+  }
+  Widget _buildCoachMarkContent({
+    required String title,
+    required String body,
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Image.asset(
+          'assets/onboarding_guy.png',
+          height: 120,
+          fit: BoxFit.contain,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topRight: Radius.circular(16),
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 8,
+                  offset: Offset(2, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2A5EE8),
+                    fontSize: 18.0,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  body,
+                  style: const TextStyle(color: Colors.black87, height: 1.4, fontSize: 13.0),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (!isFirst)
+                      TextButton(
+                        onPressed: () {
+                          tutorialCoachMark.previous();
+                        },
+                        child: const Text("Previous", style: TextStyle(color: Colors.grey)),
+                      ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2A5EE8),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        minimumSize: const Size(0, 36),
+                      ),
+                      onPressed: () {
+                        if (isLast) {
+                          tutorialCoachMark.finish();
+                        } else {
+                          tutorialCoachMark.next();
+                        }
+                      },
+                      child: Text(isLast ? "Finish" : "Next", style: const TextStyle(fontSize: 13)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   List<TargetFocus> _createTargets() {
@@ -359,25 +471,10 @@ class _HomepageState extends State<Homepage> {
           TargetContent(
             align: ContentAlign.bottom,
             builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Report Wrong Parking",
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 20.0),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.only(top: 10.0),
-                    child: Text(
-                      "Use this to report wrongly parked vehicles. Do this responsibly, as the other person will get a coin deduction!",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  )
-                ],
+              return _buildCoachMarkContent(
+                title: "Report Wrong Parking",
+                body: "Use this to report wrongly parked vehicles.\n\nDo this responsibly, as the other person will get a coin deduction!",
+                isFirst: true,
               );
             },
           )
@@ -391,25 +488,9 @@ class _HomepageState extends State<Homepage> {
           TargetContent(
             align: ContentAlign.bottom,
             builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Help a Vehicle",
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 20.0),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.only(top: 10.0),
-                    child: Text(
-                      "Alert an owner that their vehicle needs attention (e.g., lights left on, window open) and earn rewards!",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  )
-                ],
+              return _buildCoachMarkContent(
+                title: "Help a Vehicle",
+                body: "Alert an owner that their vehicle needs attention (e.g., lights left on, window open).\n\nHelp your community and earn rewards!",
               );
             },
           )
@@ -421,27 +502,12 @@ class _HomepageState extends State<Homepage> {
         alignSkip: Alignment.topRight,
         contents: [
           TargetContent(
-            align: ContentAlign.bottom,
+            align: ContentAlign.top,
             builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "PM Coins",
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 20.0),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.only(top: 10.0),
-                    child: Text(
-                      "These are your PM Coins. Use them in the Coupon Store for exciting discounts!",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  )
-                ],
+              return _buildCoachMarkContent(
+                title: "PM Coins",
+                body: "These are your PM Coins. Use them in the Coupon Store for exciting discounts!",
+                isLast: true,
               );
             },
           )
@@ -454,11 +520,12 @@ class _HomepageState extends State<Homepage> {
   void initState() {
     super.initState();
     _loadUser();
-    if (widget.fromRegistration) {
-      Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted) _showTutorial();
-      });
-    }
+    
+    // Show tutorial if it hasn't been shown yet, regardless of fromRegistration.
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) _showTutorial();
+    });
+  
   }
 
   Future<void> _loadUser() async {
@@ -475,10 +542,10 @@ class _HomepageState extends State<Homepage> {
       if (userId != null && userId.isNotEmpty) {
         await _showAddVehiclePromptIfNeeded(userId);
         final wallet = await ApiService.getWalletBalance(userId);
-        if (mounted && wallet["balance"] != null) {
+        if (mounted && wallet["pm_coins_balance"] != null) {
           setState(
             () => walletCoins =
-                int.tryParse(wallet["balance"].toString()) ?? walletCoins,
+                int.tryParse(wallet["pm_coins_balance"].toString()) ?? walletCoins,
           );
         }
         final lb = await ApiService.getLeaderboard();
@@ -493,11 +560,16 @@ class _HomepageState extends State<Homepage> {
     }
   }
 
-  Future<void> _showAddVehiclePromptIfNeeded(String? userId) async {
-    if (_hasCheckedVehiclePrompt ||
-        userId == null ||
-        userId.isEmpty ||
-        !mounted) {
+  Future<void> _showAddVehiclePromptIfNeeded(String? userId, {bool bypassCheck = false}) async {
+    if (_hasCheckedVehiclePrompt && !bypassCheck) return;
+    if (userId == null || userId.isEmpty || !mounted) return;
+    
+    if (_isTutorialShowing) return;
+    
+    final prefs = await SharedPreferences.getInstance();
+    final hasShownTutorial = prefs.getBool('hasShownTutorial') ?? false;
+    if (!hasShownTutorial && !bypassCheck) {
+      // Delay showing the vehicle prompt until the tutorial finishes
       return;
     }
 
@@ -514,6 +586,142 @@ class _HomepageState extends State<Homepage> {
     final value = user?[key];
     if (value == null || value.toString().trim().isEmpty) return fallback;
     return value.toString();
+  }
+
+  Widget _buildParkingPracharNews() {
+    final List<Map<String, String>> dummyNews = [
+      {
+        "title": "Smart Parking Zones Active",
+        "desc": "Find new automated zones in Sector 14.",
+        "image": "https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?q=80&w=300&auto=format&fit=crop",
+      },
+      {
+        "title": "FASTag Integration Live",
+        "desc": "Pay seamlessly with your vehicle FASTag.",
+        "image": "https://images.unsplash.com/photo-1549317661-bd32c8ce0be2?q=80&w=300&auto=format&fit=crop",
+      },
+      {
+        "title": "EV Charging Added",
+        "desc": "Select spots now feature fast EV charging.",
+        "image": "https://images.unsplash.com/photo-1593941707882-a5bba14938c7?q=80&w=300&auto=format&fit=crop",
+      },
+      {
+        "title": "Avoid Towing Fines",
+        "desc": "Read our guide on avoiding wrong parking.",
+        "image": "https://images.unsplash.com/photo-1628151015968-3a4429e9ef04?q=80&w=300&auto=format&fit=crop",
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              "Parking Prachar",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1E293B),
+                letterSpacing: 0.2,
+              ),
+            ),
+            TextButton(
+              onPressed: () => Get.to(() => const ParkingPracharScreen()),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                "See All",
+                style: TextStyle(
+                  color: Color(0XFF184B8C),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            )
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 180,
+          child: ListView.builder(
+            physics: const BouncingScrollPhysics(),
+            scrollDirection: Axis.horizontal,
+            itemCount: dummyNews.length,
+            itemBuilder: (context, index) {
+              final news = dummyNews[index];
+              return Container(
+                width: 240,
+                margin: const EdgeInsets.only(right: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    )
+                  ],
+                  border: Border.all(color: Colors.grey.shade100, width: 2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                      child: Image.network(
+                        news["image"]!,
+                        height: 100,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 100,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.image_not_supported, color: Colors.grey),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            news["title"]!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            news["desc"]!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -588,7 +796,9 @@ class _HomepageState extends State<Homepage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Figma Header Primary Actions layout
+              _buildFloatingNewsTicker(),
+                const SizedBox(height: 16),
+                // Figma Header Primary Actions layout
               Container(key: _reportKey, child: _buildFeatureButton(
                 title: "Report Wrong Parking",
                 subtitle: "Help clear the way in seconds",
@@ -648,82 +858,128 @@ class _HomepageState extends State<Homepage> {
 
               const SizedBox(height: 32),
 
-              // Quick Actions Header + View All Restored Method
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text(
-                    "Quick Actions",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: textBlack,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => _showAllQuickActions(context),
-                    child: const Text(
-                      "See all",
+              // Leaderboard (ABOVE Quick Actions)
+                _buildHomeLeaderboardSection(),
+                const SizedBox(height: 32),
+
+                // Quick Actions Header + View All Restored Method
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      "Quick Actions",
                       style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: primaryBlue,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: textBlack,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Exact Original Figma Top 4 Display with Book&Pay swapped to Wallet natively constraints bounded
-              GridView(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: EdgeInsets.zero,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 2.2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+                    GestureDetector(
+                      onTap: () => _showAllQuickActions(context),
+                      child: const Text(
+                        "See all",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: primaryBlue,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                children: [
-                  _buildQuickActionCard(
-                    icon: Icons.local_parking_rounded,
-                    title: "Find Parking",
-                    subtitle: "Nearby spots",
-                    color: Colors.blue.shade600,
-                    onTap: () => Get.to(() => const NearbyParkingMapScreen()),
-                  ),
-                  _buildQuickActionCard(
-                    icon: Icons.account_balance_wallet_rounded,
-                    title: "Wallet",
-                    subtitle: "Manage coins",
-                    color: Colors.green.shade600,
-                    onTap: () => Get.to(() => WalletScreen(totalCoins: walletCoins)),
-                  ),
-                  _buildQuickActionCard(
-                    icon: Icons.directions_car_rounded,
-                    title: "My Vehicles",
-                    subtitle: "Manage fleet",
-                    color: Colors.purple.shade600,
-                    onTap: () => Get.to(() => const MyVehiclesScreen()),
-                  ),
-                  _buildQuickActionCard(
-                    icon: Icons.warning_rounded,
-                    title: "Parking Alerts",
-                    subtitle: "Stay Notified",
-                    color: Colors.orange.shade600,
-                    onTap: () => Get.to(() => const AlertsScreen()),
-                  ),
-                ],
-              ),
+                const SizedBox(height: 16),
 
-              const SizedBox(height: 32),
+                // Exact Original Figma Top 4 Display with Book&Pay swapped to Wallet natively constraints bounded
+                GridView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 2.2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  children: [
+                    _buildQuickActionCard(
+                      icon: Icons.local_parking_rounded,
+                      title: "Find Parking",
+                      subtitle: "Nearby spots",
+                      color: Colors.blue.shade600,
+                      onTap: () => Get.to(() => const NearbyParkingMapScreen()),
+                    ),
+                    Container(key: _walletKey, child: _buildQuickActionCard(
+                      icon: Icons.account_balance_wallet_rounded,
+                      title: "Wallet",
+                      subtitle: "Manage coins",
+                      color: Colors.green.shade600,
+                      onTap: () => Get.to(() => WalletScreen(totalCoins: walletCoins)),
+                    ),),
+                    _buildQuickActionCard(
+                      icon: Icons.directions_car_rounded,
+                      title: "My Vehicles",
+                      subtitle: "Manage fleet",
+                      color: Colors.purple.shade600,
+                      onTap: () => Get.to(() => const MyVehiclesScreen()),
+                    ),
+                    _buildQuickActionCard(
+                      icon: Icons.warning_rounded,
+                      title: "Parking Alerts",
+                      subtitle: "Stay Notified",
+                      color: Colors.orange.shade600,
+                      onTap: () => Get.to(() => const AlertsScreen()),
+                    ),
+                  ],
+                ),
 
-              // Outstanding Huge Promo Action Panel constraints
+                const SizedBox(height: 32),
+
+                // FAQ & Blogs (BELOW Quick Actions)
+                const Text(
+                  "Help & Info",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: textBlack,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                GridView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 2.2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  children: [
+                    _buildQuickActionCard(
+                      icon: Icons.article_rounded,
+                      title: "Parking Prachar",
+                      subtitle: "Ads & Blogs",
+                      color: Colors.blueGrey.shade700,
+                      onTap: () => Get.to(() => const ParkingPracharScreen()),
+                    ),
+                    _buildQuickActionCard(
+                      icon: Icons.question_answer_rounded,
+                      title: "FAQs",
+                      subtitle: "Get Help",
+                      color: Colors.indigo.shade600,
+                      onTap: () => Get.to(() => const FaqPage()),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+
+
+              _buildParkingPracharNews(),
+                const SizedBox(height: 32),
+
+                // Outstanding Huge Promo Action Panel constraints
               Container(
-                key: _walletKey,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   gradient: const LinearGradient(
@@ -1130,6 +1386,202 @@ class _HomepageState extends State<Homepage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHomeLeaderboardSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            const Text(
+              "Top Contributors",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: textBlack,
+              ),
+            ),
+            GestureDetector(
+              onTap: () => Get.to(() => const LeaderboardScreen()),
+              child: const Text(
+                "View All",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: primaryBlue,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.shade100,
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              if (_topUsers.isNotEmpty)
+                ..._topUsers.asMap().entries.map((entry) {
+                  int index = entry.key;
+                  var u = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: index == 0
+                              ? Colors.amber.shade100
+                              : index == 1
+                                  ? Colors.grey.shade200
+                                  : index == 2
+                                      ? Colors.brown.shade100
+                                      : Colors.blue.shade50,
+                          child: Text(
+                            "${index + 1}",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: index == 0
+                                  ? Colors.amber.shade800
+                                  : index == 1
+                                      ? Colors.grey.shade700
+                                      : index == 2
+                                          ? Colors.brown.shade700
+                                          : Colors.blue.shade700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: primaryBlue.withValues(alpha: 0.1),
+                          backgroundImage: u["profile_pic"] != null
+                              ? NetworkImage(u["profile_pic"])
+                              : null,
+                          child: u["profile_pic"] == null
+                              ? const Icon(Icons.person,
+                                  size: 20, color: primaryBlue)
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            u["full_name"] ?? "User",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.diamond_rounded, color: Colors.orange, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          "${u["score"] ?? 0}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList()
+              else
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: Text(
+                      "Be the first to get on the leaderboard!",
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                  ),
+                ),
+              const Divider(height: 24),
+              // Current User position
+              Row(
+                children: [
+                  const Text(
+                    "Your Rank:",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: primaryBlue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _myProgress != null && _myProgress!['current_rank'] != null ? "#${_myProgress!['current_rank']}" : "-",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: primaryBlue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFloatingNewsTicker() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.campaign_rounded, color: Colors.blue.shade800, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  Text(
+                    "BREAKING: New smart parking lots added in Downtown! • "
+                    "Earn 50 PM Coins for reporting blockages today • "
+                    "Weekend parking rates slashed by 20% across all partner zones",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.blue.shade900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
