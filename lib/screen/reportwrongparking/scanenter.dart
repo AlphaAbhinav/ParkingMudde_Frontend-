@@ -396,21 +396,24 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
   final RegExp vehicleRegex = RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$');
 
   static const List<Map<String, String>> _reportIssues = [
-    {"code": "RESERVED_SPOT", "title": "Parked in my reserved spot"},
-    {"code": "BLOCKING_CAR_EXIT", "title": "Blocking my car / double parked"},
-    {"code": "NO_PARKING_ZONE", "title": "Parked in No Parking zone"},
-    {"code": "BLOCKING_GATE", "title": "Blocking society entry/exit gate"},
-    {"code": "BLOCKING_DRIVEWAY", "title": "Blocking driveway / ramp"},
-    {"code": "BLOCKING_FIRE_EXIT", "title": "Blocking fire exit"},
-    {"code": "BLOCKING_AMBULANCE", "title": "Blocking ambulance access"},
-    {"code": "FOOTPATH", "title": "Parked on footpath"},
-    {"code": "WRONG_SIDE", "title": "Parked on wrong side"},
-    {"code": "HANDICAPPED_SLOT", "title": "Parked in handicapped slot"},
-    {"code": "EV_CHARGING_SPOT", "title": "Parked in EV charging spot"},
-    {"code": "PEDESTRIAN_CROSSING", "title": "Parked on zebra crossing"},
-    {"code": "BLOCKING_SHOP", "title": "Blocking shop entrance / shutter"},
-    {"code": "BLOCKING_HOME", "title": "Parking in front of my house"},
-    {"code": "TRAFFIC_JAM", "title": "Parking causing traffic jam"},
+    // Strong AI Detection
+    {"code": "NO_PARKING_ZONE", "title": "Parked in No Parking zone", "group": "Supported"},
+    {"code": "FOOTPATH", "title": "Parked on footpath", "group": "Supported"},
+    {"code": "PEDESTRIAN_CROSSING", "title": "Parked on zebra crossing", "group": "Supported"},
+    {"code": "BLOCKING_CAR_EXIT", "title": "Blocking my car / double parked", "group": "Supported"},
+    {"code": "WRONG_SIDE", "title": "Parked on wrong side", "group": "Supported"},
+    {"code": "BLOCKING_GATE", "title": "Blocking society entry/exit gate", "group": "Supported"},
+    {"code": "BLOCKING_DRIVEWAY", "title": "Blocking driveway / ramp", "group": "Supported"},
+    {"code": "TRAFFIC_JAM", "title": "Parking causing traffic jam", "group": "Supported"},
+    // Weak AI Detection
+    {"code": "BLOCKING_FIRE_EXIT", "title": "Blocking fire exit", "group": "Weak"},
+    {"code": "BLOCKING_AMBULANCE", "title": "Blocking ambulance access", "group": "Weak"},
+    {"code": "BLOCKING_SHOP", "title": "Blocking shop entrance / shutter", "group": "Weak"},
+    {"code": "BLOCKING_HOME", "title": "Parking in front of my house", "group": "Weak"},
+    // Coming Soon (AI cannot detect yet)
+    {"code": "RESERVED_SPOT", "title": "Parked in my reserved spot", "group": "Coming Soon"},
+    {"code": "HANDICAPPED_SLOT", "title": "Parked in handicapped slot", "group": "Coming Soon"},
+    {"code": "EV_CHARGING_SPOT", "title": "Parked in EV charging spot", "group": "Coming Soon"},
   ];
 
   bool isValidVehicle = false;
@@ -546,55 +549,79 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final issue = _reportIssues[index];
-                  return InkWell(
-                    onTap: () {
-                      Get.back();
-                      Get.to(
-                        () => ReportProofScreen(
-                          typev: "report",
-                          vehicleNumber: vehicleNumber,
-                          vehicleLookupData: vehicleLookupData,
-                          selectedIssueTitle: issue["title"],
-                          selectedIssueCode: issue["code"],
+                  final showHeader = index == 0 || _reportIssues[index - 1]["group"] != issue["group"];
+                  final isComingSoon = issue["group"] == "Coming Soon";
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (showHeader && issue["group"] == "Coming Soon") ...[
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16, bottom: 8),
+                          child: Text(
+                            "Coming Soon (Manual Review Required)",
+                            style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.w900),
+                          ),
                         ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 13,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.report_problem_rounded,
-                            color: Color(0xFF2A5EE8),
-                            size: 20,
+                      ] else if (showHeader && issue["group"] == "Weak") ...[
+                         const Padding(
+                          padding: EdgeInsets.only(top: 16, bottom: 8),
+                          child: Text(
+                            "Hard to Verify automatically",
+                            style: TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.w800),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              issue["title"]!,
-                              style: const TextStyle(
-                                color: Color(0xFF1E212D),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                              ),
+                        ),
+                      ],
+                      InkWell(
+                        onTap: () {
+                          Get.back();
+                          Get.to(
+                            () => ReportProofScreen(
+                              typev: "report",
+                              vehicleNumber: vehicleNumber,
+                              vehicleLookupData: vehicleLookupData,
+                              selectedIssueTitle: issue["title"],
+                              selectedIssueCode: issue["code"],
                             ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 13,
                           ),
-                          const Icon(
-                            Icons.chevron_right_rounded,
-                            color: Color(0xFF94A3B8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
-                        ],
+                          child: Row(
+                            children: [
+                              Icon(
+                                isComingSoon ? Icons.access_time_rounded : Icons.report_problem_rounded,
+                                color: isComingSoon ? Colors.orange : const Color(0xFF2A5EE8),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  issue["title"]!,
+                                  style: const TextStyle(
+                                    color: Color(0xFF1E212D),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   );
                 },
               ),

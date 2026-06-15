@@ -353,30 +353,33 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
   final RegExp vehicleRegex = RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$');
 
   static const List<Map<String, String>> _parkingErrors = [
-    {"group": "Safety / Urgent", "title": "Headlights ON"},
-    {"group": "Safety / Urgent", "title": "Indicator ON"},
-    {"group": "Safety / Urgent", "title": "Door open"},
-    {"group": "Safety / Urgent", "title": "Boot open"},
-    {"group": "Safety / Urgent", "title": "Window open"},
-    {"group": "Safety / Urgent", "title": "Engine ON (idle)"},
-    {"group": "Safety / Urgent", "title": "Handbrake not engaged"},
-    {"group": "Safety / Urgent", "title": "Hazard light ON"},
-    {"group": "Safety / Urgent", "title": "Car rolling risk"},
-    {"group": "Vehicle Risk", "title": "Flat tyre"},
-    {"group": "Vehicle Risk", "title": "Low air tyre"},
-    {"group": "Vehicle Risk", "title": "Side mirror folded / broken"},
-    {"group": "Vehicle Risk", "title": "Fuel cap open"},
-    {"group": "Vehicle Risk", "title": "Oil leak visible"},
-    {"group": "Vehicle Risk", "title": "Smoke from engine"},
+    // Strong AI Detection
     {"group": "Parking Mistakes", "title": "Parked too close (blocking)"},
     {"group": "Parking Mistakes", "title": "Parked outside marking"},
-    {"group": "Parking Mistakes", "title": "Parked on slope without support"},
-    {"group": "Parking Mistakes", "title": "Parked in visitor slot"},
-    {"group": "Parking Mistakes", "title": "Parked on ramp / turn"},
-    {"group": "Parking Mistakes", "title": "Car alarm continuously ringing"},
-    {"group": "Parking Mistakes", "title": "Fuel leakage suspected"},
-    {"group": "Parking Mistakes", "title": "Vehicle left unattended long time"},
-    {"group": "Parking Mistakes", "title": "Suspicious vehicle / security concern"},
+    // Weak AI Detection
+    {"group": "Hard to Verify automatically", "title": "Parked on ramp / turn"},
+    {"group": "Hard to Verify automatically", "title": "Parked on slope without support"},
+    {"group": "Hard to Verify automatically", "title": "Suspicious vehicle / security concern"},
+    // Coming Soon
+    {"group": "Coming Soon (Manual Review)", "title": "Headlights ON"},
+    {"group": "Coming Soon (Manual Review)", "title": "Indicator ON"},
+    {"group": "Coming Soon (Manual Review)", "title": "Door open"},
+    {"group": "Coming Soon (Manual Review)", "title": "Boot open"},
+    {"group": "Coming Soon (Manual Review)", "title": "Window open"},
+    {"group": "Coming Soon (Manual Review)", "title": "Engine ON (idle)"},
+    {"group": "Coming Soon (Manual Review)", "title": "Handbrake not engaged"},
+    {"group": "Coming Soon (Manual Review)", "title": "Hazard light ON"},
+    {"group": "Coming Soon (Manual Review)", "title": "Car rolling risk"},
+    {"group": "Coming Soon (Manual Review)", "title": "Flat tyre"},
+    {"group": "Coming Soon (Manual Review)", "title": "Low air tyre"},
+    {"group": "Coming Soon (Manual Review)", "title": "Side mirror folded / broken"},
+    {"group": "Coming Soon (Manual Review)", "title": "Fuel cap open"},
+    {"group": "Coming Soon (Manual Review)", "title": "Oil leak visible"},
+    {"group": "Coming Soon (Manual Review)", "title": "Smoke from engine"},
+    {"group": "Coming Soon (Manual Review)", "title": "Parked in visitor slot"},
+    {"group": "Coming Soon (Manual Review)", "title": "Car alarm continuously ringing"},
+    {"group": "Coming Soon (Manual Review)", "title": "Fuel leakage suspected"},
+    {"group": "Coming Soon (Manual Review)", "title": "Vehicle left unattended long time"},
   ];
 
   bool isValidVehicle = false;
@@ -564,12 +567,12 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
                     children: [
                       if (showHeader) ...[
                         Padding(
-                          padding: const EdgeInsets.only(top: 4, bottom: 8),
+                          padding: const EdgeInsets.only(top: 12, bottom: 8),
                           child: Text(
                             error["group"]!,
-                            style: const TextStyle(
-                              color: Color(0xFF4C42ED),
-                              fontSize: 12,
+                            style: TextStyle(
+                              color: error["group"]!.contains("Coming Soon") ? Colors.orange : (error["group"]!.contains("Hard") ? Colors.blueGrey : const Color(0xFF4C42ED)),
+                              fontSize: 13,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
