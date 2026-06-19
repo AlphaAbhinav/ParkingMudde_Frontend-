@@ -69,7 +69,10 @@ class _NotificationpageState extends State<Notificationpage> {
   List<dynamic> get visibleNotifications {
     return notifications.where((item) {
       final type = item["type"]?.toString() ?? "";
-      if (selectedFilter == "Reports") return type == "REPORTED_VEHICLE";
+      if (selectedFilter == "Reports") {
+        return type == "REPORTED_VEHICLE" ||
+            type == "VEHICLE_REPORTED_AGAINST_YOU";
+      }
       if (selectedFilter == "Vehicles") {
         return type == "VEHICLE_ADDED" ||
             type == "VEHICLE_UPDATED" ||
@@ -406,7 +409,7 @@ class _NotificationpageState extends State<Notificationpage> {
                     ),
                   ),
                 // ── On the Way button for offender ──
-                if (type == "REPORTED_VEHICLE" &&
+                if (type == "VEHICLE_REPORTED_AGAINST_YOU" &&
                     status == "SUBMITTED" &&
                     item["report_id"] != null)
                   _buildOnTheWayButton(item),
@@ -554,7 +557,7 @@ class _NotificationpageState extends State<Notificationpage> {
   }
 
   String _sectionTitle(dynamic item) {
-    final createdAt = DateTime.tryParse(item["created_at"]?.toString() ?? "");
+    final createdAt = _parseCreatedAt(item);
     if (createdAt == null) return "THIS WEEK";
 
     final now = DateTime.now();
@@ -567,7 +570,7 @@ class _NotificationpageState extends State<Notificationpage> {
   }
 
   String _formatTime(dynamic item) {
-    final createdAt = DateTime.tryParse(item["created_at"]?.toString() ?? "");
+    final createdAt = _parseCreatedAt(item);
     if (createdAt == null) return item["time"]?.toString() ?? "";
 
     final now = DateTime.now();
@@ -579,6 +582,12 @@ class _NotificationpageState extends State<Notificationpage> {
     final hour = createdAt.hour.toString().padLeft(2, "0");
     final minute = createdAt.minute.toString().padLeft(2, "0");
     return "$hour:$minute";
+  }
+
+  DateTime? _parseCreatedAt(dynamic item) {
+    final raw = item["created_at"]?.toString() ?? "";
+    final parsed = DateTime.tryParse(raw);
+    return parsed?.toLocal();
   }
 
   String _statusLabel(String status) {

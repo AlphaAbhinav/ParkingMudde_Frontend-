@@ -1,3 +1,4 @@
+import 'package:parkingmudde/screen/reportwrongparking/thankspagecall.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -9,7 +10,20 @@ import 'package:parkingmudde/widgets/ad_banner.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class VehicleNumberInputScreen extends StatefulWidget {
-  const VehicleNumberInputScreen({super.key});
+  final String? reportId;
+  final bool isAttachingPlate;
+  final String? razorpayOrderId;
+  final String? razorpayPaymentId;
+  final String? razorpaySignature;
+
+  const VehicleNumberInputScreen({
+    super.key,
+    this.reportId,
+    this.isAttachingPlate = false,
+    this.razorpayOrderId,
+    this.razorpayPaymentId,
+    this.razorpaySignature,
+  });
 
   @override
   State<VehicleNumberInputScreen> createState() =>
@@ -26,6 +40,44 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
   static const Color textDarkGrey = Color(0xFF4B5563);
   static const Color lightBlueBg = Color(0xFFEFF5FE);
   static const Color borderGrey = Color(0xFFD2D2D2);
+
+  void _openSimplePlateEntryDialog({String? initialVehicleNumber}) {
+    final TextEditingController _controller = TextEditingController(
+      text: initialVehicleNumber,
+    );
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Enter Vehicle Number"),
+          content: TextField(
+            controller: _controller,
+            decoration: const InputDecoration(hintText: "e.g. MH01AB1234"),
+            textCapitalization: TextCapitalization.characters,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: primaryBlue),
+              onPressed: () {
+                Get.back();
+                _attachPlate(
+                  _controller.text.replaceAll(" ", "").toUpperCase(),
+                );
+              },
+              child: const Text(
+                "Submit",
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   // --- Strict compliance to Camera Scan action preservation limits bound boundaries mapped constraint bounds limit boundary map maps limit map ---
   Future<void> _scanNumberPlateAction() async {
@@ -54,7 +106,11 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
       // Format safely bounds standard layout mappings
       final cleanPlate = result.vehicleNumber.replaceAll(" ", "").toUpperCase();
 
-      _openManualEntrySheet(initialVehicleNumber: cleanPlate);
+      if (widget.isAttachingPlate && widget.reportId != null) {
+        _attachPlate(cleanPlate);
+      } else {
+        _openManualEntrySheet(initialVehicleNumber: cleanPlate);
+      }
     } catch (e) {
       if (!mounted) return;
       Get.snackbar(
@@ -71,8 +127,56 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
     }
   }
 
+  Future<void> _attachPlate(String vehicleNumber) async {
+    Get.defaultDialog(
+      title: "Attaching Plate",
+      content: const CircularProgressIndicator(),
+      barrierDismissible: false,
+    );
+    try {
+      final result = await ApiService.attachWrongParkingPlate(
+        reportId: widget.reportId!,
+        vehicleNumber: vehicleNumber,
+        razorpayOrderId: widget.razorpayOrderId,
+        razorpayPaymentId: widget.razorpayPaymentId,
+        razorpaySignature: widget.razorpaySignature,
+      );
+      if (Get.isDialogOpen == true) Get.back();
+
+      if (result['success'] == true) {
+        if (widget.isAttachingPlate) {
+          final isRegistered = result['data']?['vehicle_registered'] == true;
+          Get.back(result: isRegistered); // Return to ThankYouScreen
+        } else {
+          Get.offAll(() => ThankYouReportScreen(reportId: widget.reportId!));
+        }
+      } else {
+        Get.snackbar(
+          "Error",
+          result['message'] ?? "Failed to attach plate",
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      if (Get.isDialogOpen == true) Get.back();
+      Get.snackbar(
+        "Error",
+        e.toString(),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
   // Beautiful modern native bottom-sheet call layout forms
   void _openManualEntrySheet({String? initialVehicleNumber}) {
+    if (widget.isAttachingPlate) {
+      // If we are attaching plate, we don't open the issue selection sheet.
+      // We open a simpler dialog to just enter the plate.
+      _openSimplePlateEntryDialog(initialVehicleNumber: initialVehicleNumber);
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -123,133 +227,135 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
           children: [
             SafeArea(
               child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. TOP INFORMATION CARD boundaries mapping layouts boundaries standard map forms boundary mapped constraints
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: lightBlueBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: borderGrey,
-                      width: 1,
-                    ), // Exact replica constraints limits map layouts mapping spaces forms boundaries
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Clear the way peacefully.\nWe'll notify the vehicle owner privately\nso they can resolve the issue quickly.",
-                        style: TextStyle(
-                          fontSize: 14,
-                          height: 1.5,
-                          fontWeight: FontWeight.w700,
-                          color: textBlack,
-                        ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 30,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 1. TOP INFORMATION CARD boundaries mapping layouts boundaries standard map forms boundary mapped constraints
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: lightBlueBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: borderGrey,
+                          width: 1,
+                        ), // Exact replica constraints limits map layouts mapping spaces forms boundaries
                       ),
-                      const SizedBox(height: 14),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.verified_rounded,
-                            color: primaryBlue,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            "Your phone number is never shared.",
+                          const Text(
+                            "Clear the way peacefully.\nWe'll notify the vehicle owner privately\nso they can resolve the issue quickly.",
                             style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: textDarkGrey,
+                              fontSize: 14,
+                              height: 1.5,
+                              fontWeight: FontWeight.w700,
+                              color: textBlack,
                             ),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.verified_rounded,
+                                color: primaryBlue,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Your phone number is never shared.",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: textDarkGrey,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // 2. PRIMARY SCAN TRIGGER BOX spaces mappings map constraints bounds layout limits mapping maps bound space bounds mapping forms boundaries boundaries forms maps map mapping standard boundary
-                InkWell(
-                  onTap: _scanNumberPlateAction,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: borderGrey, width: 1.2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.01),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Scan Vehicle Number",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: textBlack,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              "Fast and accurate",
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF6B7280),
-                              ),
+
+                    const SizedBox(height: 24),
+
+                    // 2. PRIMARY SCAN TRIGGER BOX spaces mappings map constraints bounds layout limits mapping maps bound space bounds mapping forms boundaries boundaries forms maps map mapping standard boundary
+                    InkWell(
+                      onTap: _scanNumberPlateAction,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: borderGrey, width: 1.2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.01),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFFDFE8FC,
-                            ), // Perfectly identical visual limits layouts boundary layouts
-                            shape: BoxShape.circle,
-                          ),
-                          child: isScanningPlate
-                              ? const SizedBox(
-                                  height: 22,
-                                  width: 22,
-                                  child: CircularProgressIndicator(
-                                    color: primaryBlue,
-                                    strokeWidth: 2,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Scan Vehicle Number",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: textBlack,
                                   ),
-                                )
-                              : const Icon(
-                                  Icons.camera_alt_rounded,
-                                  color: primaryBlue,
-                                  size: 24,
                                 ),
+                                SizedBox(height: 6),
+                                Text(
+                                  "Fast and accurate",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF6B7280),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFDFE8FC,
+                                ), // Perfectly identical visual limits layouts boundary layouts
+                                shape: BoxShape.circle,
+                              ),
+                              child: isScanningPlate
+                                  ? const SizedBox(
+                                      height: 22,
+                                      width: 22,
+                                      child: CircularProgressIndicator(
+                                        color: primaryBlue,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.camera_alt_rounded,
+                                      color: primaryBlue,
+                                      size: 24,
+                                    ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
 
-                const SizedBox(height: 40),
-
+                    const SizedBox(height: 40),
 
                     // 3. SECONDARY TEXT BUTTON FOR MANUAL TRIGGER
                     Center(
@@ -396,24 +502,83 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
   final RegExp vehicleRegex = RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$');
 
   static const List<Map<String, String>> _reportIssues = [
-    // Strong AI Detection
-    {"code": "NO_PARKING_ZONE", "title": "Parked in No Parking zone", "group": "Supported"},
+    // Section 1: Normal (No Header)
+    // Strong AI Detection (Top of Section 1)
+    {
+      "code": "NO_PARKING_ZONE",
+      "title": "Parked in No Parking zone",
+      "group": "Supported",
+    },
     {"code": "FOOTPATH", "title": "Parked on footpath", "group": "Supported"},
-    {"code": "PEDESTRIAN_CROSSING", "title": "Parked on zebra crossing", "group": "Supported"},
-    {"code": "BLOCKING_CAR_EXIT", "title": "Blocking my car / double parked", "group": "Supported"},
-    {"code": "WRONG_SIDE", "title": "Parked on wrong side", "group": "Supported"},
-    {"code": "BLOCKING_GATE", "title": "Blocking society entry/exit gate", "group": "Supported"},
-    {"code": "BLOCKING_DRIVEWAY", "title": "Blocking driveway / ramp", "group": "Supported"},
-    {"code": "TRAFFIC_JAM", "title": "Parking causing traffic jam", "group": "Supported"},
-    // Weak AI Detection
-    {"code": "BLOCKING_FIRE_EXIT", "title": "Blocking fire exit", "group": "Weak"},
-    {"code": "BLOCKING_AMBULANCE", "title": "Blocking ambulance access", "group": "Weak"},
-    {"code": "BLOCKING_SHOP", "title": "Blocking shop entrance / shutter", "group": "Weak"},
-    {"code": "BLOCKING_HOME", "title": "Parking in front of my house", "group": "Weak"},
+    {
+      "code": "PEDESTRIAN_CROSSING",
+      "title": "Parked on zebra crossing",
+      "group": "Supported",
+    },
+    {
+      "code": "BLOCKING_CAR_EXIT",
+      "title": "Blocking my car / double parked",
+      "group": "Supported",
+    },
+    {
+      "code": "WRONG_SIDE",
+      "title": "Parked on wrong side",
+      "group": "Supported",
+    },
+    {
+      "code": "BLOCKING_GATE",
+      "title": "Blocking society entry/exit gate",
+      "group": "Supported",
+    },
+    {
+      "code": "BLOCKING_DRIVEWAY",
+      "title": "Blocking driveway / ramp",
+      "group": "Supported",
+    },
+    {
+      "code": "TRAFFIC_JAM",
+      "title": "Parking causing traffic jam",
+      "group": "Supported",
+    },
+    // Weak AI Detection (Bottom of Section 1)
+    {
+      "code": "BLOCKING_FIRE_EXIT",
+      "title": "Blocking fire exit",
+      "group": "Weak",
+    },
+    {
+      "code": "BLOCKING_AMBULANCE",
+      "title": "Blocking ambulance access",
+      "group": "Weak",
+    },
+    {
+      "code": "BLOCKING_SHOP",
+      "title": "Blocking shop entrance / shutter",
+      "group": "Weak",
+    },
+    {
+      "code": "BLOCKING_HOME",
+      "title": "Parking in front of my house",
+      "group": "Weak",
+    },
+
+    // Section 2: Will take longer
     // Coming Soon (AI cannot detect yet)
-    {"code": "RESERVED_SPOT", "title": "Parked in my reserved spot", "group": "Coming Soon"},
-    {"code": "HANDICAPPED_SLOT", "title": "Parked in handicapped slot", "group": "Coming Soon"},
-    {"code": "EV_CHARGING_SPOT", "title": "Parked in EV charging spot", "group": "Coming Soon"},
+    {
+      "code": "RESERVED_SPOT",
+      "title": "Parked in my reserved spot",
+      "group": "Coming Soon",
+    },
+    {
+      "code": "HANDICAPPED_SLOT",
+      "title": "Parked in handicapped slot",
+      "group": "Coming Soon",
+    },
+    {
+      "code": "EV_CHARGING_SPOT",
+      "title": "Parked in EV charging spot",
+      "group": "Coming Soon",
+    },
   ];
 
   bool isValidVehicle = false;
@@ -487,7 +652,8 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
 
     Get.snackbar(
       "Lookup Failed",
-      result["message"]?.toString() ?? "Could not check this vehicle right now.",
+      result["message"]?.toString() ??
+          "Could not check this vehicle right now.",
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: Colors.redAccent,
       colorText: Colors.white,
@@ -502,9 +668,7 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
   }) {
     Get.bottomSheet(
       Container(
-        constraints: BoxConstraints(
-          maxHeight: Get.height * 0.78,
-        ),
+        constraints: BoxConstraints(maxHeight: Get.height * 0.78),
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -549,25 +713,23 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final issue = _reportIssues[index];
-                  final showHeader = index == 0 || _reportIssues[index - 1]["group"] != issue["group"];
+                  final showHeader =
+                      index == 0 ||
+                      _reportIssues[index - 1]["group"] != issue["group"];
                   final isComingSoon = issue["group"] == "Coming Soon";
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (showHeader && issue["group"] == "Coming Soon") ...[
+                      if (showHeader && isComingSoon) ...[
                         const Padding(
                           padding: EdgeInsets.only(top: 16, bottom: 8),
                           child: Text(
-                            "Coming Soon (Manual Review Required)",
-                            style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.w900),
-                          ),
-                        ),
-                      ] else if (showHeader && issue["group"] == "Weak") ...[
-                         const Padding(
-                          padding: EdgeInsets.only(top: 16, bottom: 8),
-                          child: Text(
-                            "Hard to Verify automatically",
-                            style: TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.w800),
+                            "Coming soon",
+                            style: TextStyle(
+                              color: Colors.orange,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
                       ],
@@ -598,8 +760,12 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
                           child: Row(
                             children: [
                               Icon(
-                                isComingSoon ? Icons.access_time_rounded : Icons.report_problem_rounded,
-                                color: isComingSoon ? Colors.orange : const Color(0xFF2A5EE8),
+                                isComingSoon
+                                    ? Icons.access_time_rounded
+                                    : Icons.report_problem_rounded,
+                                color: isComingSoon
+                                    ? Colors.orange
+                                    : const Color(0xFF2A5EE8),
                                 size: 20,
                               ),
                               const SizedBox(width: 12),
@@ -646,10 +812,7 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
           "$vehicleNumber is not registered with ParkingMudde yet. You can invite the owner or use SOS if the parking issue is urgent.",
         ),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text("Close"),
-          ),
+          TextButton(onPressed: () => Get.back(), child: const Text("Close")),
           TextButton(
             onPressed: () {
               Get.back();
@@ -750,7 +913,9 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
                 child: ElevatedButton(
                   onPressed: () async {
                     final mobile = mobileController.text.trim();
-                    if (mobile.length != 10) {
+                    if (!RegExp(
+                      r'^[6-9][0-9]{9}$',
+                    ).hasMatch(mobile.replaceAll(RegExp(r'[^0-9]'), ''))) {
                       Get.snackbar(
                         "Mobile required",
                         "Enter a valid 10-digit mobile number.",
@@ -835,9 +1000,7 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
                 ),
               ),
             ],
-            SizedBox(
-              height: widget.initialVehicleNumber == null ? 24 : 20,
-            ),
+            SizedBox(height: widget.initialVehicleNumber == null ? 24 : 20),
 
             // --- NATIVE PRESERVED REPLICA OF INDIAN HSRP layout boundaries limit limit spaces map limits layouts mapping boundary
             Container(
@@ -965,8 +1128,9 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
               height: 52,
               width: double.infinity,
               child: ElevatedButton(
-                onPressed:
-                    isValidVehicle && !isLookingUpVehicle ? _onManualSubmit : null,
+                onPressed: isValidVehicle && !isLookingUpVehicle
+                    ? _onManualSubmit
+                    : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isValidVehicle
                       ? const Color(0xFF2A5EE8)
@@ -1005,8 +1169,9 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color:
-                              isValidVehicle ? Colors.white : Colors.grey.shade500,
+                          color: isValidVehicle
+                              ? Colors.white
+                              : Colors.grey.shade500,
                         ),
                       ),
               ),

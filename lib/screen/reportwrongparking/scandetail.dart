@@ -1,3 +1,5 @@
+import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart' as parkingmudde_scanenter;
+import 'package:parkingmudde/screen/homepage/homepage.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -17,6 +19,9 @@ class ReportProofScreen extends StatefulWidget {
   final Map<String, dynamic>? vehicleLookupData;
   final String? selectedIssueTitle;
   final String? selectedIssueCode;
+  final String? razorpayOrderId;
+  final String? razorpayPaymentId;
+  final String? razorpaySignature;
   const ReportProofScreen({
     super.key,
     this.typev,
@@ -24,6 +29,9 @@ class ReportProofScreen extends StatefulWidget {
     this.vehicleLookupData,
     this.selectedIssueTitle,
     this.selectedIssueCode,
+    this.razorpayOrderId,
+    this.razorpayPaymentId,
+    this.razorpaySignature,
   });
 
   @override
@@ -52,102 +60,6 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
   }
 
-
-  final offenderData = {
-    "vehicle": "MH12**1234",
-    "owner": "Not available",
-    "mobile": "Not available",
-    "area": "Andheri East, Mumbai",
-  };
-
-  Map<String, dynamic> get _lookupVehicle {
-    return widget.vehicleLookupData?["vehicle"] as Map<String, dynamic>? ?? {};
-  }
-
-  String? _readString(Map<String, dynamic> source, List<String> keys) {
-    for (final key in keys) {
-      final value = source[key]?.toString().trim();
-      if (value != null && value.isNotEmpty && value.toLowerCase() != "null") {
-        return value;
-      }
-    }
-    return null;
-  }
-
-  String get _targetVehicleNumber {
-    return widget.vehicleNumber?.trim().isNotEmpty == true
-        ? widget.vehicleNumber!.trim()
-        : _readString(_lookupVehicle, [
-              "vehicle_number",
-              "vehicleNumber",
-              "registration_number",
-              "registrationNumber",
-            ]) ??
-        offenderData["vehicle"]!;
-  }
-
-  String get _registeredOwnerName {
-    final lookupData = widget.vehicleLookupData ?? {};
-    final lookupName = _readString(lookupData, [
-      "owner_name",
-      "ownerName",
-      "app_user_name",
-      "appUserName",
-    ]);
-    if (lookupName != null) {
-      return lookupName;
-    }
-
-    final name =
-        "${_readString(_lookupVehicle, [
-              "owner_first_name",
-              "ownerFirstName",
-            ]) ?? ""} ${_readString(_lookupVehicle, [
-              "owner_last_name",
-              "ownerLastName",
-            ]) ?? ""}"
-            .trim();
-    return name.isEmpty ? offenderData["owner"]! : name;
-  }
-
-  String get _registeredOwnerMobile {
-    final lookupData = widget.vehicleLookupData ?? {};
-    return _readString(lookupData, [
-          "owner_mobile",
-          "ownerMobile",
-          "app_user_mobile",
-          "appUserMobile",
-        ]) ??
-        _readString(_lookupVehicle, [
-          "registered_mobile",
-          "registeredMobile",
-          "mobile_number",
-          "mobileNumber",
-        ]) ??
-        offenderData["mobile"]!;
-  }
-
-  String get _registeredVehicleType {
-    return _readString(_lookupVehicle, [
-          "vehicle_type",
-          "vehicleType",
-          "type",
-        ]) ??
-        "Registered vehicle";
-  }
-
-  String get _maskedOwnerName {
-    final name = _registeredOwnerName.trim();
-    if (name.isEmpty || name == offenderData["owner"]) return "Not available";
-    return name;
-  }
-
-  String get _maskedContact {
-    final mobile = _registeredOwnerMobile.replaceAll(RegExp(r'[^0-9]'), '');
-    if (mobile.length < 4) return "Not available";
-    if (mobile.length >= 10) return "${mobile.substring(0, 2)}${'X' * (mobile.length - 2)}";
-    return "XX${'X' * (mobile.length - 2)}";
-  }
 
   bool get _isHelpFlow => widget.typev == "help";
   bool get _isEmergencyFlow => widget.typev == "emergency";
@@ -399,7 +311,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
     final storedUser = await ApiService.getStoredUser();
     final currentUserId = storedUser?["user_id"]?.toString();
-    final targetVehicle = _targetVehicleNumber;
+    final targetVehicle = "";
 
     if (currentUserId == null || currentUserId.isEmpty) {
       if (!mounted) return;
@@ -408,28 +320,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       return;
     }
 
-    if (_isEmergencyFlow || _isHelpFlow) {
-      await _finishSubmitReport();
-    } else {
-      setState(() => isLoading = false); // hide loading for dialog
-      bool proceed = false;
-      await Get.defaultDialog(
-        title: "Report Fee",
-        middleText: "Generating this report costs ₹1. Do you want to proceed to payment?",
-        textCancel: "Cancel",
-        textConfirm: "Pay ₹1",
-        confirmTextColor: Colors.white,
-        onConfirm: () {
-          proceed = true;
-          Get.back();
-        },
-      );
-      if (!proceed) {
-        return;
-      }
-      setState(() => isLoading = true);
-      await _startRazorpayPayment(currentUserId);
-    }
+    await _finishSubmitReport(
+      rOrderId: null,
+      rPaymentId: null,
+      rSignature: null,
+    );
   }
 
   Future<void> _finishSubmitReport({String? rOrderId, String? rPaymentId, String? rSignature}) async {
@@ -438,7 +333,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     
     final storedUser = await ApiService.getStoredUser();
     final currentUserId = storedUser?["user_id"]?.toString();
-    final targetVehicle = _targetVehicleNumber;
+    final targetVehicle = "";
 
     Map<String, dynamic> result;
     if (_isEmergencyFlow) {
@@ -446,14 +341,14 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
         userId: currentUserId!,
         vehicleNumber: targetVehicle,
         situation: situationController.text.trim(),
-        location: offenderData["area"],
+        location: "Not provided",
       );
     } else if (_isHelpFlow) {
       result = await ApiService.createHelpedVehicleActivity(
         userId: currentUserId!,
         vehicleNumber: targetVehicle,
         parkingError: _issueTitle,
-        location: offenderData["area"],
+        location: "Not provided",
       );
     } else {
       int? aiScore;
@@ -659,10 +554,6 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
                     const SizedBox(height: 24),
 
-                    /// Information Readout Card
-                    _offenderCard(),
-
-                    const SizedBox(height: 28),
 
                     _selectedIssueCard(),
 
@@ -885,103 +776,6 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   }
 
   /// Very sleek summary module for offending info
-  Widget _offenderCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100, width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// Tag heading bar
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(18),
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.privacy_tip_rounded,
-                  color: Colors.blueGrey,
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  "Encrypted File Record",
-                  style: TextStyle(
-                    color: Colors.blueGrey.shade400,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(color: Colors.grey.shade200, height: 1),
-
-          /// Meat details area
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Column(
-              children: [
-                _infoRow(
-                  icon: Icons.directions_car_rounded,
-                  title: "Target Vehicle",
-                  value: _targetVehicleNumber,
-                  isHighlight: true,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 36, bottom: 8),
-                  child: Divider(color: Colors.grey.shade100, height: 12),
-                ),
-
-                _infoRow(
-                  icon: Icons.person,
-                  title: "Owner Name",
-                  value: _maskedOwnerName,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 36, bottom: 8),
-                  child: Divider(color: Colors.grey.shade100, height: 12),
-                ),
-
-                _infoRow(
-                  icon: Icons.phone_android_rounded,
-                  title: "Contact Privacy",
-                  value: _maskedContact,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 36, bottom: 8),
-                  child: Divider(color: Colors.grey.shade100, height: 12),
-                ),
-
-                _infoRow(
-                  icon: Icons.category_rounded,
-                  title: "Vehicle Type",
-                  value: _registeredVehicleType,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _infoRow({
     required IconData icon,
     required String title,

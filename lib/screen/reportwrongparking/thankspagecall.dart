@@ -1,10 +1,14 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:get/get.dart';
+import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
+
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:parkingmudde/services/razorpay_web_checkout.dart';
 
 class ThankYouReportScreen extends StatefulWidget {
   final dynamic typecv;
@@ -31,23 +35,44 @@ class ThankYouReportScreen extends StatefulWidget {
 }
 
 class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
-  static const int maxSeconds = 60;
+  static const int maxSeconds = 30;
   int secondsLeft = maxSeconds;
   int elapsedSeconds = 0;
   Timer? timer;
   Timer? pollTimer;
-  bool sitBackRelax = false; // true when offender taps On the Way
+  bool sitBackRelax = false;
+  bool _plateAttached = false;
+  bool _vehicleRegistered = false; 
+  bool _smsAlertChecked = false;
+
+  late Razorpay _razorpay;
+  bool _isPaymentLoading = false;
+  String? _razorpayOrderId;
+  String? _razorpayPaymentId;
+  String? _razorpaySignature;
+
+  // Masked Call & SOS Countdown Timers
+  int _maskedCallSeconds = 60;
+  int _sosCallSeconds = 120;
+  Timer? _maskedTimer;
+  Timer? _sosTimer;
+  bool _hasAddedOnTheWayBonus = false;
 
   bool get isHelp => widget.typecv == "help";
   bool get isEmergency => widget.typecv == "emergency";
   bool get isReport => !isHelp && !isEmergency;
+  bool get isRejected => isReport && widget.aiScore < 45;
 
   @override
   void initState() {
     super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+
     if (isReport) {
       startTimer();
-      _startPollingForOnTheWay();
     }
   }
 
@@ -64,25 +89,208 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     });
   }
 
-  bool get isMaskedCallEnabled => false; // Disabled until SMS/Call API key is available
-  bool get isSosEnabled => false; // Disabled until SMS/Call API key is available
+  void _startCallTimers() {
+    _maskedTimer?.cancel();
+    _sosTimer?.cancel();
+
+    _maskedTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_maskedCallSeconds <= 0) {
+        t.cancel();
+      } else {
+        if (mounted) {
+          setState(() {
+            _maskedCallSeconds--;
+          });
+        }
+      }
+    });
+
+    _sosTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_sosCallSeconds <= 0) {
+        t.cancel();
+      } else {
+        if (mounted) {
+          setState(() {
+            _sosCallSeconds--;
+          });
+        }
+      }
+    });
+  }
+
+  void _extendCallTimers() {
+    setState(() {
+      _maskedCallSeconds += 300; // Add 5 minutes
+      _sosCallSeconds += 300; // Add 5 minutes
+    });
+    _startCallTimers();
+  }
 
   /// Poll notifications every 5 seconds to detect 'On the Way' from offender
   void _startPollingForOnTheWay() {
     if (widget.reportId == null) return;
     pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (sitBackRelax) {
-        pollTimer?.cancel();
-        return;
-      }
       final notifications = await ApiService.getNotificationsForCurrentUser();
-      if (notifications.any((n) =>
+      final onMyWayNotif = notifications.firstWhereOrNull((n) =>
           n["status"] == "IN_PROGRESS" &&
-          n["type"] == "REPORTED_VEHICLE")) {
-        if (mounted) setState(() => sitBackRelax = true);
+          n["type"] == "REPORTED_VEHICLE" &&
+          n["report_id"]?.toString() == widget.reportId);
+
+      if (onMyWayNotif != null && !_hasAddedOnTheWayBonus) {
+        _hasAddedOnTheWayBonus = true;
+        if (mounted) {
+          setState(() {
+            sitBackRelax = true;
+          });
+          _extendCallTimers();
+          
+          Get.defaultDialog(
+            title: "Owner on the Way! 🚗",
+            middleText: "The vehicle owner has confirmed that they are on their way. We have extended the helpline call timer by 5 minutes.",
+            textConfirm: "OK",
+            confirmTextColor: Colors.white,
+            buttonColor: const Color(0xFF184B8C),
+            onConfirm: () => Get.back(),
+          );
+        }
         pollTimer?.cancel();
       }
     });
+  }
+
+  // ================= RAZORPAY EVENT HANDLERS =================
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    setState(() => _isPaymentLoading = false);
+    _razorpayOrderId = response.orderId;
+    _razorpayPaymentId = response.paymentId;
+    _razorpaySignature = response.signature;
+
+    Get.snackbar("Success", "Payment of ₹1 successful. Proceed to enter vehicle plate details.",
+      backgroundColor: Colors.green, colorText: Colors.white);
+
+    _openOffenderIdentificationScreen();
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    setState(() => _isPaymentLoading = false);
+    Get.defaultDialog(
+      title: "Payment Failed",
+      middleText: response.message ?? 'Payment was not completed.',
+      textConfirm: "OK",
+      onConfirm: () => Get.back(),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    setState(() => _isPaymentLoading = false);
+  }
+
+  Future<void> _startIdentificationPayment() async {
+    setState(() => _isPaymentLoading = true);
+    try {
+      final storedUser = await ApiService.getStoredUser();
+      final currentUserId = storedUser?["user_id"]?.toString() ?? "";
+
+      final orderResult = await ApiService.createReportRazorpayOrder(userId: currentUserId);
+      if (orderResult['success'] == false) {
+        setState(() => _isPaymentLoading = false);
+        Get.defaultDialog(
+          title: "API Error",
+          middleText: orderResult['message']?.toString() ?? 'Could not initiate payment.',
+          textConfirm: "OK",
+          onConfirm: () => Get.back(),
+        );
+        return;
+      }
+
+      final razorpayOrderId = orderResult['razorpay_order_id']?.toString();
+      final razorpayKeyId = orderResult['razorpay_key_id']?.toString();
+
+      if (razorpayOrderId == null || razorpayKeyId == null) {
+        setState(() => _isPaymentLoading = false);
+        Get.defaultDialog(
+          title: "Error",
+          middleText: "Invalid response from server.",
+          textConfirm: "OK",
+          onConfirm: () => Get.back(),
+        );
+        return;
+      }
+
+      final options = {
+        'key': razorpayKeyId,
+        'order_id': razorpayOrderId,
+        'amount': 100, // 1 INR in paise
+        'currency': 'INR',
+        'name': 'Parking Mudde',
+        'description': 'Identify Vehicle Owner Fee',
+        'prefill': {
+          'contact': '',
+          'email': ''
+        }
+      };
+
+      if (kIsWeb) {
+        await openRazorpayWebCheckout(
+          Map<String, dynamic>.from(options),
+          onSuccess: (response) {
+            _handlePaymentSuccess(PaymentSuccessResponse(
+              response['razorpay_payment_id'],
+              response['razorpay_order_id'],
+              response['razorpay_signature'],
+              null,
+            ));
+          },
+          onFailure: (message) {
+            _handlePaymentError(PaymentFailureResponse(0, message, null));
+          },
+          onDismiss: () {
+            _handlePaymentError(PaymentFailureResponse(0, 'Cancelled', null));
+          },
+        );
+      } else {
+        _razorpay.open(options);
+      }
+    } catch (e) {
+      setState(() => _isPaymentLoading = false);
+      Get.defaultDialog(
+        title: "Error",
+        middleText: e.toString(),
+        textConfirm: "OK",
+        onConfirm: () => Get.back(),
+      );
+    }
+  }
+
+  Future<void> _openOffenderIdentificationScreen() async {
+    final result = await Get.to(() => VehicleNumberInputScreen(
+      reportId: widget.reportId,
+      isAttachingPlate: true,
+      razorpayOrderId: _razorpayOrderId,
+      razorpayPaymentId: _razorpayPaymentId,
+      razorpaySignature: _razorpaySignature,
+    ));
+    if (result != null) {
+      setState(() {
+        _plateAttached = true;
+        _vehicleRegistered = result == true;
+      });
+      _triggerSmsAlertAfterOwnerAlert();
+      _startCallTimers();
+      _startPollingForOnTheWay();
+    }
+  }
+
+  Future<void> _triggerSmsAlertAfterOwnerAlert() async {
+    if (widget.reportId == null || !_vehicleRegistered) return;
+    await Future.delayed(const Duration(seconds: 1));
+    await ApiService.triggerReportAction(
+      reportId: widget.reportId!,
+      action: "alert",
+    );
+    if (mounted) {
+      setState(() => _smsAlertChecked = true);
+    }
   }
 
   Future<void> _triggerMaskedCall() async {
@@ -92,7 +300,6 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
         action: "ivr_call",
       );
     }
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("Masked call request sent. No personal number is shared."),
@@ -115,13 +322,14 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   void dispose() {
     timer?.cancel();
     pollTimer?.cancel();
+    _maskedTimer?.cancel();
+    _sosTimer?.cancel();
+    _razorpay.clear();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isCallEnabled = isSosEnabled || isEmergency;
-
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FA),
       body: SafeArea(
@@ -137,11 +345,11 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.green.withOpacity(0.1),
+                  color: (isRejected ? Colors.red : (isReport && !_plateAttached ? Colors.orange : Colors.green)).withOpacity(0.1),
                 ),
-                child: const Icon(
-                  Icons.check_circle_rounded,
-                  color: Colors.green,
+                child: Icon(
+                  isRejected ? Icons.cancel_rounded : (isReport && !_plateAttached ? Icons.hourglass_top_rounded : Icons.check_circle_rounded),
+                  color: isRejected ? Colors.red : (isReport && !_plateAttached ? Colors.orange : Colors.green),
                   size: 80,
                 ),
               ),
@@ -152,7 +360,9 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                     ? "Thanks for helping! 🤝"
                     : isEmergency
                     ? "Emergency Alert Sent! 🚨"
-                    : "Report Submitted! ✅",
+                    : isRejected
+                    ? "Report Rejected ❌"
+                    : (!_plateAttached) ? "Almost Done! ⏳" : "Report Submitted! ✅",
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
@@ -166,7 +376,11 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                     ? "Emergency alert has been recorded. If the victim needs immediate help, call the helpline now."
                     : isHelp
                     ? "Your helping alert has been sent successfully."
-                    : "Your report has been submitted. The vehicle owner has been notified privately.",
+                    : isRejected
+                    ? "Your report was evaluated by AI and rejected due to insufficient evidence. The fee is non-refundable."
+                    : (!_plateAttached)
+                        ? "Your report has been successfully evaluated by AI! Please identify the offending vehicle to notify the owner."
+                        : "Your report has been submitted. The vehicle owner has been notified privately.",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.blueGrey.shade500,
@@ -178,10 +392,10 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
               const SizedBox(height: 24),
 
               // ── Report Economy Card (only for report flow) ──
-              if (isReport && widget.coinsCharged > 0) _buildEconomyCard(),
+              if (isReport) _buildEconomyCard(),
 
               // ── Timeline (only for report flow) ──
-              if (isReport) ...[
+              if (isReport && !isRejected && _plateAttached) ...[
                 const SizedBox(height: 16),
                 _buildTimeline(),
               ],
@@ -189,22 +403,55 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
               const SizedBox(height: 24),
 
               // ── Action Buttons ──
-              if (!isHelp && !isEmergency) ...[
-                _actionButton(
-                  label: "Masked Call Option (Coming Soon)",
-                  icon: Icons.phone_in_talk_rounded,
-                  enabled: isMaskedCallEnabled,
-                  onTap: _triggerMaskedCall,
-                ),
+              if (!isHelp && !isEmergency && !isRejected) ...[
+                if (!_plateAttached)
+                  _isPaymentLoading
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(12.0),
+                            child: CircularProgressIndicator(color: Color(0xFF184B8C)),
+                          ),
+                        )
+                      : _actionButton(
+                          label: "Identify Owner (Pay ₹1)",
+                          icon: Icons.camera_alt_rounded,
+                          enabled: true,
+                          onTap: () async {
+                            await _startIdentificationPayment();
+                          },
+                        )
+                else ...[
+                  _actionButton(
+                    label: "Vehicle Identified Successfully!",
+                    icon: Icons.check_circle_rounded,
+                    enabled: false,
+                    onTap: () async {},
+                  ),
+                  const SizedBox(height: 16),
+                  _buildCallTimerButton(
+                    label: "Masked Call",
+                    icon: Icons.phone_callback_rounded,
+                    secondsLeft: _maskedCallSeconds,
+                    onTap: _triggerMaskedCall,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildCallTimerButton(
+                    label: "SOS Helpline Call",
+                    icon: Icons.contact_emergency_rounded,
+                    secondsLeft: _sosCallSeconds,
+                    onTap: _callHelpline,
+                  ),
+                ],
                 const SizedBox(height: 12),
               ],
               if (!isHelp) ...[
-                _actionButton(
-                  label: isEmergency ? "Call Emergency Helpline" : "Call Parking Helpline (Coming Soon)",
-                  icon: Icons.call_rounded,
-                  enabled: isCallEnabled,
-                  onTap: _callHelpline,
-                ),
+                if (isRejected)
+                  _actionButton(
+                    label: "Try Again",
+                    icon: Icons.refresh_rounded,
+                    enabled: true,
+                    onTap: () async { Get.offAll(() => const Dash(autoStartReport: true)); },
+                  ),
                 const SizedBox(height: 16),
               ],
 
@@ -264,40 +511,43 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
           const SizedBox(height: 16),
 
           // PM Coins charged
-          _economyRow(
-            icon: Icons.remove_circle_rounded,
-            iconColor: Colors.red.shade400,
-            label: "Reporting Fee",
-            value: "-${widget.coinsCharged} PM Coins",
-            valueColor: Colors.red.shade600,
-            sublabel: "Charged now",
-          ),
-
-          Divider(color: Colors.grey.shade100, height: 20),
+          if (widget.coinsCharged > 0) ...[
+            _economyRow(
+              icon: Icons.remove_circle_rounded,
+              iconColor: Colors.red.shade400,
+              label: "Reporting Fee",
+              value: "-${widget.coinsCharged} PM Coins",
+              valueColor: Colors.red.shade600,
+              sublabel: "Charged now",
+            ),
+            Divider(color: Colors.grey.shade100, height: 20),
+          ],
 
           // Coinsback on confirmation
-          _economyRow(
-            icon: Icons.stars_rounded,
-            iconColor: Colors.amber.shade600,
-            label: "Coinsback Reward",
-            value: "+${widget.coinsbackOnConfirm} Coinsback",
-            valueColor: Colors.green.shade700,
-            sublabel: "Awarded when report is confirmed",
-          ),
+          if (!isRejected) ...[
+            _economyRow(
+              icon: Icons.stars_rounded,
+              iconColor: Colors.amber.shade600,
+              label: "Coinsback Reward",
+              value: "+${widget.coinsbackOnConfirm} Coinsback",
+              valueColor: Colors.green.shade700,
+              sublabel: "Awarded when report is confirmed",
+            ),
 
-          Divider(color: Colors.grey.shade100, height: 20),
+            Divider(color: Colors.grey.shade100, height: 20),
 
-          // Offender penalty
-          _economyRow(
-            icon: Icons.gavel_rounded,
-            iconColor: Colors.orange.shade600,
-            label: "Offender Penalty",
-            value: "-10 PM Coins",
-            valueColor: Colors.orange.shade700,
-            sublabel: "Deducted from offender on confirmation",
-          ),
+            // Offender penalty
+            _economyRow(
+              icon: Icons.gavel_rounded,
+              iconColor: Colors.orange.shade600,
+              label: "Offender Penalty",
+              value: "-10 PM Coins",
+              valueColor: Colors.orange.shade700,
+              sublabel: "Deducted from offender on confirmation",
+            ),
 
-          Divider(color: Colors.grey.shade100, height: 20),
+            Divider(color: Colors.grey.shade100, height: 20),
+          ],
 
           // AI verdict
           _economyRow(
@@ -369,7 +619,6 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     );
   }
 
-  // ── Timeline ──
   Widget _buildTimeline() {
     return Container(
       width: double.infinity,
@@ -380,28 +629,35 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
       ),
       child: Column(
         children: [
-          _timelineRow("In-app alert sent to owner", true),
-          _timelineRow(
-            "SMS alert — Coming Soon 📲",
-            false,
-            isComingSoon: true,
-          ),
-          _timelineRow(
-            "Masked call option — Coming Soon 📞",
-            false,
-            isComingSoon: true,
-          ),
-          _timelineRow(
-            "SOS helpline — Coming Soon 🚨",
-            false,
-            isComingSoon: true,
-          ),
-          _timelineRow(
-            sitBackRelax
-                ? "😊 Sit back & relax — owner is on the way!"
-                : "Waiting for owner to tap 'On the Way'…",
-            sitBackRelax,
-          ),
+          if (_vehicleRegistered) ...[
+            _timelineRow("User has been alerted", true),
+            _timelineRow(
+              _smsAlertChecked
+                  ? "SMS alert checked after owner notification"
+                  : "Checking SMS alert...",
+              _smsAlertChecked,
+            ),
+            _timelineRow(
+              "Masked call option - Enabled after timer 📞",
+              _maskedCallSeconds <= 0,
+            ),
+            _timelineRow(
+              "SOS helpline - Enabled after timer 🚨",
+              _sosCallSeconds <= 0,
+            ),
+            _timelineRow(
+              sitBackRelax
+                  ? "😊 Sit back & relax - owner is on the way!"
+                  : "Waiting for owner to tap 'On the Way'...",
+              sitBackRelax,
+            ),
+          ] else ...[
+            _timelineRow(
+              "User is not a member of Parking Mudde. If you know them, invite them to join the app!",
+              false,
+              isComingSoon: true,
+            ),
+          ]
         ],
       ),
     );
@@ -441,6 +697,47 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     );
   }
 
+  Widget _buildCallTimerButton({
+    required String label,
+    required IconData icon,
+    required int secondsLeft,
+    required VoidCallback onTap,
+  }) {
+    final bool isTimerActive = secondsLeft > 0;
+
+    String buttonText = label;
+    if (isTimerActive) {
+      final int minutes = secondsLeft ~/ 60;
+      final int seconds = secondsLeft % 60;
+      final String timeStr = "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+      buttonText = "$label in $timeStr";
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: isTimerActive
+            ? null
+            : () {
+                Get.snackbar("Coming Soon", "$label feature is coming soon!",
+                    backgroundColor: const Color(0xFF184B8C), colorText: Colors.white);
+              },
+        icon: Icon(icon, color: Colors.white, size: 20),
+        label: Text(
+          buttonText,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isTimerActive ? Colors.grey.shade400 : const Color(0xFF184B8C),
+          disabledBackgroundColor: Colors.grey.shade400,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          elevation: isTimerActive ? 0 : 3,
+        ),
+      ),
+    );
+  }
+
   // ── Action Button ──
   Widget _actionButton({
     required String label,
@@ -471,3 +768,4 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     );
   }
 }
+

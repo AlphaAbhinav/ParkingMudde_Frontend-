@@ -30,7 +30,7 @@ class _TransferVehicleScreenState extends State<TransferVehicleScreen> {
   Future<void> _handleTransfer() async {
     final mobile = _mobileController.text.replaceAll(RegExp(r'[^0-9]'), '');
     
-    if (mobile.length != 10) {
+    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(mobile.replaceAll(RegExp(r'[^0-9]'), ''))) {
       Get.snackbar(
         "Invalid Mobile Number",
         "Please enter a valid 10-digit mobile number.",

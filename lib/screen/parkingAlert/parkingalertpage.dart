@@ -81,7 +81,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
   }
 
   String _formatDate(dynamic item) {
-    final createdAt = DateTime.tryParse(item["created_at"]?.toString() ?? "");
+    final createdAt = DateTime.tryParse(item["created_at"]?.toString() ?? "")?.toLocal();
     if (createdAt == null) {
       final date = item["date"]?.toString() ?? "";
       final time = item["time"]?.toString() ?? "";

@@ -1,10 +1,16 @@
+import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/parking_prachar/parking_prachar_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:get/get.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:parkingmudde/services/razorpay_web_checkout.dart';
+
 
 // Your core pages imported directly from original snippet
 import 'package:parkingmudde/screen/homepage/addvehiclepopup.dart';
@@ -29,7 +35,8 @@ import '../../services/api_service.dart';
 
 class Homepage extends StatefulWidget {
   final bool fromRegistration;
-  const Homepage({super.key, this.fromRegistration = false});
+  final bool autoStartReport;
+  const Homepage({super.key, this.fromRegistration = false, this.autoStartReport = false});
 
   @override
   State<Homepage> createState() => _HomepageState();
@@ -39,6 +46,9 @@ class _HomepageState extends State<Homepage> {
   Map<String, dynamic>? user;
   int walletCoins = 247; // Match Figma preview
   bool _hasCheckedVehiclePrompt = false;
+  final Set<int> _shownAlertIds = {};
+  final Set<int> _activeAlertIds = {};
+  Timer? _globalAlertTimer;
   bool _isTutorialShowing = false;
 
   final GlobalKey _reportKey = GlobalKey();
@@ -49,6 +59,10 @@ class _HomepageState extends State<Homepage> {
 
   List<dynamic> _topUsers = [];
   Map<String, dynamic>? _myProgress;
+
+  late Razorpay _razorpay;
+  String? _pendingRazorpayOrderId;
+  bool _razorpayEventReceived = false;
 
 
   static const Color primaryBlue = Color(0xFF2A5EE8);
@@ -518,14 +532,27 @@ class _HomepageState extends State<Homepage> {
 
   @override
   void initState() {
-    super.initState();
+        super.initState();
+    _loadShownAlerts().then((_) => _checkGlobalAlerts());
+    _startGlobalAlertPolling();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+
     _loadUser();
     
-    // Show tutorial if it hasn't been shown yet, regardless of fromRegistration.
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) _showTutorial();
-    });
-  
+    if (widget.fromRegistration) {
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted) _showTutorial();
+      });
+    }
+
+    if (widget.autoStartReport) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) _startReportPayment();
+      });
+    }
   }
 
   Future<void> _loadUser() async {
@@ -568,7 +595,7 @@ class _HomepageState extends State<Homepage> {
     
     final prefs = await SharedPreferences.getInstance();
     final hasShownTutorial = prefs.getBool('hasShownTutorial') ?? false;
-    if (!hasShownTutorial && !bypassCheck) {
+    if (widget.fromRegistration && !hasShownTutorial && !bypassCheck) {
       // Delay showing the vehicle prompt until the tutorial finishes
       return;
     }
@@ -724,6 +751,406 @@ class _HomepageState extends State<Homepage> {
     );
   }
 
+  // ================= RAZORPAY LOGIC =================
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    _razorpayEventReceived = true;
+    String orderId = _pendingRazorpayOrderId ?? '';
+    _pendingRazorpayOrderId = null;
+
+    if (!mounted) return;
+    
+    Get.snackbar("Success", "Payment of ₹1 successful. Proceeding to report.", 
+      backgroundColor: Colors.green, colorText: Colors.white);
+      
+    Get.to(() => IssueSelectionScreen(
+      razorpayOrderId: orderId,
+      razorpayPaymentId: response.paymentId,
+      razorpaySignature: response.signature,
+    ));
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    _razorpayEventReceived = true;
+    _pendingRazorpayOrderId = null;
+    Get.defaultDialog(
+      title: "Payment Failed",
+      middleText: response.message ?? 'Payment was not completed or was cancelled.',
+      textConfirm: "OK",
+      onConfirm: () => Get.back(),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    _razorpayEventReceived = true;
+    _pendingRazorpayOrderId = null;
+    Get.defaultDialog(
+      title: "External Wallet",
+      middleText: 'Payment via ${response.walletName} selected.',
+      textConfirm: "OK",
+      onConfirm: () => Get.back(),
+    );
+  }
+
+  Future<void> _startReportPayment() async {
+    Get.defaultDialog(
+      title: "Processing",
+      content: const CircularProgressIndicator(),
+      barrierDismissible: false,
+    );
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userIdStr = prefs.getString("user_id") ?? "0";
+      
+      final orderResult = await ApiService.createReportRazorpayOrder(userId: userIdStr);
+      
+      if (Get.isDialogOpen == true) Get.back();
+
+      if (orderResult['success'] == false) {
+        Get.defaultDialog(
+          title: "API Error",
+          middleText: orderResult['message']?.toString() ?? 'Could not initiate payment.',
+          textConfirm: "OK",
+          onConfirm: () => Get.back(),
+        );
+        return;
+      }
+
+      final razorpayOrderId = orderResult['razorpay_order_id']?.toString();
+      final razorpayKeyId = orderResult['razorpay_key_id']?.toString();
+
+      if (razorpayOrderId == null || razorpayKeyId == null) {
+        Get.defaultDialog(
+          title: "Error",
+          middleText: "Invalid response from server.",
+          textConfirm: "OK",
+          onConfirm: () => Get.back(),
+        );
+        return;
+      }
+
+      _pendingRazorpayOrderId = razorpayOrderId;
+      _razorpayEventReceived = false;
+
+      final options = {
+        'key': razorpayKeyId,
+        'order_id': razorpayOrderId,
+        'amount': 100, // 1 INR in paise
+        'currency': 'INR',
+        'name': 'Parking Mudde',
+        'description': 'Report Wrong Parking Fee',
+        'prefill': {
+          'contact': '',
+          'email': ''
+        }
+      };
+
+      if (kIsWeb) {
+        await openRazorpayWebCheckout(
+          Map<String, dynamic>.from(options),
+          onSuccess: (response) {
+            _handlePaymentSuccess(PaymentSuccessResponse(
+              response['razorpay_payment_id'],
+              response['razorpay_order_id'],
+              response['razorpay_signature'],
+              null,
+            ));
+          },
+          onFailure: (message) {
+            _handlePaymentError(PaymentFailureResponse(0, message, null));
+          },
+          onDismiss: () {
+            _handlePaymentError(PaymentFailureResponse(0, 'Cancelled', null));
+          },
+        );
+      } else {
+        _razorpay.open(options);
+      }
+    } catch (e) {
+      if (Get.isDialogOpen == true) Get.back();
+      Get.defaultDialog(
+        title: "Error",
+        middleText: e.toString(),
+        textConfirm: "OK",
+        onConfirm: () => Get.back(),
+      );
+    }
+  }
+
+  void _handleReportClick() async {
+    final storedUser = await ApiService.getStoredUser();
+    final userId = storedUser?["user_id"]?.toString() ?? "";
+    if (userId.isEmpty) {
+      Get.snackbar("Error", "Session invalid. Please login again.",
+          backgroundColor: Colors.redAccent, colorText: Colors.white);
+      return;
+    }
+
+    Get.defaultDialog(
+      title: "Checking Account",
+      content: const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: primaryBlue),
+            SizedBox(height: 16),
+            Text("Checking registered vehicles...", style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+      barrierDismissible: false,
+    );
+
+    try {
+      final vehicles = await ApiService.getMyVehicles(userId);
+      if (Get.isDialogOpen == true) Get.back();
+
+      if (vehicles.isEmpty) {
+        Get.defaultDialog(
+          title: "Vehicle Required",
+          middleText: "You must add at least one vehicle to your account to report wrong parking.",
+          textConfirm: "Add Vehicle",
+          textCancel: "Cancel",
+          onConfirm: () {
+            Get.back();
+            Get.to(() => const MyVehiclesScreen());
+          },
+        );
+        return;
+      }
+
+      Get.defaultDialog(
+        title: "Report Processing Fee",
+        middleText: "Wrong parking reports have a processing fee of ₹1. However, we won't charge you right now. You can upload the report and pay only after AI validates the issue.",
+        textConfirm: "Proceed to Report",
+        textCancel: "Cancel",
+        onConfirm: () {
+          Get.back();
+          Get.to(() => const IssueSelectionScreen());
+        },
+      );
+    } catch (e) {
+      if (Get.isDialogOpen == true) Get.back();
+      Get.snackbar("Error", "Failed to verify vehicle registration. Please try again.",
+          backgroundColor: Colors.redAccent, colorText: Colors.white);
+    }
+  }
+  // ================= END RAZORPAY LOGIC =================
+
+  @override
+  void dispose() {
+    _globalAlertTimer?.cancel();
+    super.dispose();
+  }
+
+    Future<void> _loadShownAlerts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('actioned_alert_ids') ?? [];
+    if (mounted) {
+      setState(() {
+        _shownAlertIds.addAll(list.map((e) => int.tryParse(e) ?? 0));
+      });
+    }
+  }
+
+  Future<void> _saveShownAlerts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = _shownAlertIds.map((e) => e.toString()).toList();
+    await prefs.setStringList('actioned_alert_ids', list);
+  }
+
+void _startGlobalAlertPolling() {
+    _globalAlertTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      await _checkGlobalAlerts();
+    });
+  }
+
+Future<void> _checkGlobalAlerts() async {
+      try {
+        final notifications = await ApiService.getNotificationsForCurrentUser();
+        for (var n in notifications) {
+          final int id = n['id'] ?? 0;
+          if (id == 0 || _shownAlertIds.contains(id) || _activeAlertIds.contains(id)) continue;
+
+          final type = n['type'] ?? '';
+          final status = n['status'] ?? '';
+          
+          if (type == 'VEHICLE_REPORTED_AGAINST_YOU' && status == 'SUBMITTED') {
+            _showBigPopup(
+              "YOUR CAR IS BEING REPORTED",
+              "Please go and resolve the parking issue.",
+              Colors.redAccent,
+              n,
+            );
+          } else if (type == 'HELP_VEHICLE' && status == 'SUBMITTED') {
+            _shownAlertIds.add(id);
+      _saveShownAlerts();
+            _showBigPopup("HELP REQUESTED!", "Someone needs you to move your vehicle.", Colors.orangeAccent, n);
+          }
+        }
+      } catch (e) {
+        // Ignore network errors in background poll
+      }
+  }
+
+  void _showBigPopup(String title, String subtitle, Color bgColor, dynamic notificationData) {
+    if (!mounted) return;
+    int secondsLeft = 30;
+    Timer? dialogTimer;
+    final int alertId = notificationData['id'] is int
+        ? notificationData['id']
+        : int.tryParse(notificationData['id']?.toString() ?? '') ?? 0;
+    final bool persistUntilAction =
+        notificationData['type'] == 'VEHICLE_REPORTED_AGAINST_YOU';
+
+    if (alertId != 0) {
+      _activeAlertIds.add(alertId);
+    }
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: bgColor.withOpacity(1.0), // Consume the whole screen
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (dialogContext, anim1, anim2) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            if (!persistUntilAction) {
+              dialogTimer ??= Timer.periodic(const Duration(seconds: 1), (t) {
+                if (secondsLeft == 0) {
+                  t.cancel();
+                  if (Navigator.canPop(dialogContext)) {
+                    Navigator.pop(dialogContext);
+                  }
+                } else {
+                  setDialogState(() {
+                    secondsLeft--;
+                  });
+                }
+              });
+            }
+
+            return WillPopScope(
+              onWillPop: () async => false, // Prevent dismissing by back button
+              child: Scaffold(
+                backgroundColor: bgColor, // Full screen background color matching bgColor
+                body: SafeArea(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.warning_rounded, color: Colors.white, size: 100),
+                          const SizedBox(height: 32),
+                          Text(
+                            title,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            subtitle,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.white70,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 40),
+                          if (!persistUntilAction)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.timer_outlined, color: Colors.white, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "Time remaining: $secondsLeft seconds",
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 60),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 60,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: bgColor,
+                                elevation: 4,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                              onPressed: () async {
+                                dialogTimer?.cancel();
+                                if (notificationData['report_id'] != null) {
+                                  await ApiService.triggerOnTheWay(
+                                    reportId: notificationData['report_id'].toString(),
+                                  );
+                                }
+                                if (notificationData['id'] != null) {
+                                  await ApiService.updateNotificationStatus(
+                                    notificationData['id'].toString(),
+                                    "IN_PROGRESS",
+                                  );
+                                }
+                                if (alertId != 0) {
+                                  _shownAlertIds.add(alertId);
+                                  _activeAlertIds.remove(alertId);
+                                  await _saveShownAlerts();
+                                }
+                                if (Navigator.canPop(dialogContext)) {
+                                  Navigator.pop(dialogContext);
+                                }
+                              },
+                              child: const Text(
+                                "I AM ON MY WAY",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) {
+      dialogTimer?.cancel();
+      if (alertId != 0 && !_shownAlertIds.contains(alertId)) {
+        _activeAlertIds.remove(alertId);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -800,7 +1227,7 @@ class _HomepageState extends State<Homepage> {
                 const SizedBox(height: 16),
                 // Figma Header Primary Actions layout
               Container(key: _reportKey, child: _buildFeatureButton(
-                title: "Report Wrong Parking",
+                title: "Report Wrong Parking (₹1 Fee)",
                 subtitle: "Help clear the way in seconds",
                 backgroundColor: primaryBlue,
                 iconWidget: Container(
@@ -814,7 +1241,7 @@ class _HomepageState extends State<Homepage> {
                     color: Colors.white,
                   ),
                 ),
-                onTap: () => Get.to(() => const VehicleNumberInputScreen()),
+                onTap: _handleReportClick,
               )),
               const SizedBox(height: 14),
 

@@ -129,11 +129,22 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
       });
       fetchMyCoupons();
       _confettiController.play();
+      
+      final purchasedCoupon = CouponModel(
+        id: coupon.id,
+        brand: coupon.brand,
+        title: coupon.title,
+        offerType: coupon.offerType,
+        coinCost: coupon.coinCost,
+        description: coupon.description,
+        couponCode: result["coupon_code"]?.toString(),
+        purchased: true,
+      );
 
-            showDialog(
+      showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => ScratchRevealDialog(coupon: coupon),
+        builder: (context) => ScratchRevealDialog(coupon: purchasedCoupon),
       );
     } catch (e) {
       Get.snackbar(

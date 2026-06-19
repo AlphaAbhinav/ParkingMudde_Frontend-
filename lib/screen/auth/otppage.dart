@@ -9,6 +9,7 @@ import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/auth/permissionspage.dart';
 import 'package:pinput/pinput.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class Otppage extends StatefulWidget {
   final String mobile;
@@ -69,6 +70,16 @@ class _OtppageState extends State<Otppage> {
       await prefs.setString("user_id", result["user_id"].toString());
       if (widget.requireVehicleOnSuccess) {
         await prefs.setBool("is_new_user", true);
+      }
+
+      // Sync FCM Token
+      try {
+        final fcmToken = await FirebaseMessaging.instance.getToken();
+        if (fcmToken != null) {
+          await ApiService.updateFcmToken(fcmToken);
+        }
+      } catch (e) {
+        print("Error syncing FCM token: $e");
       }
 
       final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;

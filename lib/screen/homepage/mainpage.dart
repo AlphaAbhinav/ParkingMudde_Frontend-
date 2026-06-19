@@ -10,7 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class Dash extends StatefulWidget {
   final bool fromRegistration;
-  const Dash({super.key, this.fromRegistration = false});
+  final bool autoStartReport;
+  const Dash({super.key, this.fromRegistration = false, this.autoStartReport = false});
 
   @override
   State<Dash> createState() => _DashState();
@@ -19,7 +20,7 @@ class Dash extends StatefulWidget {
 class _DashState extends State<Dash> {
   // Ordered strictly identically to match existing tabs array mapped boundaries map bounds
   List<Widget> get screens => [
-    Homepage(fromRegistration: widget.fromRegistration),
+    Homepage(fromRegistration: widget.fromRegistration, autoStartReport: widget.autoStartReport),
     const Notificationpage(),
     const VehicleNumberInputScreen(), // Triggered centrally by FAB Scan limit mapped map
     WalletScreen(totalCoins: 10),

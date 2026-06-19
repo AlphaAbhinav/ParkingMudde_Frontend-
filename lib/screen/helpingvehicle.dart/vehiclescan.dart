@@ -50,9 +50,7 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (modalCtx) {
-        return _VehicleEntryOptionsSheet(
-          onScanPressed: _handleScanAction,
-        );
+        return _VehicleEntryOptionsSheet(onScanPressed: _handleScanAction);
       },
     );
   }
@@ -353,13 +351,22 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
   final RegExp vehicleRegex = RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$');
 
   static const List<Map<String, String>> _parkingErrors = [
-    // Strong AI Detection
+    // Section 1: Normal (No Header)
+    // Strong AI Detection (Top of Section 1)
     {"group": "Parking Mistakes", "title": "Parked too close (blocking)"},
     {"group": "Parking Mistakes", "title": "Parked outside marking"},
-    // Weak AI Detection
+    // Weak AI Detection (Bottom of Section 1)
     {"group": "Hard to Verify automatically", "title": "Parked on ramp / turn"},
-    {"group": "Hard to Verify automatically", "title": "Parked on slope without support"},
-    {"group": "Hard to Verify automatically", "title": "Suspicious vehicle / security concern"},
+    {
+      "group": "Hard to Verify automatically",
+      "title": "Parked on slope without support",
+    },
+    {
+      "group": "Hard to Verify automatically",
+      "title": "Suspicious vehicle / security concern",
+    },
+
+    // Section 2: Will take longer
     // Coming Soon
     {"group": "Coming Soon (Manual Review)", "title": "Headlights ON"},
     {"group": "Coming Soon (Manual Review)", "title": "Indicator ON"},
@@ -372,14 +379,23 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
     {"group": "Coming Soon (Manual Review)", "title": "Car rolling risk"},
     {"group": "Coming Soon (Manual Review)", "title": "Flat tyre"},
     {"group": "Coming Soon (Manual Review)", "title": "Low air tyre"},
-    {"group": "Coming Soon (Manual Review)", "title": "Side mirror folded / broken"},
+    {
+      "group": "Coming Soon (Manual Review)",
+      "title": "Side mirror folded / broken",
+    },
     {"group": "Coming Soon (Manual Review)", "title": "Fuel cap open"},
     {"group": "Coming Soon (Manual Review)", "title": "Oil leak visible"},
     {"group": "Coming Soon (Manual Review)", "title": "Smoke from engine"},
     {"group": "Coming Soon (Manual Review)", "title": "Parked in visitor slot"},
-    {"group": "Coming Soon (Manual Review)", "title": "Car alarm continuously ringing"},
+    {
+      "group": "Coming Soon (Manual Review)",
+      "title": "Car alarm continuously ringing",
+    },
     {"group": "Coming Soon (Manual Review)", "title": "Fuel leakage suspected"},
-    {"group": "Coming Soon (Manual Review)", "title": "Vehicle left unattended long time"},
+    {
+      "group": "Coming Soon (Manual Review)",
+      "title": "Vehicle left unattended long time",
+    },
   ];
 
   bool isValidVehicle = false;
@@ -433,7 +449,8 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
 
     Get.snackbar(
       "Lookup Failed",
-      result["message"]?.toString() ?? "Could not check this vehicle right now.",
+      result["message"]?.toString() ??
+          "Could not check this vehicle right now.",
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: Colors.redAccent,
       colorText: Colors.white,
@@ -448,17 +465,19 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
   ) {
     final vehicle = data["vehicle"] as Map<String, dynamic>? ?? {};
     final vehicleNumber =
-        vehicle["vehicle_number"]?.toString() ??
-        enteredVehicleNumber;
+        vehicle["vehicle_number"]?.toString() ?? enteredVehicleNumber;
     final ownerName =
         data["owner_name"]?.toString() ??
         "${vehicle["owner_first_name"] ?? ""} ${vehicle["owner_last_name"] ?? ""}"
             .trim();
     final displayOwner = ownerName.isEmpty ? "Not available" : ownerName;
-    
-    final mobile = vehicle["registered_mobile"]?.toString() ?? data["owner_mobile"]?.toString() ?? "";
+
+    final mobile =
+        vehicle["registered_mobile"]?.toString() ??
+        data["owner_mobile"]?.toString() ??
+        "";
     final cleanMobile = mobile.replaceAll(RegExp(r'[^0-9]'), '');
-    final displayMobile = cleanMobile.length >= 10 
+    final displayMobile = cleanMobile.length >= 10
         ? "${cleanMobile.substring(0, 2)}${'X' * (cleanMobile.length - 2)}"
         : "Not available";
     final vehicleType = vehicle["vehicle_type"]?.toString() ?? "Vehicle";
@@ -479,17 +498,15 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
           children: [
             _dialogInfoRow("Vehicle", vehicleNumber),
             _dialogInfoRow("Owner Name", displayOwner),
-            if (vehicle["city"] != null && vehicle["city"].toString().isNotEmpty)
+            if (vehicle["city"] != null &&
+                vehicle["city"].toString().isNotEmpty)
               _dialogInfoRow("City", vehicle["city"].toString()),
             _dialogInfoRow("Contact", displayMobile),
             _dialogInfoRow("Type", vehicleType),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text("Close"),
-          ),
+          TextButton(onPressed: () => Get.back(), child: const Text("Close")),
           TextButton(
             onPressed: () {
               Get.back();
@@ -505,17 +522,13 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
     );
   }
 
-
-
   void _showParkingErrorSelector({
     required String vehicleNumber,
     required Map<String, dynamic> vehicleLookupData,
   }) {
     Get.bottomSheet(
       Container(
-        constraints: BoxConstraints(
-          maxHeight: Get.height * 0.78,
-        ),
+        constraints: BoxConstraints(maxHeight: Get.height * 0.78),
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -560,18 +573,20 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final error = _parkingErrors[index];
-                  final showHeader = index == 0 ||
+                  final showHeader =
+                      index == 0 ||
                       _parkingErrors[index - 1]["group"] != error["group"];
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (showHeader) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12, bottom: 8),
+                      if (showHeader &&
+                          error["group"]!.contains("Coming Soon")) ...[
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16, bottom: 8),
                           child: Text(
-                            error["group"]!,
+                            "Coming soon",
                             style: TextStyle(
-                              color: error["group"]!.contains("Coming Soon") ? Colors.orange : (error["group"]!.contains("Hard") ? Colors.blueGrey : const Color(0xFF4C42ED)),
+                              color: Colors.orange,
                               fontSize: 13,
                               fontWeight: FontWeight.w900,
                             ),
@@ -603,9 +618,13 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(
-                                Icons.handshake_rounded,
-                                color: Color(0xFF4C42ED),
+                              Icon(
+                                error["group"]!.contains("Coming Soon")
+                                    ? Icons.access_time_rounded
+                                    : Icons.handshake_rounded,
+                                color: error["group"]!.contains("Coming Soon")
+                                    ? Colors.orange
+                                    : const Color(0xFF4C42ED),
                                 size: 20,
                               ),
                               const SizedBox(width: 12),
@@ -652,10 +671,7 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
           "$vehicleNumber is not registered with ParkingMudde yet. Thanks for your help. Invite known vehicle owners so the community can alert them privately next time.",
         ),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text("Close"),
-          ),
+          TextButton(onPressed: () => Get.back(), child: const Text("Close")),
           ElevatedButton(
             onPressed: () async {
               final uri = Uri(
@@ -714,7 +730,9 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
       final result = await widget.onScanPressed();
       if (!mounted || result == null) return;
 
-      final detectedNumber = result.vehicleNumber.replaceAll(" ", "").toUpperCase();
+      final detectedNumber = result.vehicleNumber
+          .replaceAll(" ", "")
+          .toUpperCase();
       if (detectedNumber.isEmpty) {
         Get.snackbar(
           "Plate Not Detected",

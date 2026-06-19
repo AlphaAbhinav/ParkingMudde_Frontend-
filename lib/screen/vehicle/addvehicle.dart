@@ -201,6 +201,17 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
       return;
     }
 
+    final vehRegex = RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$');
+    if (!vehRegex.hasMatch(regController.text.trim().toUpperCase().replaceAll(' ', ''))) {
+      Get.snackbar(
+        "Invalid Registration",
+        "Enter a valid Indian vehicle number (e.g. DL01AB1234).",
+        backgroundColor: Colors.redAccent,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     final currentYear = DateTime.now().year;
     final purchaseYear = int.tryParse(yearController.text.trim());
     if (purchaseYear != null && purchaseYear > currentYear) {
@@ -219,7 +230,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
               ? suggestedMobileNumber!
               : mobileController.text.trim());
 
-    if (registeredMobile.replaceAll(RegExp(r'[^0-9]'), '').length != 10) {
+    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(registeredMobile.replaceAll(RegExp(r'[^0-9]'), ''))) {
       Get.snackbar(
         "Owner Mobile Required",
         selectedRole == 1

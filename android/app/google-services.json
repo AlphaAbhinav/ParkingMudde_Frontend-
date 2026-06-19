@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "806232833396",
+    "project_id": "parking-mudde-f14b2",
+    "storage_bucket": "parking-mudde-f14b2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:806232833396:android:e7dea7e1fb691ddde60021",
+        "android_client_info": {
+          "package_name": "com.parkingmudde.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZVnyKavt6yjdokZhmrAgE7_C6G9U9EfA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -134,7 +134,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     // Validate lengths
     for (final entry in {alternate: "Alternate number", ec1: "Emergency Contact I", ec2: "Emergency Contact II"}.entries) {
-      if (entry.key.isNotEmpty && entry.key.length != 10) {
+      if (entry.key.isNotEmpty && !RegExp(r'^[6-9][0-9]{9}$').hasMatch(entry.key.replaceAll(RegExp(r'[^0-9]'), ''))) {
         Get.snackbar("Invalid Contact", "${entry.value} must be 10 digits.", backgroundColor: Colors.red.shade700, colorText: Colors.white);
         return;
       }

@@ -681,7 +681,7 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
   ) async {
     if (userId == null || userId!.isEmpty) return;
     final cleanMobile = mobile.replaceAll(RegExp(r'[^0-9]'), '');
-    if (name.isEmpty || cleanMobile.length != 10 || purpose.isEmpty) {
+    if (name.isEmpty || !RegExp(r'^[6-9][0-9]{9}$').hasMatch(cleanMobile) || purpose.isEmpty) {
       Get.snackbar(
         "Missing Details",
         "Enter visitor name, valid mobile number, and purpose.",
@@ -691,6 +691,18 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
       );
       return;
     }
+    
+    if (vehicle.trim().isNotEmpty && !RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$').hasMatch(vehicle.replaceAll(' ', '').toUpperCase())) {
+      Get.snackbar(
+        "Invalid Vehicle",
+        "Enter a valid Indian vehicle number.",
+        backgroundColor: Colors.orange.shade700,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
 
     final result = await ApiService.createVisitorPass(
       userId: userId!,

@@ -71,7 +71,10 @@ class _LoginpageState extends State<Loginpage> {
       final prefs = await SharedPreferences.getInstance();
       final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
       if (!hasSeenPermissions) {
-        Get.offAll(() => const PermissionsPage(), transition: Transition.fadeIn);
+        Get.offAll(
+          () => const PermissionsPage(),
+          transition: Transition.fadeIn,
+        );
       } else {
         Get.offAll(() => const Dash(), transition: Transition.fadeIn);
       }
@@ -86,7 +89,7 @@ class _LoginpageState extends State<Loginpage> {
     FocusScope.of(context).unfocus();
     final mobile = phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-    if (mobile.length != 10) {
+    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(mobile)) {
       _showError("Enter a valid 10-digit mobile number.");
       return;
     }
@@ -203,23 +206,60 @@ class _LoginpageState extends State<Loginpage> {
 
   Widget _buildToggle() {
     return Container(
-      height: 50,
-      padding: const EdgeInsets.all(4),
+      height: 54, // Given slightly more breathing space to make it look robust
+      padding: const EdgeInsets.all(6), // Margin framing the slide
       decoration: BoxDecoration(
-        color: const Color(0xFFF2F4F8),
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(
+          0xFFF1F3F6,
+        ), // Smooth muted off-white/gray base layer
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black.withOpacity(0.04), width: 1.0),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          _tabOption(
-            index: 0,
-            icon: Icons.email_outlined,
-            label: "Email & Password",
+          // Elegant animated sliding foreground background
+          AnimatedAlign(
+            alignment: _selectedTab == 0
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic, // A beautiful gliding animation
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 3,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          _tabOption(
-            index: 1,
-            icon: Icons.phone_android_rounded,
-            label: "Phone & OTP",
+          // Interactive tappable UI overlays aligned directly atop slider track
+          Row(
+            children: [
+              _tabOption(
+                index: 0,
+                icon: Icons.email_outlined,
+                label: "Email & Password",
+              ),
+              _tabOption(
+                index: 1,
+                icon: Icons.phone_android_rounded,
+                label: "Phone & OTP",
+              ),
+            ],
           ),
         ],
       ),
@@ -235,38 +275,27 @@ class _LoginpageState extends State<Loginpage> {
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _selectedTab = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : [],
-          ),
+        behavior: HitTestBehavior
+            .opaque, // Required so tapping invisible areas triggers accurately!
+        child: Center(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
-                size: 15,
+                size: 16,
                 color: isSelected ? primaryBlue : const Color(0xFF8A92A0),
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   label,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight:
-                        isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    letterSpacing:
+                        0.1, // Added tiny kerning so it feels sleeker
                     color: isSelected ? primaryBlue : const Color(0xFF8A92A0),
                   ),
                 ),
@@ -501,8 +530,7 @@ class _LoginpageState extends State<Loginpage> {
           backgroundColor: facebookBlue,
           textColor: Colors.white,
           borderColor: Colors.transparent,
-          iconWidget:
-              const Icon(Icons.facebook, color: Colors.white, size: 24),
+          iconWidget: const Icon(Icons.facebook, color: Colors.white, size: 24),
           onTap: _showComingSoon,
         ),
         const SizedBox(height: 12),

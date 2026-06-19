@@ -44,8 +44,12 @@ class _FullScreenAlertState extends State<FullScreenAlert> with SingleTickerProv
   Future<void> _handleAcknowledge() async {
     setState(() => _isLoading = true);
     final notificationId = widget.notificationData["id"];
+    final reportId = widget.notificationData["report_id"];
     
     if (notificationId != null) {
+      if (!widget.isHelping && reportId != null) {
+        await ApiService.triggerOnTheWay(reportId: reportId.toString());
+      }
       await ApiService.updateNotificationStatus(
         notificationId.toString(),
         widget.isHelping ? "ACKNOWLEDGED" : "IN_PROGRESS",
@@ -63,8 +67,9 @@ class _FullScreenAlertState extends State<FullScreenAlert> with SingleTickerProv
     final bgColor = widget.isHelping ? const Color(0xFF20C475) : const Color(0xFFE53E3E);
     final iconColor = widget.isHelping ? const Color(0xFFE6F9F0) : const Color(0xFFFDE8E8);
     final icon = widget.isHelping ? Icons.favorite_rounded : Icons.warning_amber_rounded;
-    final title = widget.isHelping ? "Someone is Helping!" : "Vehicle Reported!";
-    final description = widget.notificationData["description"] ?? "Unknown issue";
+    final title = widget.isHelping ? "Someone is Helping!" : "Your Car Is Being Reported";
+    final description = widget.notificationData["description"] ??
+        "Please go and resolve the parking issue.";
     final vehicleNumber = widget.notificationData["vehicle_number"] ?? "";
 
     return Scaffold(

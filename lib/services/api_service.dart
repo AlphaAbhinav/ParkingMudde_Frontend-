@@ -162,7 +162,7 @@ class ApiService {
       final double reportLat = lat ?? prefs.getDouble("latitude") ?? 19.0760;
       final double reportLng = lng ?? prefs.getDouble("longitude") ?? 72.8777;
 
-      request.fields['vehicle_number'] = vehicleNumber;
+      request.fields['vehicle_number'] = vehicleNumber.trim().isEmpty ? 'PENDING' : vehicleNumber;
       request.fields['lat'] = reportLat.toString();
       request.fields['lng'] = reportLng.toString();
       request.fields['captured_at'] = capturedAt;
@@ -646,7 +646,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse("\$baseUrl/v1/vehicle/add"),
+        Uri.parse("$baseUrl/v1/vehicle/add"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_id": int.parse(userId),
@@ -710,7 +710,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.put(
-        Uri.parse("\$baseUrl/v1/vehicle/\$vehicleId"),
+        Uri.parse("$baseUrl/v1/vehicle/$vehicleId"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_id": int.parse(userId),
@@ -1159,6 +1159,52 @@ class ApiService {
   }
 
   // ================= RAZORPAY: CREATE ORDER =================
+
+
+
+  static Future<Map<String, dynamic>> attachWrongParkingPlate({
+    required String reportId,
+    required String vehicleNumber,
+    String? razorpayOrderId,
+    String? razorpayPaymentId,
+    String? razorpaySignature,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/reports/$reportId/attach-plate"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "vehicle_number": vehicleNumber,
+          if (razorpayOrderId != null) "razorpay_order_id": razorpayOrderId,
+          if (razorpayPaymentId != null) "razorpay_payment_id": razorpayPaymentId,
+          if (razorpaySignature != null) "razorpay_signature": razorpaySignature,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      
+      if (response.statusCode == 200) {
+        return {"success": true, "data": jsonDecode(response.body)};
+      }
+      final body = jsonDecode(response.body);
+      String errorMessage = "Failed to attach plate";
+      if (body["detail"] is Map) {
+        errorMessage = body["detail"]["message"] ?? errorMessage;
+      } else if (body["detail"] != null) {
+        errorMessage = body["detail"].toString();
+      }
+      return {"success": false, "message": errorMessage};
+    } catch (e) {
+      print("Attach Plate Exception: $e");
+      String errorMsg = e.toString();
+      if (errorMsg.contains("TimeoutException") || 
+          errorMsg.contains("Failed to fetch") || 
+          errorMsg.contains("SocketException") || 
+          errorMsg.contains("ClientException")) {
+        errorMsg = "Network error. Please check your connection or try again.";
+      }
+      return {"success": false, "message": errorMsg};
+    }
+  }
+
   static Future<Map<String, dynamic>> createRazorpayOrder({
     required String packageId,
   }) async {
@@ -1563,6 +1609,27 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"status": status}),
       );
+      if (response.statusCode == 200) {
+        return {"success": true};
+      }
+      return {"success": false};
+    } catch (e) {
+      return {"success": false, "message": e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateFcmToken(String token) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString("user_id");
+      if (userId == null) return {"success": false, "message": "No user ID"};
+
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/auth/fcm-token"),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({"user_id": int.parse(userId), "fcm_token": token}),
+      );
+      
       if (response.statusCode == 200) {
         return {"success": true};
       }

@@ -118,7 +118,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return false;
     }
 
-    if (mobile.length != 10) {
+    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(mobile)) {
       _showSnackbarError("Enter a valid 10-digit mobile number.");
       return false;
     }
