@@ -10,7 +10,7 @@ class GuardApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'ParkingMudde Guard',
+      title: 'Parking Officer',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
         useMaterial3: true,
@@ -99,7 +99,7 @@ class _GuardLoginPageState extends State<GuardLoginPage> {
             const SizedBox(height: 32),
             const Icon(Icons.local_police_rounded, size: 72, color: Color(0xFF2563EB)),
             const SizedBox(height: 20),
-            const Text('ParkingMudde Guard', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+            const Text('Parking Officer', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
             const Text('Verify vehicles and log gate activity', textAlign: TextAlign.center, style: TextStyle(color: Colors.black54)),
             const SizedBox(height: 32),

@@ -117,7 +117,14 @@ class _WalletScreenState extends State<WalletScreen> {
     final walletProvider = context.watch<WalletProvider>();
     final walletCoins = walletProvider.pmCoinsBalance;
     final coinsbackBalance = walletProvider.coinsbackBalance;
-    final transactions = walletProvider.transactions;
+    final rawTransactions = walletProvider.transactions;
+    final transactions = rawTransactions.where((txn) {
+      final desc = (txn['description'] ?? txn['reason'] ?? '').toString().toLowerCase();
+      final amountStr = txn['amount']?.toString() ?? "0";
+      final amount = double.tryParse(amountStr.replaceAll('-', '')) ?? 0;
+      if (desc.contains("report") && amount == 0) return false;
+      return true;
+    }).toList();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,

@@ -333,17 +333,33 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     
     final storedUser = await ApiService.getStoredUser();
     final currentUserId = storedUser?["user_id"]?.toString();
-    final targetVehicle = "";
+    final targetVehicle = (_isHelpFlow || _isEmergencyFlow) ? widget.vehicleNumber?.trim() ?? "" : "";
 
     Map<String, dynamic> result;
     if (_isEmergencyFlow) {
       result = await ApiService.createEmergencyAlertActivity(
         userId: currentUserId!,
         vehicleNumber: targetVehicle,
-        situation: situationController.text.trim(),
+        situation: _issueTitle.isNotEmpty ? _issueTitle : situationController.text.trim(),
         location: "Not provided",
+        image: images.isNotEmpty ? images.first : null,
       );
     } else if (_isHelpFlow) {
+      final double reportLat = storedUser?["latitude"] as double? ?? 19.0760;
+      final double reportLng = storedUser?["longitude"] as double? ?? 72.8777;
+
+      List<XFile> aiImages = List.from(images);
+      while (aiImages.isNotEmpty && aiImages.length < 4) {
+        aiImages.add(images[0]);
+      }
+
+      await ApiService.getAIVerdict(
+        images: aiImages,
+        lat: reportLat,
+        lng: reportLng,
+        selectedReasonCode: widget.selectedIssueCode,
+      );
+
       result = await ApiService.createHelpedVehicleActivity(
         userId: currentUserId!,
         vehicleNumber: targetVehicle,

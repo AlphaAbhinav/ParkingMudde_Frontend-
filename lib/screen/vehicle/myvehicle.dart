@@ -148,6 +148,11 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                     ...pendingTransfers.map((p) => _pendingTransferCard(context, p)),
                     const SizedBox(height: 16),
                   ],
+
+                  /// 🔹 Ad Banner Carousel
+                  _buildAdBanner(),
+                  const SizedBox(height: 20),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -212,6 +217,156 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  /// 🔹 Ad Banner Carousel
+  Widget _buildAdBanner() {
+    final List<Map<String, dynamic>> ads = [
+      {
+        "title": "Register Your Parking Space",
+        "desc": "List your empty space & earn passive income",
+        "gradient": [const Color(0xFF0F2027), const Color(0xFF2C5364)],
+        "icon": Icons.local_parking_rounded,
+        "cta": "Coming Soon",
+      },
+      {
+        "title": "Premium Shield Plan",
+        "desc": "Get towing protection + priority alerts",
+        "gradient": [const Color(0xFF6A11CB), const Color(0xFF2575FC)],
+        "icon": Icons.shield_rounded,
+        "cta": "Explore",
+      },
+      {
+        "title": "Refer & Earn 50 PM Coins",
+        "desc": "Invite friends to ParkingMudde",
+        "gradient": [const Color(0xFFFF512F), const Color(0xFFDD2476)],
+        "icon": Icons.card_giftcard_rounded,
+        "cta": "Share Now",
+      },
+      {
+        "title": "FASTag Integration",
+        "desc": "Seamless toll payments from your wallet",
+        "gradient": [const Color(0xFF11998E), const Color(0xFF38EF7D)],
+        "icon": Icons.nfc_rounded,
+        "cta": "Coming Soon",
+      },
+    ];
+
+    return SizedBox(
+      height: 120,
+      child: ListView.builder(
+        physics: const BouncingScrollPhysics(),
+        scrollDirection: Axis.horizontal,
+        itemCount: ads.length,
+        itemBuilder: (context, index) {
+          final ad = ads[index];
+          final gradientColors = ad["gradient"] as List<Color>;
+          return Container(
+            width: 260,
+            margin: EdgeInsets.only(right: index < ads.length - 1 ? 14 : 0),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(
+                colors: gradientColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: gradientColors.last.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () {
+                  if (ad["cta"] == "Coming Soon") {
+                    Get.snackbar(
+                      "Coming Soon",
+                      "${ad['title']} will be available soon!",
+                      backgroundColor: Colors.black87,
+                      colorText: Colors.white,
+                      snackPosition: SnackPosition.BOTTOM,
+                    );
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              ad["title"] as String,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              ad["desc"] as String,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withOpacity(0.85),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                              ),
+                              child: Text(
+                                ad["cta"] as String,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          ad["icon"] as IconData,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

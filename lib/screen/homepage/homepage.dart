@@ -927,7 +927,7 @@ class _HomepageState extends State<Homepage> {
         textCancel: "Cancel",
         onConfirm: () {
           Get.back();
-          Get.to(() => const IssueSelectionScreen());
+          Get.to(() => const IssueSelectionScreen(typev: "report"));
         },
       );
     } catch (e) {
@@ -1260,7 +1260,7 @@ Future<void> _checkGlobalAlerts() async {
                     color: Colors.white,
                   ),
                 ),
-                onTap: () => Get.to(() => const VehicleNumberHelpScreen()),
+                onTap: () => Get.to(() => const IssueSelectionScreen(typev: "help")),
               )),
 
               const SizedBox(height: 14),
@@ -1977,39 +1977,6 @@ Future<void> _checkGlobalAlerts() async {
 
   Widget _buildFloatingNewsTicker() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.campaign_rounded, color: Colors.blue.shade800, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
-                  Text(
-                    "BREAKING: New smart parking lots added in Downtown! • "
-                    "Earn 50 PM Coins for reporting blockages today • "
-                    "Weekend parking rates slashed by 20% across all partner zones",
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.blue.shade900,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -7,12 +7,18 @@ class IssueSelectionScreen extends StatefulWidget {
   final String? razorpayOrderId;
   final String? razorpayPaymentId;
   final String? razorpaySignature;
+  final String typev;
+  final String? vehicleNumber;
+  final Map<String, dynamic>? vehicleLookupData;
 
   const IssueSelectionScreen({
     super.key,
     this.razorpayOrderId,
     this.razorpayPaymentId,
     this.razorpaySignature,
+    this.typev = "report",
+    this.vehicleNumber,
+    this.vehicleLookupData,
   });
 
   @override
@@ -101,6 +107,46 @@ class _IssueSelectionScreenState extends State<IssueSelectionScreen> {
     },
   ];
 
+  static const List<Map<String, String>> _helpIssues = [
+    {"code": "PARKED_TOO_CLOSE", "group": "Supported", "title": "Parked too close (blocking)"},
+    {"code": "OUTSIDE_MARKING", "group": "Supported", "title": "Parked outside marking"},
+    {"code": "ON_RAMP_TURN", "group": "Weak", "title": "Parked on ramp / turn"},
+    {"code": "SLOPE_NO_SUPPORT", "group": "Weak", "title": "Parked on slope without support"},
+    {"code": "SUSPICIOUS", "group": "Weak", "title": "Suspicious vehicle / security concern"},
+    {"code": "HEADLIGHTS_ON", "group": "Coming Soon", "title": "Headlights ON"},
+    {"code": "INDICATOR_ON", "group": "Coming Soon", "title": "Indicator ON"},
+    {"code": "DOOR_OPEN", "group": "Coming Soon", "title": "Door open"},
+    {"code": "BOOT_OPEN", "group": "Coming Soon", "title": "Boot open"},
+    {"code": "WINDOW_OPEN", "group": "Coming Soon", "title": "Window open"},
+    {"code": "ENGINE_ON", "group": "Coming Soon", "title": "Engine ON (idle)"},
+    {"code": "HANDBRAKE_NOT_ENGAGED", "group": "Coming Soon", "title": "Handbrake not engaged"},
+    {"code": "HAZARD_LIGHT_ON", "group": "Coming Soon", "title": "Hazard light ON"},
+    {"code": "ROLLING_RISK", "group": "Coming Soon", "title": "Car rolling risk"},
+    {"code": "FLAT_TYRE", "group": "Coming Soon", "title": "Flat tyre"},
+    {"code": "LOW_AIR", "group": "Coming Soon", "title": "Low air tyre"},
+    {"code": "MIRROR_BROKEN", "group": "Coming Soon", "title": "Side mirror folded / broken"},
+    {"code": "FUEL_CAP_OPEN", "group": "Coming Soon", "title": "Fuel cap open"},
+    {"code": "OIL_LEAK", "group": "Coming Soon", "title": "Oil leak visible"},
+    {"code": "SMOKE_FROM_ENGINE", "group": "Coming Soon", "title": "Smoke from engine"},
+    {"code": "VISITOR_SLOT", "group": "Coming Soon", "title": "Parked in visitor slot"},
+    {"code": "ALARM_RINGING", "group": "Coming Soon", "title": "Car alarm continuously ringing"},
+    {"code": "FUEL_LEAKAGE", "group": "Coming Soon", "title": "Fuel leakage suspected"},
+    {"code": "UNATTENDED", "group": "Coming Soon", "title": "Vehicle left unattended long time"},
+  ];
+
+  static const List<Map<String, String>> _emergencyIssues = [
+    {"code": "VEHICLE_OVERTURNED", "title": "Vehicle overturned", "group": "Supported"},
+    {"code": "FIRE_SMOKE", "title": "Fire risk / smoke", "group": "Supported"},
+    {"code": "MINOR_ACCIDENT", "title": "Minor accident (vehicle damaged)", "group": "Supported"},
+    {"code": "SERIOUS_ACCIDENT", "title": "Serious accident (injury suspected)", "group": "Supported"},
+    
+    {"code": "PERSON_UNCONSCIOUS", "title": "Person unconscious", "group": "Weak"},
+    {"code": "MEDICAL_EMERGENCY", "title": "Bleeding / medical emergency", "group": "Weak"},
+    
+    {"code": "HIT_AND_RUN", "title": "Hit & run case", "group": "Coming Soon"},
+    {"code": "NEED_AMBULANCE", "title": "Need ambulance immediately", "group": "Coming Soon"},
+  ];
+
   void _handleIssueTap(Map<String, String> issue) {
     if (issue['group'] == 'Coming Soon') {
       Get.snackbar(
@@ -115,12 +161,14 @@ class _IssueSelectionScreenState extends State<IssueSelectionScreen> {
 
     Get.to(
       () => ReportProofScreen(
-        typev: "report",
+        typev: widget.typev,
         selectedIssueTitle: issue['title'],
         selectedIssueCode: issue['code'],
         razorpayOrderId: widget.razorpayOrderId,
         razorpayPaymentId: widget.razorpayPaymentId,
         razorpaySignature: widget.razorpaySignature,
+        vehicleNumber: widget.vehicleNumber,
+        vehicleLookupData: widget.vehicleLookupData,
       ),
       transition: Transition.rightToLeft,
     );
@@ -128,14 +176,20 @@ class _IssueSelectionScreenState extends State<IssueSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final issuesToUse = widget.typev == 'help' 
+        ? _helpIssues 
+        : widget.typev == 'emergency'
+        ? _emergencyIssues
+        : _reportIssues;
+    
     // Separate issues into groups
-    final supportedIssues = _reportIssues
+    final supportedIssues = issuesToUse
         .where((e) => e['group'] == 'Supported')
         .toList();
-    final weakIssues = _reportIssues
+    final weakIssues = issuesToUse
         .where((e) => e['group'] == 'Weak')
         .toList();
-    final comingSoonIssues = _reportIssues
+    final comingSoonIssues = issuesToUse
         .where((e) => e['group'] == 'Coming Soon')
         .toList();
 

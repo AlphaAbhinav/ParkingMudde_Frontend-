@@ -8,6 +8,7 @@ import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/services/plate_scanner_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 
 class EmergencyAlertScreen extends StatefulWidget {
   const EmergencyAlertScreen({super.key});
@@ -120,7 +121,7 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
     setState(() => isLookingUpVehicle = false);
 
     if (result['success'] == true && result['registered'] == true) {
-      Get.to(() => ReportProofScreen(
+      Get.to(() => IssueSelectionScreen(
             typev: 'emergency',
             vehicleNumber: vehicleNumber,
             vehicleLookupData: result['data'] as Map<String, dynamic>?,

@@ -85,19 +85,22 @@ class ApiService {
     required List<XFile> images,
     required double lat,
     required double lng,
+    String? selectedReasonCode,
   }) async {
     try {
       if (images.length < 4) {
         return {"success": false, "message": "4 photos required for AI"};
       }
-
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse("https://wrongparkingdetection.onrender.com/v1/detect/wrong-parking"),
+        Uri.parse("$baseUrl/v1/reports/detect-only"),
       );
 
       request.fields['lat'] = lat.toString();
       request.fields['lng'] = lng.toString();
+      if (selectedReasonCode != null && selectedReasonCode.isNotEmpty) {
+        request.fields['selected_reason_code'] = selectedReasonCode;
+      }
 
       for (int i = 0; i < 4; i++) {
         request.files.add(
@@ -125,7 +128,7 @@ class ApiService {
         return {"success": false, "message": "AI model returned ${response.statusCode}"};
       }
     } catch (e) {
-      print("AI Error: \$e");
+      print("AI Error: $e");
       return {"success": false, "message": "Failed to connect to AI model"};
     }
   }
@@ -434,6 +437,43 @@ class ApiService {
         return {"success": false, "message": "Failed to fetch societies"};
       }
     } catch (e) {
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
+  // ================= SUGGEST SOCIETY =================
+  static Future<Map<String, dynamic>> suggestSociety({
+    required int userId,
+    required String societyName,
+    required String addressPincode,
+    required String contactDetails,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/societies/suggest"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "user_id": userId,
+          "society_name": societyName,
+          "address_pincode": addressPincode,
+          "contact_details": contactDetails,
+        }),
+      );
+
+      print("Suggest Society Status: ${response.statusCode}");
+      print("Suggest Society Response: ${response.body}");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {"success": true, "data": jsonDecode(response.body)};
+      } else {
+        final body = jsonDecode(response.body);
+        return {
+          "success": false,
+          "message": body["detail"] ?? "Failed to suggest society",
+        };
+      }
+    } catch (e) {
+      print("Suggest Society Exception: $e");
       return {"success": false, "message": "Network error"};
     }
   }
@@ -926,22 +966,36 @@ class ApiService {
   static Future<Map<String, dynamic>> createHelpedVehicleActivity({
     required String userId,
     required String vehicleNumber,
+    XFile? image,
     String? parkingError,
     String? location,
   }) async {
     try {
-      final response = await http.post(
+      var request = http.MultipartRequest(
+        'POST',
         Uri.parse("$baseUrl/v1/notifications/helped-vehicle"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "user_id": int.parse(userId),
-          "vehicle_number": vehicleNumber,
-          "parking_error": parkingError,
-          "location": location,
-        }),
       );
 
-      if (response.statusCode == 200) {
+      request.fields['user_id'] = userId;
+      request.fields['vehicle_number'] = vehicleNumber;
+      if (parkingError != null) request.fields['parking_error'] = parkingError;
+      if (location != null) request.fields['location'] = location;
+
+      if (image != null) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'image',
+            await image.readAsBytes(),
+            filename: image.name,
+            contentType: MediaType('image', 'jpeg'),
+          ),
+        );
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
         return {"success": true, "data": jsonDecode(response.body)};
       }
       return {"success": false, "message": "Failed to submit help activity"};
@@ -1340,18 +1394,35 @@ class ApiService {
     required String vehicleNumber,
     required String situation,
     String? location,
+    XFile? image,
   }) async {
     try {
-      final response = await http.post(
+      var request = http.MultipartRequest(
+        'POST',
         Uri.parse("$baseUrl/v1/notifications/emergency-alert"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "user_id": int.parse(userId),
-          "vehicle_number": vehicleNumber,
-          "situation": situation,
-          "location": location,
-        }),
       );
+
+      request.fields['user_id'] = userId;
+      request.fields['vehicle_number'] = vehicleNumber;
+      request.fields['situation'] = situation;
+      if (location != null && location.isNotEmpty) {
+        request.fields['location'] = location;
+      }
+
+      if (image != null) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'image',
+            await image.readAsBytes(),
+            filename: image.name,
+            contentType: MediaType('image', 'jpeg'),
+          ),
+        );
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body);
       }
@@ -1534,19 +1605,20 @@ class ApiService {
   // ================= GET PENDING TRANSFERS =================
   static Future<List<dynamic>> getPendingTransfers(String userId) async {
     try {
-      await Future.delayed(const Duration(milliseconds: 500));
-      return [
-        {
-          "id": "mock_transfer_1",
-          "vehicle_id": "v_101",
-          "registration_number": "KA05DC9999",
-          "brand_name": "Honda",
-          "model_name": "City",
-          "sender_name": "Rajesh Kumar",
-          "sender_mobile": "98XXXXXX89",
-          "status": "pending",
-        }
-      ];
+      // await Future.delayed(const Duration(milliseconds: 500));
+      // return [
+      //   {
+      //     "id": "mock_transfer_1",
+      //     "vehicle_id": "v_101",
+      //     "registration_number": "KA05DC9999",
+      //     "brand_name": "Honda",
+      //     "model_name": "City",
+      //     "sender_name": "Rajesh Kumar",
+      //     "sender_mobile": "98XXXXXX89",
+      //     "status": "pending",
+      //   }
+      // ];
+      return [];
     } catch (e) {
       return [];
     }

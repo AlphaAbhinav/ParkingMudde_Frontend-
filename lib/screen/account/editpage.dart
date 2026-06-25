@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
 
@@ -39,7 +40,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final emergencyTwoOtpCtrl = TextEditingController();
 
   // ── Contact state ──
-  // Removed OTP verification tracking for Alternate and Emergency contacts
+  String originalAltNum = "";
+  String originalEc1 = "";
+  String originalEc2 = "";
+
+  bool isAltVerified = false;
+  bool isEc1Verified = false;
+  bool isEc2Verified = false;
+
+  String altSentOtp = "";
+  String ec1SentOtp = "";
+  String ec2SentOtp = "";
 
   String gender = "Male";
 
@@ -75,9 +86,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final altNum = user["alternate_mobile_number"]?.toString() ?? "";
       final ec1 = user["emergency_contact_one"]?.toString() ?? "";
       final ec2 = user["emergency_contact_two"]?.toString() ?? "";
-      if (altNum.isNotEmpty) alternateNumberCtrl.text = altNum;
-      if (ec1.isNotEmpty) emergencyOneCtrl.text = ec1;
-      if (ec2.isNotEmpty) emergencyTwoCtrl.text = ec2;
+      if (altNum.isNotEmpty) { alternateNumberCtrl.text = altNum; originalAltNum = altNum; }
+      if (ec1.isNotEmpty) { emergencyOneCtrl.text = ec1; originalEc1 = ec1; }
+      if (ec2.isNotEmpty) { emergencyTwoCtrl.text = ec2; originalEc2 = ec2; }
     });
     _loadLocalContacts();
   }
@@ -88,12 +99,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() {
       if (alternateNumberCtrl.text.isEmpty) {
         alternateNumberCtrl.text = prefs.getString("alternate_number") ?? "";
+        originalAltNum = alternateNumberCtrl.text;
       }
       if (emergencyOneCtrl.text.isEmpty) {
         emergencyOneCtrl.text = prefs.getString("emergency_contact_one") ?? "";
+        originalEc1 = emergencyOneCtrl.text;
       }
       if (emergencyTwoCtrl.text.isEmpty) {
         emergencyTwoCtrl.text = prefs.getString("emergency_contact_two") ?? "";
+        originalEc2 = emergencyTwoCtrl.text;
       }
     });
   }
@@ -140,7 +154,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     }
 
-    // Validation complete - OTP checks removed
+    // Check if changed contacts are verified
+    if (alternate != originalAltNum && alternate.isNotEmpty && !isAltVerified) {
+      Get.snackbar("Verification Required", "Please verify Alternate Number with OTP.", backgroundColor: Colors.red.shade700, colorText: Colors.white);
+      return;
+    }
+    if (ec1 != originalEc1 && ec1.isNotEmpty && !isEc1Verified) {
+      Get.snackbar("Verification Required", "Please verify Emergency Contact I with OTP.", backgroundColor: Colors.red.shade700, colorText: Colors.white);
+      return;
+    }
+    if (ec2 != originalEc2 && ec2.isNotEmpty && !isEc2Verified) {
+      Get.snackbar("Verification Required", "Please verify Emergency Contact II with OTP.", backgroundColor: Colors.red.shade700, colorText: Colors.white);
+      return;
+    }
 
     final fullName = "${nameCtrl.text.trim()} ${lNameCtrl.text.trim()}".trim();
     setState(() => isSaving = true);
@@ -267,7 +293,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
               _buildFormField(controller: emailCtrl, label: "Verified Email Address*", hint: "user@domain.com", icon: Icons.alternate_email_rounded, keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 16),
-              _buildFormField(controller: phoneCtrl, label: "Mobile Primary Route*", hint: "+91 XXXX XXXX", icon: Icons.smartphone_rounded, keyboardType: TextInputType.number),
+              _buildFormField(
+                controller: phoneCtrl,
+                label: "Mobile Primary Route*",
+                hint: "+91 XXXX XXXX",
+                icon: Icons.smartphone_rounded,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
+              ),
               const SizedBox(height: 16),
               _buildFormField(controller: addressCtrl, label: "Registered Base Address", hint: "Street Details, City", icon: Icons.maps_home_work_outlined),
               const SizedBox(height: 16),
@@ -282,32 +315,68 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 16),
 
               // ── Alternate Number ──
-              _buildFormField(
+              _buildContactFieldWithOtp(
                 controller: alternateNumberCtrl,
+                otpController: altOtpCtrl,
                 label: "Alternate Number",
                 hint: "10-digit alternate mobile",
                 icon: Icons.phone_iphone_rounded,
-                keyboardType: TextInputType.phone,
+                originalNumber: originalAltNum,
+                isVerified: isAltVerified,
+                sentOtp: altSentOtp,
+                onSendOtp: () => _sendOtp(alternateNumberCtrl.text, (otp) => setState(() => altSentOtp = otp)),
+                onVerifyOtp: () {
+                  if (altOtpCtrl.text.trim() == altSentOtp && altSentOtp.isNotEmpty) {
+                    setState(() { isAltVerified = true; altSentOtp = ""; });
+                    Get.snackbar("Success", "Alternate number verified", backgroundColor: Colors.green.shade700, colorText: Colors.white);
+                  } else {
+                    Get.snackbar("Error", "Invalid OTP", backgroundColor: Colors.red.shade700, colorText: Colors.white);
+                  }
+                },
               ),
               const SizedBox(height: 16),
 
               // ── Emergency Contact 1 ──
-              _buildFormField(
+              _buildContactFieldWithOtp(
                 controller: emergencyOneCtrl,
+                otpController: emergencyOneOtpCtrl,
                 label: "Emergency Contact I",
                 hint: "10-digit emergency contact",
                 icon: Icons.phone_in_talk_rounded,
-                keyboardType: TextInputType.phone,
+                originalNumber: originalEc1,
+                isVerified: isEc1Verified,
+                sentOtp: ec1SentOtp,
+                onSendOtp: () => _sendOtp(emergencyOneCtrl.text, (otp) => setState(() => ec1SentOtp = otp)),
+                onVerifyOtp: () {
+                  if (emergencyOneOtpCtrl.text.trim() == ec1SentOtp && ec1SentOtp.isNotEmpty) {
+                    setState(() { isEc1Verified = true; ec1SentOtp = ""; });
+                    Get.snackbar("Success", "Emergency Contact I verified", backgroundColor: Colors.green.shade700, colorText: Colors.white);
+                  } else {
+                    Get.snackbar("Error", "Invalid OTP", backgroundColor: Colors.red.shade700, colorText: Colors.white);
+                  }
+                },
               ),
               const SizedBox(height: 16),
 
               // ── Emergency Contact 2 ──
-              _buildFormField(
+              _buildContactFieldWithOtp(
                 controller: emergencyTwoCtrl,
+                otpController: emergencyTwoOtpCtrl,
                 label: "Emergency Contact II",
                 hint: "10-digit emergency contact",
                 icon: Icons.health_and_safety_rounded,
-                keyboardType: TextInputType.phone,
+                originalNumber: originalEc2,
+                isVerified: isEc2Verified,
+                sentOtp: ec2SentOtp,
+                onSendOtp: () => _sendOtp(emergencyTwoCtrl.text, (otp) => setState(() => ec2SentOtp = otp)),
+                onVerifyOtp: () {
+                  if (emergencyTwoOtpCtrl.text.trim() == ec2SentOtp && ec2SentOtp.isNotEmpty) {
+                    setState(() { isEc2Verified = true; ec2SentOtp = ""; });
+                    Get.snackbar("Success", "Emergency Contact II verified", backgroundColor: Colors.green.shade700, colorText: Colors.white);
+                  } else {
+                    Get.snackbar("Error", "Invalid OTP", backgroundColor: Colors.red.shade700, colorText: Colors.white);
+                  }
+                },
               ),
 
               const SizedBox(height: 40),
@@ -345,7 +414,107 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  // OTP fields removed
+  // OTP logic
+  Future<void> _sendOtp(String mobile, Function(String) onOtpReceived) async {
+    final cleanMobile = mobile.replaceAll(RegExp(r'[^0-9]'), '');
+    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(cleanMobile)) {
+      Get.snackbar("Error", "Please enter a valid 10-digit mobile number.", backgroundColor: Colors.red.shade700, colorText: Colors.white);
+      return;
+    }
+    Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+    final res = await ApiService.sendOtp(cleanMobile);
+    Get.back();
+    if (res["success"] == true) {
+       String otp = res["otp_code"]?.toString() ?? res["otp"]?.toString() ?? "";
+       if (otp.isNotEmpty) {
+         Get.snackbar("OTP Sent", "Your OTP is: $otp", duration: const Duration(seconds: 10), backgroundColor: Colors.blue.shade800, colorText: Colors.white);
+       } else {
+         Get.snackbar("OTP Sent", "OTP sent successfully to $cleanMobile", backgroundColor: Colors.green.shade800, colorText: Colors.white);
+       }
+       onOtpReceived(otp);
+    } else {
+       Get.snackbar("Error", res["message"] ?? "Failed to send OTP", backgroundColor: Colors.red.shade700, colorText: Colors.white);
+    }
+  }
+
+  Widget _buildContactFieldWithOtp({
+    required TextEditingController controller,
+    required TextEditingController otpController,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required String originalNumber,
+    required bool isVerified,
+    required String sentOtp,
+    required VoidCallback onSendOtp,
+    required VoidCallback onVerifyOtp,
+  }) {
+    final cleanText = controller.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final bool isChanged = cleanText != originalNumber && cleanText.isNotEmpty;
+    final bool needsVerification = isChanged && !isVerified;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFormField(
+          controller: controller,
+          label: label,
+          hint: hint,
+          icon: icon,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
+          onChanged: (val) {
+            setState(() {
+              // Reset verification if number changes again
+              if (sentOtp.isNotEmpty || isVerified) {
+                // If we want to strictly reset we can, but since the parent handles `isVerified` it will naturally become unverified because `cleanText != originalNumber`.
+              }
+            });
+          },
+        ),
+        if (needsVerification) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _buildFormField(
+                  controller: otpController,
+                  label: "Enter OTP",
+                  hint: "OTP",
+                  icon: Icons.lock_outline,
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                margin: const EdgeInsets.only(top: 24),
+                child: ElevatedButton(
+                  onPressed: sentOtp.isEmpty ? onSendOtp : onVerifyOtp,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: sentOtp.isEmpty ? const Color(0XFF184B8C) : Colors.green.shade700,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  ),
+                  child: Text(sentOtp.isEmpty ? "Send OTP" : "Verify", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ] else if (isChanged && isVerified) ...[
+           const Padding(
+             padding: EdgeInsets.only(top: 8.0),
+             child: Row(
+               children: [
+                 Icon(Icons.check_circle_rounded, color: Colors.green, size: 16),
+                 SizedBox(width: 4),
+                 Text("Verified", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13)),
+               ],
+             ),
+           )
+        ],
+      ],
+    );
+  }
 
   ImageProvider? _storedProfileImageProvider() {
     final image = _storedProfileImage;
@@ -375,6 +544,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     TextInputType keyboardType = TextInputType.text,
     bool readOnly = false,
     VoidCallback? onTap,
+    ValueChanged<String>? onChanged,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +556,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
           controller: controller,
           readOnly: readOnly,
           onTap: onTap,
+          onChanged: onChanged,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           textCapitalization: TextCapitalization.words,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           decoration: InputDecoration(

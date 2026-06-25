@@ -18,6 +18,7 @@ class ThankYouReportScreen extends StatefulWidget {
   final int aiScore;
   final String aiVerdict;
   final String? aiReasons;
+  final String? issueTitle;
 
   const ThankYouReportScreen({
     super.key,
@@ -28,6 +29,7 @@ class ThankYouReportScreen extends StatefulWidget {
     this.aiScore = 0,
     this.aiVerdict = "UNDER_REVIEW",
     this.aiReasons,
+    this.issueTitle,
   });
 
   @override
@@ -264,20 +266,45 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
 
   Future<void> _openOffenderIdentificationScreen() async {
     final result = await Get.to(() => VehicleNumberInputScreen(
-      reportId: widget.reportId,
-      isAttachingPlate: true,
-      razorpayOrderId: _razorpayOrderId,
-      razorpayPaymentId: _razorpayPaymentId,
-      razorpaySignature: _razorpaySignature,
-    ));
+          reportId: widget.reportId,
+          isAttachingPlate: true,
+          razorpayOrderId: _razorpayOrderId,
+          razorpayPaymentId: _razorpayPaymentId,
+          razorpaySignature: _razorpaySignature,
+        ));
+
     if (result != null) {
-      setState(() {
-        _plateAttached = true;
-        _vehicleRegistered = result == true;
-      });
-      _triggerSmsAlertAfterOwnerAlert();
-      _startCallTimers();
-      _startPollingForOnTheWay();
+      if (isHelp) {
+         setState(() => _isPaymentLoading = true);
+         final storedUser = await ApiService.getStoredUser();
+         final currentUserId = storedUser?["user_id"]?.toString() ?? "";
+         
+         final helpResult = await ApiService.createHelpedVehicleActivity(
+            userId: currentUserId,
+            vehicleNumber: result.toString(),
+            parkingError: widget.issueTitle ?? "Unknown Issue",
+            location: "Not provided",
+         );
+         
+         setState(() => _isPaymentLoading = false);
+         if (helpResult["success"] == true) {
+             setState(() {
+               _plateAttached = true;
+               _vehicleRegistered = true;
+             });
+             Get.snackbar("Success", "You have been awarded 10 PM coins!", backgroundColor: Colors.green, colorText: Colors.white);
+         } else {
+             Get.snackbar("Error", helpResult["message"] ?? "Failed", backgroundColor: Colors.red, colorText: Colors.white);
+         }
+      } else {
+        setState(() {
+          _plateAttached = true;
+          _vehicleRegistered = result == true;
+        });
+        _triggerSmsAlertAfterOwnerAlert();
+        _startCallTimers();
+        _startPollingForOnTheWay();
+      }
     }
   }
 
@@ -375,7 +402,9 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                 isEmergency
                     ? "Emergency alert has been recorded. If the victim needs immediate help, call the helpline now."
                     : isHelp
-                    ? "Your helping alert has been sent successfully."
+                    ? (!_plateAttached 
+                        ? "The AI has verified your image with a score of ${widget.aiScore}. Please enter or scan the number plate."
+                        : "Thank you for helping, car owner has been notified, and as for your efforts you have been awarded 10 PM coins.")
                     : isRejected
                     ? "Your report was evaluated by AI and rejected due to insufficient evidence. The fee is non-refundable."
                     : (!_plateAttached)
@@ -442,6 +471,21 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                     onTap: _callHelpline,
                   ),
                 ],
+              ],
+              if (isHelp && !isRejected && !_plateAttached) ...[
+                _isPaymentLoading
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(12.0),
+                            child: CircularProgressIndicator(color: Color(0xFF184B8C)),
+                          ),
+                        )
+                      : _actionButton(
+                          label: "Enter or Scan Number Plate",
+                          icon: Icons.camera_alt,
+                          enabled: true,
+                          onTap: _openOffenderIdentificationScreen,
+                        ),
                 const SizedBox(height: 12),
               ],
               if (!isHelp) ...[
@@ -523,30 +567,42 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
             Divider(color: Colors.grey.shade100, height: 20),
           ],
 
-          // Coinsback on confirmation
+          // Rewards and penalties
           if (!isRejected) ...[
-            _economyRow(
-              icon: Icons.stars_rounded,
-              iconColor: Colors.amber.shade600,
-              label: "Coinsback Reward",
-              value: "+${widget.coinsbackOnConfirm} Coinsback",
-              valueColor: Colors.green.shade700,
-              sublabel: "Awarded when report is confirmed",
-            ),
+            if (isHelp) ...[
+              _economyRow(
+                icon: Icons.favorite_rounded,
+                iconColor: Colors.pink.shade500,
+                label: "Helping Reward",
+                value: "+10 PM Coins",
+                valueColor: Colors.green.shade700,
+                sublabel: "Awarded for helping the community",
+              ),
+              Divider(color: Colors.grey.shade100, height: 20),
+            ] else ...[
+              _economyRow(
+                icon: Icons.stars_rounded,
+                iconColor: Colors.amber.shade600,
+                label: "Coinsback Reward",
+                value: "+${widget.coinsbackOnConfirm} Coinsback",
+                valueColor: Colors.green.shade700,
+                sublabel: "Awarded when report is confirmed",
+              ),
 
-            Divider(color: Colors.grey.shade100, height: 20),
+              Divider(color: Colors.grey.shade100, height: 20),
 
-            // Offender penalty
-            _economyRow(
-              icon: Icons.gavel_rounded,
-              iconColor: Colors.orange.shade600,
-              label: "Offender Penalty",
-              value: "-10 PM Coins",
-              valueColor: Colors.orange.shade700,
-              sublabel: "Deducted from offender on confirmation",
-            ),
+              // Offender penalty
+              _economyRow(
+                icon: Icons.gavel_rounded,
+                iconColor: Colors.orange.shade600,
+                label: "Offender Penalty",
+                value: "-10 PM Coins",
+                valueColor: Colors.orange.shade700,
+                sublabel: "Deducted from offender on confirmation",
+              ),
 
-            Divider(color: Colors.grey.shade100, height: 20),
+              Divider(color: Colors.grey.shade100, height: 20),
+            ]
           ],
 
           // AI verdict

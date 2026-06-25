@@ -15,6 +15,7 @@ import 'package:parkingmudde/screen/parkingAlert/parkingalertpage.dart';
 import 'package:parkingmudde/screen/Referal/referalpage.dart';
 import 'package:parkingmudde/screen/vehicle/myvehicle.dart';
 import 'package:parkingmudde/screen/wallet/walletpage.dart';
+import 'package:parkingmudde/screen/account/suggest_society_thanks.dart';
 import '../../services/api_service.dart';
 
 class Accountpage extends StatefulWidget {
@@ -144,6 +145,14 @@ class _AccountpageState extends State<Accountpage> {
               const SizedBox(height: 40),
 
               // 3. MAIN NAV LIST
+              _buildModernNavRowItem(
+                icon: Icons.business_rounded,
+                title: "Suggest Society",
+                subtitle: "Help us bring smart parking to your society",
+                bgColor: const Color(0xFFE8F5E9),
+                iconColor: const Color(0xFF4CAF50),
+                onTap: () => _showSuggestSocietyDialog(context),
+              ),
               _buildModernNavRowItem(
                 icon: Icons.directions_car_rounded,
                 title: "My Vehicles",
@@ -1083,6 +1092,194 @@ class _AccountpageState extends State<Accountpage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // --- SUGGEST SOCIETY DIALOG ---
+  void _showSuggestSocietyDialog(BuildContext context) {
+    final TextEditingController societyNameController = TextEditingController();
+    final TextEditingController pinLocationController = TextEditingController();
+    final TextEditingController personalNameController = TextEditingController();
+    final TextEditingController personalNumberController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 24,
+            right: 24,
+            top: 24,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Suggest Society",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textBlack,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.grey),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Enter details to suggest your society to Parking Mudde.",
+                  style: TextStyle(color: subTextGrey, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                _buildDialogTextField(
+                  controller: societyNameController,
+                  label: "Society Name",
+                  icon: Icons.business_rounded,
+                ),
+                const SizedBox(height: 16),
+                _buildDialogTextField(
+                  controller: pinLocationController,
+                  label: "Address Pin Location",
+                  icon: Icons.location_on_rounded,
+                ),
+                const SizedBox(height: 16),
+                _buildDialogTextField(
+                  controller: personalNameController,
+                  label: "Your Personal Name",
+                  icon: Icons.person_rounded,
+                ),
+                const SizedBox(height: 16),
+                _buildDialogTextField(
+                  controller: personalNumberController,
+                  label: "Your Personal Number",
+                  icon: Icons.phone_rounded,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryBlue,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () async {
+                      if (societyNameController.text.trim().isEmpty ||
+                          pinLocationController.text.trim().isEmpty ||
+                          personalNameController.text.trim().isEmpty ||
+                          personalNumberController.text.trim().isEmpty) {
+                        Get.snackbar(
+                          "Error",
+                          "Please fill all fields",
+                          backgroundColor: Colors.red.shade800,
+                          colorText: Colors.white,
+                        );
+                        return;
+                      }
+
+                      if (personalNumberController.text.trim().length != 10) {
+                        Get.snackbar(
+                          "Error",
+                          "Personal number must be exactly 10 digits",
+                          backgroundColor: Colors.red.shade800,
+                          colorText: Colors.white,
+                        );
+                        return;
+                      }
+
+                      Get.dialog(
+                        const Center(child: CircularProgressIndicator()),
+                        barrierDismissible: false,
+                      );
+
+                      final prefs = await SharedPreferences.getInstance();
+                      final userIdStr = prefs.getString("user_id");
+                      final userId = int.tryParse(userIdStr ?? "0") ?? 0;
+
+                      final result = await ApiService.suggestSociety(
+                        userId: userId,
+                        societyName: societyNameController.text.trim(),
+                        addressPincode: pinLocationController.text.trim(),
+                        contactDetails: "${personalNameController.text.trim()} (${personalNumberController.text.trim()})",
+                      );
+
+                      Get.back(); // close loading
+
+                      if (result["success"] == true) {
+                        Navigator.pop(context); // close sheet
+                        Get.to(() => const SuggestSocietyThanksPage());
+                      } else {
+                        Get.snackbar(
+                          "Submission Failed",
+                          result["message"] ?? "Please try again later.",
+                          backgroundColor: Colors.red.shade800,
+                          colorText: Colors.white,
+                        );
+                      }
+                    },
+                    child: const Text(
+                      "Submit",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDialogTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: subTextGrey, fontSize: 14),
+        prefixIcon: Icon(icon, color: primaryBlue, size: 20),
+        filled: true,
+        fillColor: const Color(0xFFF8F9FA),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       ),
     );
   }
