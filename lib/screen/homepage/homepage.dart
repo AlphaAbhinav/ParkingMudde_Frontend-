@@ -343,7 +343,7 @@ class _HomepageState extends State<Homepage> {
                       color: Colors.red.shade600,
                       onTap: () {
                         Get.back();
-                        Get.to(() => const EmergencyAlertScreen());
+                        Get.to(() => const IssueSelectionScreen(typev: "emergency"));
                       },
                     ),
                   ],
@@ -1280,7 +1280,7 @@ Future<void> _checkGlobalAlerts() async {
                     color: Colors.white,
                   ),
                 ),
-                onTap: () => Get.to(() => const EmergencyAlertScreen()),
+                onTap: () => Get.to(() => const IssueSelectionScreen(typev: "emergency")),
               ),
 
               const SizedBox(height: 32),

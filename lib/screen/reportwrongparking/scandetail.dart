@@ -290,7 +290,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   Future<void> submitReport() async {
     if (isLoading) return;
 
-    if (_isEmergencyFlow && situationController.text.trim().isEmpty) {
+    if (_isEmergencyFlow && _issueTitle.isEmpty && situationController.text.trim().isEmpty) {
       showSnack("Please specify the emergency situation");
       return;
     }
@@ -345,24 +345,10 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
         image: images.isNotEmpty ? images.first : null,
       );
     } else if (_isHelpFlow) {
-      final double reportLat = storedUser?["latitude"] as double? ?? 19.0760;
-      final double reportLng = storedUser?["longitude"] as double? ?? 72.8777;
-
-      List<XFile> aiImages = List.from(images);
-      while (aiImages.isNotEmpty && aiImages.length < 4) {
-        aiImages.add(images[0]);
-      }
-
-      await ApiService.getAIVerdict(
-        images: aiImages,
-        lat: reportLat,
-        lng: reportLng,
-        selectedReasonCode: widget.selectedIssueCode,
-      );
-
       result = await ApiService.createHelpedVehicleActivity(
         userId: currentUserId!,
         vehicleNumber: targetVehicle,
+        image: images.isNotEmpty ? images.first : null,
         parkingError: _issueTitle,
         location: "Not provided",
       );
@@ -406,6 +392,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       final reportId = result["data"] is Map
           ? result["data"]["report_id"]?.toString()
           : null;
+      final notificationId = result["data"] is Map
+          ? result["data"]["id"]?.toString()
+          : null;
       final coinsCharged = result["coins_charged"] ?? 0;
       final coinsbackOnConfirm = result["coinsback_on_confirm"] ?? 0;
       final aiScoreRes = result["data"] is Map ? result["data"]["ai_score"] ?? 0 : 0;
@@ -416,6 +405,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
         () => ThankYouReportScreen(
           typecv: widget.typev,
           reportId: reportId,
+          notificationId: notificationId,
           coinsCharged: coinsCharged,
           coinsbackOnConfirm: coinsbackOnConfirm,
           aiScore: aiScoreRes,

@@ -10,6 +10,19 @@ class ApiService {
   static final String baseUrl =
       dotenv.env['BACKEND_URL'] ?? "http://localhost:8000";
 
+  static String _messageFromResponse(http.Response response, String fallback) {
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final detail = decoded['detail'];
+        if (detail is String && detail.isNotEmpty) return detail;
+        if (detail is List && detail.isNotEmpty) return detail.toString();
+        final message = decoded['message'];
+        if (message is String && message.isNotEmpty) return message;
+      }
+    } catch (_) {}
+    return '$fallback (${response.statusCode})';
+  }
   static Future<void> saveUserSession(Map<String, dynamic> user) async {
     final prefs = await SharedPreferences.getInstance();
     final userId = (user["user_id"] ?? user["id"])?.toString();
@@ -998,7 +1011,10 @@ class ApiService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return {"success": true, "data": jsonDecode(response.body)};
       }
-      return {"success": false, "message": "Failed to submit help activity"};
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Failed to submit help activity"),
+      };
     } catch (e) {
       return {"success": false, "message": "Network error"};
     }
@@ -1424,14 +1440,68 @@ class ApiService {
       var response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
+        return {"success": true, "data": jsonDecode(response.body)};
       }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Unable to submit emergency alert"),
+      };
     } catch (e) {
       print("Emergency Alert Exception: $e");
     }
     return {"success": false, "message": "Unable to submit emergency alert"};
   }
 
+  static Future<Map<String, dynamic>> attachGuardReportPlate({
+    required String reportId,
+    required String vehicleNumber,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('guard_access_token');
+      final response = await http.post(
+        Uri.parse("$baseUrl/api/guard/reports/$reportId/attach-plate"),
+        headers: {
+          "Content-Type": "application/json",
+          if (token != null) "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"vehicle_number": vehicleNumber}),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        return {"success": true, "data": jsonDecode(response.body)};
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Failed to attach plate"),
+      };
+    } catch (e) {
+      return {"success": false, "message": "Network error. Please try again."};
+    }
+  }
+  static Future<Map<String, dynamic>> attachNotificationPlate({
+    required String notificationId,
+    required String vehicleNumber,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/notifications/$notificationId/attach-plate"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"vehicle_number": vehicleNumber}),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        return {"success": true, "data": jsonDecode(response.body)};
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Failed to attach plate"),
+      };
+    } catch (e) {
+      print("Attach Notification Plate Exception: $e");
+      return {"success": false, "message": "Network error. Please try again."};
+    }
+  }
   // ================= TRIGGER REPORT ACTION =================
   static Future<Map<String, dynamic>> triggerReportAction({
     required String reportId,

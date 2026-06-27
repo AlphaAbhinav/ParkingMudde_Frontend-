@@ -11,7 +11,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 class VehicleNumberInputScreen extends StatefulWidget {
   final String? reportId;
+  final String? notificationId;
   final bool isAttachingPlate;
+  final bool guardPlateAttach;
   final String? razorpayOrderId;
   final String? razorpayPaymentId;
   final String? razorpaySignature;
@@ -19,7 +21,9 @@ class VehicleNumberInputScreen extends StatefulWidget {
   const VehicleNumberInputScreen({
     super.key,
     this.reportId,
+    this.notificationId,
     this.isAttachingPlate = false,
+    this.guardPlateAttach = false,
     this.razorpayOrderId,
     this.razorpayPaymentId,
     this.razorpaySignature,
@@ -106,7 +110,8 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
       // Format safely bounds standard layout mappings
       final cleanPlate = result.vehicleNumber.replaceAll(" ", "").toUpperCase();
 
-      if (widget.isAttachingPlate && widget.reportId != null) {
+      if (widget.isAttachingPlate &&
+          (widget.reportId != null || widget.notificationId != null)) {
         _attachPlate(cleanPlate);
       } else {
         _openManualEntrySheet(initialVehicleNumber: cleanPlate);
@@ -128,19 +133,39 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
   }
 
   Future<void> _attachPlate(String vehicleNumber) async {
+    if (widget.reportId == null && widget.notificationId == null) {
+      Get.snackbar(
+        "Error",
+        "Missing activity id. Please submit the proof again.",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     Get.defaultDialog(
       title: "Attaching Plate",
       content: const CircularProgressIndicator(),
       barrierDismissible: false,
     );
     try {
-      final result = await ApiService.attachWrongParkingPlate(
-        reportId: widget.reportId!,
-        vehicleNumber: vehicleNumber,
-        razorpayOrderId: widget.razorpayOrderId,
-        razorpayPaymentId: widget.razorpayPaymentId,
-        razorpaySignature: widget.razorpaySignature,
-      );
+      final result = widget.notificationId != null
+          ? await ApiService.attachNotificationPlate(
+              notificationId: widget.notificationId!,
+              vehicleNumber: vehicleNumber,
+            )
+          : widget.guardPlateAttach
+              ? await ApiService.attachGuardReportPlate(
+                  reportId: widget.reportId!,
+                  vehicleNumber: vehicleNumber,
+                )
+              : await ApiService.attachWrongParkingPlate(
+                  reportId: widget.reportId!,
+                  vehicleNumber: vehicleNumber,
+                  razorpayOrderId: widget.razorpayOrderId,
+                  razorpayPaymentId: widget.razorpayPaymentId,
+                  razorpaySignature: widget.razorpaySignature,
+                );
       if (Get.isDialogOpen == true) Get.back();
 
       if (result['success'] == true) {

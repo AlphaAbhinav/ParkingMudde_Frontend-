@@ -4,15 +4,18 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
+import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:parkingmudde/services/razorpay_web_checkout.dart';
 
 class ThankYouReportScreen extends StatefulWidget {
   final dynamic typecv;
   final String? reportId;
+  final String? notificationId;
   final int coinsCharged;
   final int coinsbackOnConfirm;
   final int aiScore;
@@ -24,6 +27,7 @@ class ThankYouReportScreen extends StatefulWidget {
     super.key,
     this.typecv,
     this.reportId,
+    this.notificationId,
     this.coinsCharged = 0,
     this.coinsbackOnConfirm = 0,
     this.aiScore = 0,
@@ -59,6 +63,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   Timer? _maskedTimer;
   Timer? _sosTimer;
   bool _hasAddedOnTheWayBonus = false;
+  bool _isGuardSession = false;
 
   bool get isHelp => widget.typecv == "help";
   bool get isEmergency => widget.typecv == "emergency";
@@ -73,11 +78,30 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
 
+    _loadGuardSession();
+
     if (isReport) {
       startTimer();
     }
   }
 
+  void _resetToHome({bool startReport = false}) {
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const Dash()),
+      (_) => false,
+    );
+
+    if (startReport) {
+      Future.delayed(const Duration(milliseconds: 250), () {
+        Get.to(() => const IssueSelectionScreen(typev: "report"));
+      });
+    }
+  }
+  Future<void> _loadGuardSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _isGuardSession = prefs.getString('guard_access_token') != null);
+  }
   void startTimer() {
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (secondsLeft == 0) {
@@ -267,43 +291,26 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   Future<void> _openOffenderIdentificationScreen() async {
     final result = await Get.to(() => VehicleNumberInputScreen(
           reportId: widget.reportId,
+          notificationId: widget.notificationId,
           isAttachingPlate: true,
           razorpayOrderId: _razorpayOrderId,
           razorpayPaymentId: _razorpayPaymentId,
           razorpaySignature: _razorpaySignature,
+          guardPlateAttach: _isGuardSession,
         ));
 
     if (result != null) {
-      if (isHelp) {
-         setState(() => _isPaymentLoading = true);
-         final storedUser = await ApiService.getStoredUser();
-         final currentUserId = storedUser?["user_id"]?.toString() ?? "";
-         
-         final helpResult = await ApiService.createHelpedVehicleActivity(
-            userId: currentUserId,
-            vehicleNumber: result.toString(),
-            parkingError: widget.issueTitle ?? "Unknown Issue",
-            location: "Not provided",
-         );
-         
-         setState(() => _isPaymentLoading = false);
-         if (helpResult["success"] == true) {
-             setState(() {
-               _plateAttached = true;
-               _vehicleRegistered = true;
-             });
-             Get.snackbar("Success", "You have been awarded 10 PM coins!", backgroundColor: Colors.green, colorText: Colors.white);
-         } else {
-             Get.snackbar("Error", helpResult["message"] ?? "Failed", backgroundColor: Colors.red, colorText: Colors.white);
-         }
-      } else {
-        setState(() {
-          _plateAttached = true;
-          _vehicleRegistered = result == true;
-        });
+      setState(() {
+        _plateAttached = true;
+        _vehicleRegistered = result == true;
+      });
+
+      if (isReport) {
         _triggerSmsAlertAfterOwnerAlert();
         _startCallTimers();
         _startPollingForOnTheWay();
+      } else if (isEmergency) {
+        _startCallTimers();
       }
     }
   }
@@ -442,11 +449,17 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                           ),
                         )
                       : _actionButton(
-                          label: "Identify Owner (Pay ₹1)",
+                          label: _isGuardSession
+                              ? "Enter Vehicle Plate"
+                              : "Identify Owner (Pay ₹1)",
                           icon: Icons.camera_alt_rounded,
                           enabled: true,
                           onTap: () async {
-                            await _startIdentificationPayment();
+                            if (_isGuardSession) {
+                              await _openOffenderIdentificationScreen();
+                            } else {
+                              await _startIdentificationPayment();
+                            }
                           },
                         )
                 else ...[
@@ -472,7 +485,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                   ),
                 ],
               ],
-              if (isHelp && !isRejected && !_plateAttached) ...[
+              if ((isHelp || isEmergency) && !isRejected && !_plateAttached) ...[
                 _isPaymentLoading
                       ? const Center(
                           child: Padding(
@@ -481,7 +494,9 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                           ),
                         )
                       : _actionButton(
-                          label: "Enter or Scan Number Plate",
+                          label: isEmergency
+                              ? "Enter Emergency Vehicle Plate"
+                              : "Enter or Scan Number Plate",
                           icon: Icons.camera_alt,
                           enabled: true,
                           onTap: _openOffenderIdentificationScreen,
@@ -494,13 +509,13 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                     label: "Try Again",
                     icon: Icons.refresh_rounded,
                     enabled: true,
-                    onTap: () async { Get.offAll(() => const Dash(autoStartReport: true)); },
+                    onTap: () async => _resetToHome(startReport: true),
                   ),
                 const SizedBox(height: 16),
               ],
 
               TextButton(
-                onPressed: () => Get.offAll(() => const Dash()),
+                onPressed: () => _resetToHome(),
                 child: Text(
                   "Go Back to Home",
                   style: TextStyle(

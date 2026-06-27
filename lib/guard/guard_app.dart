@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'guard_api_service.dart';
 
@@ -137,6 +138,7 @@ class _GuardHomePageState extends State<GuardHomePage> {
   bool _loading = false;
   bool _shiftLoading = false;
   String? _message;
+  final _picker = ImagePicker();
 
   @override
   void initState() {
@@ -195,6 +197,150 @@ class _GuardHomePageState extends State<GuardHomePage> {
     _loadPerformance();
   }
 
+  static const _reportIssues = [
+    ['NO_PARKING_ZONE', 'Parked in No Parking zone'],
+    ['FOOTPATH', 'Parked on footpath'],
+    ['PEDESTRIAN_CROSSING', 'Parked on zebra crossing'],
+    ['BLOCKING_CAR_EXIT', 'Blocking my car / double parked'],
+    ['WRONG_SIDE', 'Parked on wrong side'],
+    ['BLOCKING_GATE', 'Blocking society entry/exit gate'],
+    ['BLOCKING_DRIVEWAY', 'Blocking driveway / ramp'],
+    ['TRAFFIC_JAM', 'Parking causing traffic jam'],
+  ];
+
+  static const _helpIssues = [
+    ['PARKED_TOO_CLOSE', 'Parked too close (blocking)'],
+    ['OUTSIDE_MARKING', 'Parked outside marking'],
+    ['ON_RAMP_TURN', 'Parked on ramp / turn'],
+    ['SUSPICIOUS', 'Suspicious vehicle / security concern'],
+  ];
+
+  static const _emergencyIssues = [
+    ['VEHICLE_OVERTURNED', 'Vehicle overturned'],
+    ['FIRE_SMOKE', 'Fire risk / smoke'],
+    ['MINOR_ACCIDENT', 'Minor accident (vehicle damaged)'],
+    ['SERIOUS_ACCIDENT', 'Serious accident (injury suspected)'],
+    ['PERSON_UNCONSCIOUS', 'Person unconscious'],
+    ['MEDICAL_EMERGENCY', 'Bleeding / medical emergency'],
+  ];
+
+  Future<List<String>?> _pickIssue(String title, List<List<String>> issues) async {
+    return showDialog<List<String>>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: Text(title),
+        children: [
+          for (final issue in issues)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, issue),
+              child: Text(issue[1]),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _askPlate() async {
+    final controller = TextEditingController(text: _vehicleNumber.text.trim());
+    return showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Enter vehicle number'),
+        content: TextField(
+          controller: controller,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(hintText: 'MH01AB1234'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.replaceAll(' ', '').toUpperCase()),
+            child: const Text('Attach'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _runGuardFlow(String flow) async {
+    final issue = await _pickIssue(
+      flow == 'report' ? 'Report Issue' : flow == 'help' ? 'Help Issue' : 'Emergency Issue',
+      flow == 'report' ? _reportIssues : flow == 'help' ? _helpIssues : _emergencyIssues,
+    );
+    if (issue == null) return;
+
+    setState(() {
+      _loading = true;
+      _message = 'Submitting ${flow.toUpperCase()} proof...';
+    });
+
+    Map<String, dynamic> result;
+    if (flow == 'report') {
+      final images = await _picker.pickMultiImage();
+      if (images.length < 4) {
+        setState(() {
+          _loading = false;
+          _message = 'Report needs 4 photos.';
+        });
+        return;
+      }
+      result = await GuardApiService.submitGuardReportProof(
+        issueCode: issue[0],
+        issueTitle: issue[1],
+        images: images.take(4).toList(),
+      );
+    } else {
+      final image = await _picker.pickImage(source: ImageSource.camera);
+      if (image == null) {
+        setState(() {
+          _loading = false;
+          _message = 'No image captured.';
+        });
+        return;
+      }
+      result = flow == 'help'
+          ? await GuardApiService.submitGuardHelpProof(issueTitle: issue[1], image: image)
+          : await GuardApiService.submitGuardEmergencyProof(issueTitle: issue[1], image: image);
+    }
+
+    if (!mounted) return;
+    if (result['success'] != true) {
+      setState(() {
+        _loading = false;
+        _message = result['message']?.toString() ?? 'Proof submit failed';
+      });
+      return;
+    }
+
+    final plate = await _askPlate();
+    if (plate == null || plate.isEmpty) {
+      setState(() {
+        _loading = false;
+        _message = 'Proof saved. Plate can be attached later.';
+      });
+      return;
+    }
+
+    final attach = flow == 'report'
+        ? await GuardApiService.attachGuardReportPlate(
+            reportId: result['data']['id'].toString(),
+            vehicleNumber: plate,
+          )
+        : await GuardApiService.attachGuardNotificationPlate(
+            notificationId: result['data']['notification_id'].toString(),
+            vehicleNumber: plate,
+          );
+
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _vehicleNumber.text = plate;
+      _message = attach['success'] == true
+          ? '${flow.toUpperCase()} submitted for $plate'
+          : attach['message']?.toString();
+    });
+    _loadPerformance();
+  }
   Future<void> _raiseAlert() async {
     final plate = _vehicleNumber.text.trim();
     final result = await GuardApiService.createAlert(
@@ -276,6 +422,25 @@ class _GuardHomePageState extends State<GuardHomePage> {
               const SizedBox(width: 12),
               Expanded(child: FilledButton.tonalIcon(onPressed: _vehicleNumber.text.trim().isEmpty ? null : () => _log('EXIT'), icon: const Icon(Icons.logout), label: const Text('Exit'))),
             ],
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _loading ? null : () => _runGuardFlow('report'),
+            icon: const Icon(Icons.report_problem_rounded),
+            label: const Text('Report Wrong Parking'),
+          ),
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            onPressed: _loading ? null : () => _runGuardFlow('help'),
+            icon: const Icon(Icons.handshake_rounded),
+            label: const Text('Help Vehicle'),
+          ),
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: _loading ? null : () => _runGuardFlow('emergency'),
+            icon: const Icon(Icons.local_hospital_rounded),
+            label: const Text('Emergency Alert'),
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
