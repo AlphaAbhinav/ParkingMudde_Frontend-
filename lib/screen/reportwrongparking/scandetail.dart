@@ -198,6 +198,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   }
 
   Future<void> _startRazorpayPayment(String currentUserId) async {
+    await _finishSubmitReport(rOrderId: null, rPaymentId: null, rSignature: null);
+    return;
+
     final orderResult = await ApiService.createReportRazorpayOrder(userId: currentUserId);
     
     if (!mounted) return;

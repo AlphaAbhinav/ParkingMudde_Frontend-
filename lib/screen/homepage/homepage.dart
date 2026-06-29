@@ -550,7 +550,7 @@ class _HomepageState extends State<Homepage> {
 
     if (widget.autoStartReport) {
       Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted) _startReportPayment();
+        if (mounted) Get.to(() => const IssueSelectionScreen(typev: "report"));
       });
     }
   }
@@ -759,7 +759,7 @@ class _HomepageState extends State<Homepage> {
 
     if (!mounted) return;
     
-    Get.snackbar("Success", "Payment of ₹1 successful. Proceeding to report.", 
+    Get.snackbar("Success", "Proceeding to report.", 
       backgroundColor: Colors.green, colorText: Colors.white);
       
     Get.to(() => IssueSelectionScreen(
@@ -792,6 +792,9 @@ class _HomepageState extends State<Homepage> {
   }
 
   Future<void> _startReportPayment() async {
+    Get.to(() => const IssueSelectionScreen(typev: "report"));
+    return;
+
     Get.defaultDialog(
       title: "Processing",
       content: const CircularProgressIndicator(),
@@ -838,7 +841,7 @@ class _HomepageState extends State<Homepage> {
         'amount': 100, // 1 INR in paise
         'currency': 'INR',
         'name': 'Parking Mudde',
-        'description': 'Report Wrong Parking Fee',
+        'description': 'Report Wrong Parking',
         'prefill': {
           'contact': '',
           'email': ''
@@ -921,8 +924,8 @@ class _HomepageState extends State<Homepage> {
       }
 
       Get.defaultDialog(
-        title: "Report Processing Fee",
-        middleText: "Wrong parking reports have a processing fee of ₹1. However, we won't charge you right now. You can upload the report and pay only after AI validates the issue.",
+                title: "Report Wrong Parking",
+        middleText: "Upload proof first. AI will validate the report before asking for the vehicle plate.",
         textConfirm: "Proceed to Report",
         textCancel: "Cancel",
         onConfirm: () {
@@ -1227,7 +1230,7 @@ Future<void> _checkGlobalAlerts() async {
                 const SizedBox(height: 16),
                 // Figma Header Primary Actions layout
               Container(key: _reportKey, child: _buildFeatureButton(
-                title: "Report Wrong Parking (₹1 Fee)",
+                title: "Report Wrong Parking",
                 subtitle: "Help clear the way in seconds",
                 backgroundColor: primaryBlue,
                 iconWidget: Container(

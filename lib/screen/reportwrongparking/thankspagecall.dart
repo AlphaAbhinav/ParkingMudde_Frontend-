@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
 import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
+import 'package:parkingmudde/guard/guard_app.dart';
 
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -86,16 +87,16 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   }
 
   void _resetToHome({bool startReport = false}) {
+    final Widget destination = _isGuardSession
+        ? const GuardBootstrap()
+        : startReport
+            ? const IssueSelectionScreen(typev: "report")
+            : const Dash();
+
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const Dash()),
+      MaterialPageRoute(builder: (_) => destination),
       (_) => false,
     );
-
-    if (startReport) {
-      Future.delayed(const Duration(milliseconds: 250), () {
-        Get.to(() => const IssueSelectionScreen(typev: "report"));
-      });
-    }
   }
   Future<void> _loadGuardSession() async {
     final prefs = await SharedPreferences.getInstance();
@@ -191,7 +192,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     _razorpayPaymentId = response.paymentId;
     _razorpaySignature = response.signature;
 
-    Get.snackbar("Success", "Payment of ₹1 successful. Proceed to enter vehicle plate details.",
+    Get.snackbar("Success", "Proceed to enter vehicle plate details.",
       backgroundColor: Colors.green, colorText: Colors.white);
 
     _openOffenderIdentificationScreen();
@@ -212,6 +213,9 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   }
 
   Future<void> _startIdentificationPayment() async {
+    await _openOffenderIdentificationScreen();
+    return;
+
     setState(() => _isPaymentLoading = true);
     try {
       final storedUser = await ApiService.getStoredUser();
@@ -249,7 +253,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
         'amount': 100, // 1 INR in paise
         'currency': 'INR',
         'name': 'Parking Mudde',
-        'description': 'Identify Vehicle Owner Fee',
+        'description': 'Identify Vehicle Owner',
         'prefill': {
           'contact': '',
           'email': ''
@@ -449,18 +453,10 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                           ),
                         )
                       : _actionButton(
-                          label: _isGuardSession
-                              ? "Enter Vehicle Plate"
-                              : "Identify Owner (Pay ₹1)",
+                          label: "Enter Vehicle Plate",
                           icon: Icons.camera_alt_rounded,
                           enabled: true,
-                          onTap: () async {
-                            if (_isGuardSession) {
-                              await _openOffenderIdentificationScreen();
-                            } else {
-                              await _startIdentificationPayment();
-                            }
-                          },
+                          onTap: _openOffenderIdentificationScreen,
                         )
                 else ...[
                   _actionButton(
