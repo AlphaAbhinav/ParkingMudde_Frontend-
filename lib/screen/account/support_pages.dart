@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:parkingmudde/services/api_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:parkingmudde/widgets/ad_banner.dart';
+import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
+import 'package:parkingmudde/services/api_service.dart';
 
 class HelpSupportPage extends StatelessWidget {
   const HelpSupportPage({super.key});
@@ -150,12 +153,7 @@ class FaqPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        const AdBanner(
-          accentColor: Color(0xFF0F6B3D),
-          brandName: "Your Brand Here",
-          tagline: "Advertise to an engaged community of vehicle owners & drivers.",
-          logoIcon: Icons.local_offer_rounded,
-        ),
+        const DynamicAdCarousel(pageName: 'Help'),
         const SizedBox(height: 8),
       ],
     );

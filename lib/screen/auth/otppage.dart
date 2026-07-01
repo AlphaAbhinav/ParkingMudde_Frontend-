@@ -67,7 +67,10 @@ class _OtppageState extends State<Otppage> {
 
     if (result["success"] == true) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString("user_id", result["user_id"].toString());
+      await ApiService.saveUserSession({
+        ...result,
+        "mobile_number": widget.mobile,
+      });
       if (widget.requireVehicleOnSuccess) {
         await prefs.setBool("is_new_user", true);
       }

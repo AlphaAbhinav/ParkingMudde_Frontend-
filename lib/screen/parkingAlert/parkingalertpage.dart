@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/widgets/ad_banner.dart';
+import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
 import '../../services/api_service.dart';
 
 class AlertModel {
@@ -204,12 +205,7 @@ class AlertsList extends StatelessWidget {
           // AdB4 — bottom banner
           return const Padding(
             padding: EdgeInsets.only(top: 8, bottom: 8),
-            child: AdBanner(
-              accentColor: Color(0xFF184B8C),
-              brandName: "Your Brand Here",
-              tagline: "Reach drivers who care about parking safety. Partner with ParkingMudde.",
-              logoIcon: Icons.local_police_rounded,
-            ),
+            child: DynamicAdCarousel(pageName: 'Parking Alerts'),
           );
         },
       ),

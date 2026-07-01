@@ -420,7 +420,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       // 402 — show rich dialog
       _showInsufficientCoinsDialog(result["message"] ?? "Not enough PM Coins.");
     } else {
-      showSnack("❌ ${result['message']}");
+      showSnack(result['message']?.toString() ?? "Something went wrong. Please try again.");
     }
   }
 

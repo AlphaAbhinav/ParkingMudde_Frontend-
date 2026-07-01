@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:parkingmudde/screen/account/accountpage.dart';
 import 'package:parkingmudde/screen/homepage/homepage.dart';
-import 'package:parkingmudde/screen/notification/notificationpage.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
-import 'package:parkingmudde/screen/wallet/walletpage.dart';
+import 'package:parkingmudde/screen/vehicle/myvehicle.dart';
+import 'package:parkingmudde/screen/parkingAlert/parkingalertpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 
@@ -21,9 +21,9 @@ class _DashState extends State<Dash> {
   // Ordered strictly identically to match existing tabs array mapped boundaries map bounds
   List<Widget> get screens => [
     Homepage(fromRegistration: widget.fromRegistration, autoStartReport: widget.autoStartReport),
-    const Notificationpage(),
+    const MyVehiclesScreen(),
     const VehicleNumberInputScreen(), // Triggered centrally by FAB Scan limit mapped map
-    WalletScreen(totalCoins: 10),
+    const AlertsScreen(),
     const Accountpage(),
   ];
 
@@ -99,8 +99,8 @@ class _DashState extends State<Dash> {
             children: [
               _buildTabItem(icon: Icons.home_rounded, label: 'Home', index: 0),
               _buildTabItem(
-                icon: Icons.article_rounded,
-                label: 'Activities',
+                icon: Icons.directions_car_rounded,
+                label: 'My Vehicles',
                 index: 1,
               ),
 
@@ -109,8 +109,8 @@ class _DashState extends State<Dash> {
               ), // Dedicated gap limits mappings spacing
 
               _buildTabItem(
-                icon: Icons.account_balance_wallet_rounded,
-                label: 'Wallet',
+                icon: Icons.warning_rounded,
+                label: 'Alerts',
                 index: 3,
               ),
               _buildTabItem(

@@ -106,7 +106,7 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
   }
 
   Future<void> _continueEmergency() async {
-    if (!isValidVehicle || isLookingUpVehicle) return;
+    if (isLookingUpVehicle) return;
 
     // Gate: contacts must be set
     if (!_hasEmergencyContacts) {
@@ -114,29 +114,9 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
       return;
     }
 
-    final vehicleNumber = vehicleController.text.toUpperCase();
-    setState(() => isLookingUpVehicle = true);
-    final result = await ApiService.lookupVehicleByNumber(vehicleNumber);
-    if (!mounted) return;
-    setState(() => isLookingUpVehicle = false);
-
-    if (result['success'] == true && result['registered'] == true) {
-      Get.to(() => IssueSelectionScreen(
-            typev: 'emergency',
-            vehicleNumber: vehicleNumber,
-            vehicleLookupData: result['data'] as Map<String, dynamic>?,
-          ));
-      return;
-    }
-
-    if (result['registered'] == false) {
-      _showUnregisteredEmergencyDialog(vehicleNumber);
-      return;
-    }
-
-    _showMessage(
-      'Lookup Failed',
-      result['message']?.toString() ?? 'Could not check this vehicle right now.',
+    Get.to(
+      () => const IssueSelectionScreen(typev: 'emergency'),
+      transition: Transition.rightToLeft,
     );
   }
 
@@ -239,7 +219,7 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
             children: [
 
-              // ── Missing Contacts Banner ──
+              // Missing Contacts Banner
               if (_contactsLoaded && !_hasEmergencyContacts)
                 GestureDetector(
                   onTap: () => Get.to(() => const EditProfilePage())?.then((_) => _checkEmergencyContacts()),
@@ -273,7 +253,7 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
                   ),
                 ),
 
-              // ── Contacts confirmed banner ──
+              // Contacts confirmed banner
               if (_contactsLoaded && _hasEmergencyContacts)
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -293,7 +273,7 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
                           children: [
                             Text('Emergency contacts ready',
                                 style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade800, fontSize: 13)),
-                            Text('${_maskNumber(_ec1)}  •  ${_maskNumber(_ec2)}',
+                            Text('${_maskNumber(_ec1)} - ${_maskNumber(_ec2)}',
                                 style: TextStyle(color: Colors.green.shade700, fontSize: 12)),
                           ],
                         ),
@@ -302,7 +282,7 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
                   ),
                 ),
 
-              // ── Info Banner ──
+              // Info Banner
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -316,7 +296,7 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
                     Icon(Icons.local_hospital_rounded, color: emergencyRed, size: 34),
                     SizedBox(height: 12),
                     Text(
-                      'Alert emergency contacts and nearby help with vehicle number, situation, photo and location.',
+                      'Alert emergency contacts and nearby help with situation, photo and location. Add vehicle plate after proof.',
                       style: TextStyle(color: textBlack, height: 1.45, fontSize: 14, fontWeight: FontWeight.w800),
                     ),
                   ],
@@ -324,67 +304,22 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
               ),
               const SizedBox(height: 24),
 
-              // ── Scan Button ──
-              ElevatedButton.icon(
-                onPressed: isScanningPlate ? null : _scanPlate,
-                icon: isScanningPlate
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.qr_code_scanner_rounded),
-                label: Text(isScanningPlate ? 'Reading plate...' : 'Scan Vehicle Number'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: emergencyRed,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Center(
-                child: Text('OR ENTER MANUALLY',
-                    style: TextStyle(color: subTextGrey, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
-              ),
-              const SizedBox(height: 18),
-
-              // ── Vehicle number input ──
-              TextField(
-                controller: vehicleController,
-                onChanged: _validateVehicle,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
-                  LengthLimitingTextInputFormatter(11),
-                ],
-                decoration: InputDecoration(
-                  hintText: 'DL01AA1111',
-                  prefixIcon: const Icon(Icons.directions_car_rounded),
-                  suffixIcon: vehicleController.text.isEmpty
-                      ? null
-                      : Icon(
-                          isValidVehicle ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                          color: isValidVehicle ? Colors.green : Colors.red,
-                        ),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // ── Continue Button ──
+              // Continue Button
               SizedBox(
                 height: 54,
-                child: ElevatedButton(
-                  onPressed: isValidVehicle && !isLookingUpVehicle ? _continueEmergency : null,
+                child: ElevatedButton.icon(
+                  onPressed: _contactsLoaded && !isLookingUpVehicle ? _continueEmergency : null,
+                  icon: const Icon(Icons.photo_camera_rounded),
+                  label: Text(
+                    _hasEmergencyContacts ? 'Select Emergency & Upload Photo' : 'Set Emergency Contacts First',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _hasEmergencyContacts ? emergencyRed : Colors.grey.shade400,
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: Colors.grey.shade300,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: isLookingUpVehicle
-                      ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                      : Text(
-                          _hasEmergencyContacts ? 'Continue Emergency Alert' : 'Set Emergency Contacts First',
-                          style: const TextStyle(fontWeight: FontWeight.w900),
-                        ),
                 ),
               ),
             ],
@@ -399,3 +334,5 @@ class _EmergencyAlertScreenState extends State<EmergencyAlertScreen> {
     return '${number.substring(0, 2)}****${number.substring(number.length - 2)}';
   }
 }
+
+

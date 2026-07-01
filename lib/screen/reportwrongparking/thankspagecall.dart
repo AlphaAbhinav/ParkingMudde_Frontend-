@@ -6,11 +6,9 @@ import 'package:get/get.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
 import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
-import 'package:parkingmudde/guard/guard_app.dart';
 
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:parkingmudde/services/razorpay_web_checkout.dart';
 
 class ThankYouReportScreen extends StatefulWidget {
@@ -64,7 +62,6 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   Timer? _maskedTimer;
   Timer? _sosTimer;
   bool _hasAddedOnTheWayBonus = false;
-  bool _isGuardSession = false;
 
   bool get isHelp => widget.typecv == "help";
   bool get isEmergency => widget.typecv == "emergency";
@@ -79,29 +76,19 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
 
-    _loadGuardSession();
-
     if (isReport) {
       startTimer();
     }
   }
 
   void _resetToHome({bool startReport = false}) {
-    final Widget destination = _isGuardSession
-        ? const GuardBootstrap()
-        : startReport
-            ? const IssueSelectionScreen(typev: "report")
-            : const Dash();
+    final Widget destination =
+        startReport ? const IssueSelectionScreen(typev: "report") : const Dash();
 
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => destination),
       (_) => false,
     );
-  }
-  Future<void> _loadGuardSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() => _isGuardSession = prefs.getString('guard_access_token') != null);
   }
   void startTimer() {
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -172,7 +159,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
           _extendCallTimers();
           
           Get.defaultDialog(
-            title: "Owner on the Way! 🚗",
+            title: "Owner on the Way!",
             middleText: "The vehicle owner has confirmed that they are on their way. We have extended the helpline call timer by 5 minutes.",
             textConfirm: "OK",
             confirmTextColor: Colors.white,
@@ -300,7 +287,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
           razorpayOrderId: _razorpayOrderId,
           razorpayPaymentId: _razorpayPaymentId,
           razorpaySignature: _razorpaySignature,
-          guardPlateAttach: _isGuardSession,
+          guardPlateAttach: false,
         ));
 
     if (result != null) {
@@ -395,12 +382,12 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
 
               Text(
                 isHelp
-                    ? "Thanks for helping! 🤝"
+                    ? "Thanks for helping!"
                     : isEmergency
-                    ? "Emergency Alert Sent! 🚨"
+                    ? "Emergency Alert Sent!"
                     : isRejected
-                    ? "Report Rejected ❌"
-                    : (!_plateAttached) ? "Almost Done! ⏳" : "Report Submitted! ✅",
+                    ? "Report Rejected"
+                    : (!_plateAttached) ? "Almost Done!" : "Report Submitted!",
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
@@ -705,16 +692,16 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
               _smsAlertChecked,
             ),
             _timelineRow(
-              "Masked call option - Enabled after timer 📞",
+              "Masked call option - Enabled after timer",
               _maskedCallSeconds <= 0,
             ),
             _timelineRow(
-              "SOS helpline - Enabled after timer 🚨",
+              "SOS helpline - Enabled after timer",
               _sosCallSeconds <= 0,
             ),
             _timelineRow(
               sitBackRelax
-                  ? "😊 Sit back & relax - owner is on the way!"
+                  ? "Sit back & relax - owner is on the way!"
                   : "Waiting for owner to tap 'On the Way'...",
               sitBackRelax,
             ),

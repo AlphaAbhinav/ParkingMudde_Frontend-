@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:parkingmudde/screen/account/editpage.dart';
 import 'package:parkingmudde/screen/account/documentspage.dart';
 import 'package:parkingmudde/screen/account/support_pages.dart';
+import 'package:parkingmudde/services/api_service.dart';
+import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
 import 'package:parkingmudde/screen/booking/mybookingspage.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/auth/loginpage.dart';
@@ -142,7 +144,9 @@ class _AccountpageState extends State<Accountpage> {
 
               _buildCommunityParkingCard(),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
+              const DynamicAdCarousel(pageName: 'Profile'),
+              const SizedBox(height: 16),
 
               // 3. MAIN NAV LIST
               _buildModernNavRowItem(
@@ -1098,159 +1102,188 @@ class _AccountpageState extends State<Accountpage> {
 
   // --- SUGGEST SOCIETY DIALOG ---
   void _showSuggestSocietyDialog(BuildContext context) {
-    final TextEditingController societyNameController = TextEditingController();
-    final TextEditingController pinLocationController = TextEditingController();
-    final TextEditingController personalNameController = TextEditingController();
-    final TextEditingController personalNumberController = TextEditingController();
+    final societyNameController = TextEditingController();
+    final addressPincodeController = TextEditingController();
+    final contactDetailsController = TextEditingController();
+    final personalNameController = TextEditingController();
+
+    // Pre-fill contact details from user profile
+    final userName = user?["full_name"]?.toString() ?? "";
+    final userMobile = user?["mobile_number"]?.toString() ?? "";
+    final userEmail = user?["email"]?.toString() ?? "";
+    final userLocation = user?["location"]?.toString() ?? "";
+
+    personalNameController.text = userName;
+    contactDetailsController.text = userMobile.isNotEmpty ? userMobile : userEmail;
+    addressPincodeController.text = userLocation;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
         return Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 24,
-            right: 24,
-            top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
           ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "Suggest Society",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: textBlack,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.grey),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Enter details to suggest your society to Parking Mudde.",
-                  style: TextStyle(color: subTextGrey, fontSize: 14),
-                ),
-                const SizedBox(height: 24),
-                _buildDialogTextField(
-                  controller: societyNameController,
-                  label: "Society Name",
-                  icon: Icons.business_rounded,
-                ),
-                const SizedBox(height: 16),
-                _buildDialogTextField(
-                  controller: pinLocationController,
-                  label: "Address Pin Location",
-                  icon: Icons.location_on_rounded,
-                ),
-                const SizedBox(height: 16),
-                _buildDialogTextField(
-                  controller: personalNameController,
-                  label: "Your Personal Name",
-                  icon: Icons.person_rounded,
-                ),
-                const SizedBox(height: 16),
-                _buildDialogTextField(
-                  controller: personalNumberController,
-                  label: "Your Personal Number",
-                  icon: Icons.phone_rounded,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(10),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryBlue,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () async {
-                      if (societyNameController.text.trim().isEmpty ||
-                          pinLocationController.text.trim().isEmpty ||
-                          personalNameController.text.trim().isEmpty ||
-                          personalNumberController.text.trim().isEmpty) {
-                        Get.snackbar(
-                          "Error",
-                          "Please fill all fields",
-                          backgroundColor: Colors.red.shade800,
-                          colorText: Colors.white,
-                        );
-                        return;
-                      }
-
-                      if (personalNumberController.text.trim().length != 10) {
-                        Get.snackbar(
-                          "Error",
-                          "Personal number must be exactly 10 digits",
-                          backgroundColor: Colors.red.shade800,
-                          colorText: Colors.white,
-                        );
-                        return;
-                      }
-
-                      Get.dialog(
-                        const Center(child: CircularProgressIndicator()),
-                        barrierDismissible: false,
-                      );
-
-                      final prefs = await SharedPreferences.getInstance();
-                      final userIdStr = prefs.getString("user_id");
-                      final userId = int.tryParse(userIdStr ?? "0") ?? 0;
-
-                      final result = await ApiService.suggestSociety(
-                        userId: userId,
-                        societyName: societyNameController.text.trim(),
-                        addressPincode: pinLocationController.text.trim(),
-                        contactDetails: "${personalNameController.text.trim()} (${personalNumberController.text.trim()})",
-                      );
-
-                      Get.back(); // close loading
-
-                      if (result["success"] == true) {
-                        Navigator.pop(context); // close sheet
-                        Get.to(() => const SuggestSocietyThanksPage());
-                      } else {
-                        Get.snackbar(
-                          "Submission Failed",
-                          result["message"] ?? "Please try again later.",
-                          backgroundColor: Colors.red.shade800,
-                          colorText: Colors.white,
-                        );
-                      }
-                    },
-                    child: const Text(
-                      "Submit",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 50,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 32),
-              ],
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.apartment_rounded, color: primaryBlue, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        "Suggest a Society",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: textBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Help ParkingMudde expand to your society. We'll review your suggestion and reach out.",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildSocietyTextField(
+                    controller: societyNameController,
+                    label: "Society / Community Name",
+                    icon: Icons.location_city_rounded,
+                    hint: "e.g. Green Valley Apartments",
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSocietyTextField(
+                    controller: addressPincodeController,
+                    label: "Address / Pincode",
+                    icon: Icons.pin_drop_rounded,
+                    hint: "e.g. Sector 14, Gurgaon - 122001",
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSocietyTextField(
+                    controller: personalNameController,
+                    label: "Your Name",
+                    icon: Icons.person_rounded,
+                    hint: "e.g. Rahul Sharma",
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSocietyTextField(
+                    controller: contactDetailsController,
+                    label: "Contact Details",
+                    icon: Icons.phone_rounded,
+                    hint: "Phone or email",
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "* Pre-filled from your profile. You can update if needed.",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final name = societyNameController.text.trim();
+                      final address = addressPincodeController.text.trim();
+                      final contact = contactDetailsController.text.trim();
+                      final pName = personalNameController.text.trim();
+
+                      if (name.isEmpty || address.isEmpty || contact.isEmpty || pName.isEmpty) {
+                        Get.snackbar("Missing Info", "Please fill all fields.",
+                            backgroundColor: Colors.orange, colorText: Colors.white);
+                        return;
+                      }
+
+                      final userId = user?["user_id"];
+                      if (userId == null) {
+                        Get.snackbar("Error", "Please log in first.",
+                            backgroundColor: Colors.red, colorText: Colors.white);
+                        return;
+                      }
+
+                      Navigator.pop(ctx);
+
+                      final result = await ApiService.suggestSociety(
+                        userId: int.tryParse(userId.toString()) ?? 0,
+                        societyName: name,
+                        addressPincode: address,
+                        contactDetails: "$pName ($contact)",
+                      );
+
+                      if (result["success"] == true) {
+                        Get.snackbar(
+                          "Thank You! 🎉",
+                          "Your society suggestion has been submitted. We'll review it soon!",
+                          backgroundColor: Colors.green.shade600,
+                          colorText: Colors.white,
+                          snackPosition: SnackPosition.BOTTOM,
+                          margin: const EdgeInsets.all(16),
+                        );
+                      } else {
+                        Get.snackbar(
+                          "Error",
+                          result["message"] ?? "Something went wrong.",
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
+                          snackPosition: SnackPosition.BOTTOM,
+                          margin: const EdgeInsets.all(16),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryBlue,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: const Text(
+                      "Submit Suggestion",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1258,28 +1291,42 @@ class _AccountpageState extends State<Accountpage> {
     );
   }
 
-  Widget _buildDialogTextField({
+  Widget _buildSocietyTextField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    List<TextInputFormatter>? inputFormatters,
+    required String hint,
   }) {
     return TextField(
       controller: controller,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: subTextGrey, fontSize: 14),
+        hintText: hint,
         prefixIcon: Icon(icon, color: primaryBlue, size: 20),
+        labelStyle: TextStyle(
+          color: Colors.grey.shade700,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
+        hintStyle: TextStyle(
+          color: Colors.grey.shade400,
+          fontSize: 13,
+        ),
         filled: true,
-        fillColor: const Color(0xFFF8F9FA),
+        fillColor: Colors.grey.shade50,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: primaryBlue, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }

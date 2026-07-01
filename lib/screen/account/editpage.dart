@@ -39,6 +39,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final emergencyTwoCtrl = TextEditingController();
   final emergencyTwoOtpCtrl = TextEditingController();
 
+  // ── Community state ──
+  List<dynamic> _societies = [];
+  String? _selectedSocietyId;
+  String? _originalSocietyId;
+  bool _isLoadingSocieties = true;
+  bool isSendingCommunityRequest = false;
+  final towerCtrl = TextEditingController();
+  final flatCtrl = TextEditingController();
+
   // ── Contact state ──
   String originalAltNum = "";
   String originalEc1 = "";
@@ -58,6 +67,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void initState() {
     super.initState();
     _loadProfile();
+    _loadSocieties();
+  }
+
+  Future<void> _loadSocieties() async {
+    final response = await ApiService.getSocieties();
+    if (mounted && response["success"] == true) {
+      setState(() {
+        _societies = response["societies"] ?? [];
+        _isLoadingSocieties = false;
+      });
+    } else {
+      if (mounted) setState(() => _isLoadingSocieties = false);
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -89,6 +111,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (altNum.isNotEmpty) { alternateNumberCtrl.text = altNum; originalAltNum = altNum; }
       if (ec1.isNotEmpty) { emergencyOneCtrl.text = ec1; originalEc1 = ec1; }
       if (ec2.isNotEmpty) { emergencyTwoCtrl.text = ec2; originalEc2 = ec2; }
+
+      _originalSocietyId = user["society_id"]?.toString();
+      _selectedSocietyId = _originalSocietyId;
     });
     _loadLocalContacts();
   }
@@ -381,6 +406,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
               const SizedBox(height: 40),
 
+              // ── Link to Community ──
+              _sectionLabel("Link to Community"),
+              const SizedBox(height: 4),
+              Text("Select your society and enter flat details.", style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade400)),
+              const SizedBox(height: 16),
+              _buildCommunitySection(),
+
+              const SizedBox(height: 40),
+
               // ── Save Button ──
               InkWell(
                 onTap: isSaving ? null : _onSave,
@@ -516,6 +550,126 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
+  Widget _buildCommunitySection() {
+    if (_isLoadingSocieties) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    final hasRequest = _originalSocietyId != null && _originalSocietyId!.isNotEmpty;
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Select Society", 
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.black87)
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            value: _selectedSocietyId,
+            items: _societies.map((s) {
+              return DropdownMenuItem<String>(
+                value: s["id"].toString(),
+                child: Text(s["name"].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), overflow: TextOverflow.ellipsis),
+              );
+            }).toList(),
+            onChanged: (val) {
+              setState(() {
+                _selectedSocietyId = val;
+              });
+            },
+            decoration: InputDecoration(
+              hintText: "Select community",
+              hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
+              filled: true,
+              fillColor: Colors.white,
+              prefixIcon: Icon(Icons.location_city_rounded, color: Colors.blueGrey.shade400, size: 20),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0XFF184B8C), width: 1.5)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _buildFormField(controller: towerCtrl, label: "Tower / Block", hint: "e.g. Tower A", icon: Icons.business_rounded)),
+              const SizedBox(width: 14),
+              Expanded(child: _buildFormField(controller: flatCtrl, label: "Flat / Unit Number", hint: "e.g. 101", icon: Icons.door_front_door_rounded)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isSendingCommunityRequest ? null : _submitCommunityRequest,
+              icon: isSendingCommunityRequest ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+              label: Text(
+                hasRequest ? "Edit Request" : "Send Request",
+                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0XFF184B8C),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitCommunityRequest() async {
+    if (_selectedSocietyId == null) {
+      Get.snackbar("Missing Info", "Please select a community first.", backgroundColor: Colors.orange.shade700, colorText: Colors.white);
+      return;
+    }
+    final tower = towerCtrl.text.trim();
+    final unit = flatCtrl.text.trim();
+    if (unit.isEmpty) {
+      Get.snackbar("Missing Info", "Flat / Unit Number is required.", backgroundColor: Colors.orange.shade700, colorText: Colors.white);
+      return;
+    }
+
+    final userId = _userId ?? (await SharedPreferences.getInstance()).getString("user_id");
+    if (userId == null || userId.isEmpty) return;
+
+    setState(() => isSendingCommunityRequest = true);
+
+    // Call update profile with just the community details
+    final result = await ApiService.updateUserProfile(
+      userId: userId,
+      fullName: "${nameCtrl.text.trim()} ${lNameCtrl.text.trim()}".trim(),
+      mobileNumber: phoneCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''),
+      email: emailCtrl.text.trim().toLowerCase(),
+      societyId: _selectedSocietyId,
+      tower: tower,
+      unitNumber: unit,
+    );
+
+    setState(() => isSendingCommunityRequest = false);
+
+    if (result["success"] == true) {
+      setState(() {
+        _originalSocietyId = _selectedSocietyId;
+      });
+      Get.snackbar("Success", "Community request sent to panel for approval.", backgroundColor: Colors.green.shade800, colorText: Colors.white);
+    } else {
+      Get.snackbar("Error", result["message"] ?? "Failed to send request.", backgroundColor: Colors.red.shade700, colorText: Colors.white);
+    }
+  }
+
   ImageProvider? _storedProfileImageProvider() {
     final image = _storedProfileImage;
     if (image == null || image.isEmpty) return null;
@@ -530,6 +684,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     alternateNumberCtrl.dispose(); altOtpCtrl.dispose();
     emergencyOneCtrl.dispose(); emergencyOneOtpCtrl.dispose();
     emergencyTwoCtrl.dispose(); emergencyTwoOtpCtrl.dispose();
+    towerCtrl.dispose(); flatCtrl.dispose();
     super.dispose();
   }
 

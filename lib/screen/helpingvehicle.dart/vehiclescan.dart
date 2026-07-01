@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
+import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scandetail.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/services/plate_scanner_service.dart';
@@ -43,15 +44,10 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
     }
   }
 
-  // --- SHOW THE ELEGANT ACTION BOTTOM SHEET mappings limit maps mappings mapped mapped map constraints bound limit layout mappings map forms boundaries form mapped layouts boundary constraint forms layout forms mapping spaces
   void _openEntryOptionsBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (modalCtx) {
-        return _VehicleEntryOptionsSheet(onScanPressed: _handleScanAction);
-      },
+    Get.to(
+      () => const IssueSelectionScreen(typev: 'help'),
+      transition: Transition.rightToLeft,
     );
   }
 
@@ -227,7 +223,7 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Icon(
-                                Icons.qr_code_scanner_rounded,
+                                Icons.photo_camera_rounded,
                                 color: Colors.white,
                                 size: 34,
                               ),
@@ -236,7 +232,7 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    "Scan or Enter Vehicle\nNumber",
+                                    "Select Issue & Upload\nPhoto",
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 18,
@@ -246,7 +242,7 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
                                   ),
                                   SizedBox(height: 8),
                                   Text(
-                                    "Send a friendly alert to the vehicle owner",
+                                    "Add vehicle plate after proof",
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 11,
@@ -332,9 +328,9 @@ class _VehicleNumberHelpScreenState extends State<VehicleNumberHelpScreen> {
   }
 }
 
-// ──────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // MODAL BOTTOM SHEET WRAPPER CLASS forms spaces boundaries mapping boundary mapping form limit limits mapping map constraint constraints mapping limits mappings boundaries mapped boundary mapped forms boundaries form boundary boundary
-// ──────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 class _VehicleEntryOptionsSheet extends StatefulWidget {
   final Future<PlateScanResult?> Function() onScanPressed;
@@ -859,7 +855,7 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: const [
                         Icon(
-                          Icons.qr_code_scanner_rounded,
+                          Icons.photo_camera_rounded,
                           color: Color(0xFF4C42ED),
                           size: 24,
                         ),
@@ -1054,3 +1050,6 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
     );
   }
 }
+
+
+

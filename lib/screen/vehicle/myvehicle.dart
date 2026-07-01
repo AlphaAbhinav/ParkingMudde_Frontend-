@@ -5,6 +5,7 @@ import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
 import 'package:parkingmudde/screen/vehicle/transfer_vehicle.dart';
 import 'package:parkingmudde/screen/vehicle/vehicledetail.dart';
 import 'package:parkingmudde/services/api_service.dart';
+import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
 
 class MyVehiclesScreen extends StatefulWidget {
   const MyVehiclesScreen({super.key});
@@ -150,7 +151,7 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                   ],
 
                   /// 🔹 Ad Banner Carousel
-                  _buildAdBanner(),
+                  const DynamicAdCarousel(pageName: 'My Vehicles'),
                   const SizedBox(height: 20),
 
                   Row(

@@ -7,7 +7,9 @@ import 'package:parkingmudde/screen/reportwrongparking/scandetail.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/services/plate_scanner_service.dart';
 import 'package:parkingmudde/widgets/ad_banner.dart';
+import 'package:parkingmudde/widgets/ad_banner.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
 
 class VehicleNumberInputScreen extends StatefulWidget {
   final String? reportId;
@@ -401,13 +403,7 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
                     const SizedBox(height: 24),
 
                     // AdB2 — Sponsored banner
-                    const AdBanner(
-                      accentColor: Color(0xFFB45309),
-                      brandName: "Your Brand Here",
-                      tagline:
-                          "Reach active drivers in your city. Partner with ParkingMudde.",
-                      logoIcon: Icons.directions_car_rounded,
-                    ),
+                    const DynamicAdCarousel(pageName: 'Scan'),
 
                     const Spacer(),
 

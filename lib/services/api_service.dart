@@ -23,11 +23,57 @@ class ApiService {
     } catch (_) {}
     return '$fallback (${response.statusCode})';
   }
+
+  static bool _isBackendUserId(String? value) {
+    return value != null && RegExp(r'^\d+$').hasMatch(value);
+  }
+
+  static String? _extractBackendUserId(Map<String, dynamic> user) {
+    final candidates = [
+      user["id"],
+      user["user_id"],
+      user["userId"],
+      user["backend_user_id"],
+      user["user"] is Map ? user["user"]["id"] : null,
+      user["data"] is Map ? user["data"]["id"] : null,
+    ];
+
+    for (final candidate in candidates) {
+      final value = candidate?.toString();
+      if (_isBackendUserId(value)) return value;
+    }
+    return null;
+  }
+
+
+  static Future<String?> _resolveBackendUserIdFromPrefs(SharedPreferences prefs) async {
+    final mobile = prefs.getString("mobile_number");
+    if (mobile == null || mobile.isEmpty) return null;
+
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/auth/user/by-mobile/${Uri.encodeComponent(mobile)}"),
+      );
+      if (response.statusCode != 200) return null;
+
+      final data = jsonDecode(response.body);
+      if (data is! Map<String, dynamic>) return null;
+
+      final resolvedUserId = _extractBackendUserId(data);
+      if (resolvedUserId == null) return null;
+
+      await saveUserSession(data);
+      return resolvedUserId;
+    } catch (e) {
+      print("User id repair failed: $e");
+      return null;
+    }
+  }
   static Future<void> saveUserSession(Map<String, dynamic> user) async {
     final prefs = await SharedPreferences.getInstance();
-    final userId = (user["user_id"] ?? user["id"])?.toString();
+    final userId = _extractBackendUserId(user);
 
-    if (userId != null && userId.isNotEmpty) {
+    if (userId != null) {
       await prefs.setString("user_id", userId);
     }
 
@@ -61,8 +107,11 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> getStoredUser() async {
     final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString("user_id");
-    if (userId == null || userId.isEmpty) return null;
+    var userId = prefs.getString("user_id");
+    if (!_isBackendUserId(userId)) {
+      userId = await _resolveBackendUserIdFromPrefs(prefs);
+    }
+    if (!_isBackendUserId(userId)) return null;
 
     return {
       "user_id": userId,
@@ -171,6 +220,10 @@ class ApiService {
       // 🔴 TEMP USER ID (replace after full auth integration)
       final prefs = await SharedPreferences.getInstance();
       String? userId = prefs.getString("user_id");
+      if (!_isBackendUserId(userId)) {
+        userId = await _resolveBackendUserIdFromPrefs(prefs);
+      }
+
 
       request.headers['x-user-id'] = userId ?? "";
 
@@ -349,6 +402,9 @@ class ApiService {
     String? alternateMobileNumber,
     String? emergencyContactOne,
     String? emergencyContactTwo,
+    String? societyId,
+    String? tower,
+    String? unitNumber,
     XFile? profileImage,
   }) async {
     try {
@@ -378,6 +434,9 @@ class ApiService {
           "emergency_contact_one": emergencyContactOne,
         if (emergencyContactTwo != null && emergencyContactTwo.isNotEmpty)
           "emergency_contact_two": emergencyContactTwo,
+        if (societyId != null && societyId.isNotEmpty) "society_id": societyId,
+        if (tower != null && tower.isNotEmpty) "tower": tower,
+        if (unitNumber != null && unitNumber.isNotEmpty) "unit_number": unitNumber,
       };
 
       if (profileImageData != null) {
@@ -926,11 +985,15 @@ class ApiService {
 
   // ================= GET IN-APP NOTIFICATIONS =================
   static Future<List<dynamic>> getNotifications(String userId) async {
+    if (!_isBackendUserId(userId)) {
+      print("Notifications skipped: invalid backend user id $userId");
+      return [];
+    }
+
     try {
       final response = await http.get(
         Uri.parse("$baseUrl/v1/notifications/user/$userId"),
       );
-
       print("Notifications Status: ${response.statusCode}");
       print("Notifications Response: ${response.body}");
 
@@ -1763,21 +1826,63 @@ class ApiService {
   static Future<Map<String, dynamic>> updateFcmToken(String token) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString("user_id");
-      if (userId == null) return {"success": false, "message": "No user ID"};
+      var userId = prefs.getString("user_id");
+      if (!_isBackendUserId(userId)) {
+        userId = await _resolveBackendUserIdFromPrefs(prefs);
+      }
+      if (!_isBackendUserId(userId)) {
+        return {"success": false, "message": "No valid backend user ID"};
+      }
 
       final response = await http.post(
         Uri.parse("$baseUrl/v1/auth/fcm-token"),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"user_id": int.parse(userId), "fcm_token": token}),
-      );
-      
+        body: jsonEncode({"user_id": int.parse(userId!), "fcm_token": token}),
+      );      
       if (response.statusCode == 200) {
         return {"success": true};
       }
       return {"success": false};
     } catch (e) {
       return {"success": false, "message": e.toString()};
+    }
+  }
+  static Future<List<dynamic>> getAds() async {
+    try {
+      final response = await http.get(Uri.parse("$baseUrl/v1/content/ads"));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching ads: $e");
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getBlogs() async {
+    try {
+      final response = await http.get(Uri.parse("$baseUrl/v1/content/blogs"));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching blogs: $e");
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getReels() async {
+    try {
+      final response = await http.get(Uri.parse("$baseUrl/v1/content/reels"));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching reels: $e");
+      return [];
     }
   }
 }

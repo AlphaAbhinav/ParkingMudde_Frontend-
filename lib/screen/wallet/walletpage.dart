@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/couponstore/couponsstorepage.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/services/razorpay_web_checkout.dart';
+import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
 import '../../providers/wallet_provider.dart';
 import 'earncoinspage.dart';
 import 'my_subscriptions_page.dart';
@@ -223,7 +225,7 @@ class _WalletScreenState extends State<WalletScreen> {
 
                       const SizedBox(height: 24),
 
-                      _buildAdBanner(),
+                      const DynamicAdCarousel(pageName: 'Wallet'),
 
                       const SizedBox(height: 24),
 

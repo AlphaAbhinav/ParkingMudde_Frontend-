@@ -5,11 +5,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 import 'package:get/get.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:parkingmudde/services/razorpay_web_checkout.dart';
+import 'package:carousel_slider/carousel_slider.dart';
+import '../../widgets/dynamic_ad_carousel.dart';
+import 'package:parkingmudde/screen/homepage/reels_screen.dart';
 
 
 // Your core pages imported directly from original snippet
@@ -59,6 +62,13 @@ class _HomepageState extends State<Homepage> {
 
   List<dynamic> _topUsers = [];
   Map<String, dynamic>? _myProgress;
+  List<dynamic> _ads = [];
+  List<dynamic> _blogs = [];
+  List<dynamic> _reels = [];
+
+  // Parking alerts counts
+  int _alertsRaisedByYou = 0;
+  int _alertsAgainstYou = 0;
 
   late Razorpay _razorpay;
   String? _pendingRazorpayOrderId;
@@ -577,10 +587,22 @@ class _HomepageState extends State<Homepage> {
         }
         final lb = await ApiService.getLeaderboard();
         final me = await ApiService.getMyGamificationProgress(userId);
+        final alerts = await ApiService.getParkingAlerts(userId);
+        final fetchedAds = await ApiService.getAds();
+        final fetchedBlogs = await ApiService.getBlogs();
+        final fetchedReels = await ApiService.getReels();
         if (mounted) {
           setState(() {
             _topUsers = (lb["parking_warriors"] as List?)?.take(3).toList() ?? [];
             _myProgress = me;
+            _ads = fetchedAds;
+            _blogs = fetchedBlogs;
+            _reels = List.from(fetchedReels)..shuffle();
+            final counts = alerts["counts"];
+            if (counts != null) {
+              _alertsRaisedByYou = counts["raised_by_you"] ?? 0;
+              _alertsAgainstYou = counts["against_you"] ?? 0;
+            }
           });
         }
       }
@@ -615,28 +637,22 @@ class _HomepageState extends State<Homepage> {
     return value.toString();
   }
 
-  Widget _buildParkingPracharNews() {
-    final List<Map<String, String>> dummyNews = [
+  Widget _buildAdCarousel() {
+    return const DynamicAdCarousel(pageName: 'Home');
+  }
+
+  Widget _buildParkingPrachaarBlogs() {
+    final displayBlogs = _blogs.isNotEmpty ? _blogs : [
       {
         "title": "Smart Parking Zones Active",
-        "desc": "Find new automated zones in Sector 14.",
-        "image": "https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?q=80&w=300&auto=format&fit=crop",
+        "description": "Find new automated zones in Sector 14.",
+        "image_url": "https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?q=80&w=300&auto=format&fit=crop",
       },
       {
         "title": "FASTag Integration Live",
-        "desc": "Pay seamlessly with your vehicle FASTag.",
-        "image": "https://images.unsplash.com/photo-1549317661-bd32c8ce0be2?q=80&w=300&auto=format&fit=crop",
-      },
-      {
-        "title": "EV Charging Added",
-        "desc": "Select spots now feature fast EV charging.",
-        "image": "https://images.unsplash.com/photo-1593941707882-a5bba14938c7?q=80&w=300&auto=format&fit=crop",
-      },
-      {
-        "title": "Avoid Towing Fines",
-        "desc": "Read our guide on avoiding wrong parking.",
-        "image": "https://images.unsplash.com/photo-1628151015968-3a4429e9ef04?q=80&w=300&auto=format&fit=crop",
-      },
+        "description": "Pay seamlessly with your vehicle FASTag.",
+        "image_url": "https://images.unsplash.com/photo-1549317661-bd32c8ce0be2?q=80&w=300&auto=format&fit=crop",
+      }
     ];
 
     return Column(
@@ -646,7 +662,7 @@ class _HomepageState extends State<Homepage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              "Parking Prachar",
+              "Parking Prachaar Blogs",
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
@@ -678,10 +694,28 @@ class _HomepageState extends State<Homepage> {
           child: ListView.builder(
             physics: const BouncingScrollPhysics(),
             scrollDirection: Axis.horizontal,
-            itemCount: dummyNews.length,
+            itemCount: displayBlogs.length,
             itemBuilder: (context, index) {
-              final news = dummyNews[index];
-              return Container(
+              final news = displayBlogs[index];
+              final rawImageUrl = news["image_url"] ?? '';
+              final imageUrl = rawImageUrl.startsWith('/') ? '${ApiService.baseUrl}$rawImageUrl' : rawImageUrl;
+              
+              return GestureDetector(
+                onTap: () async {
+                  final targetUrl = news["url"];
+                  if (targetUrl != null && targetUrl.toString().isNotEmpty) {
+                    var uri = Uri.parse(targetUrl.toString());
+                    if (!uri.hasScheme) {
+                      uri = Uri.parse('https://${targetUrl.toString()}');
+                    }
+                    try {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } catch (e) {
+                      debugPrint("Could not launch $targetUrl");
+                    }
+                  }
+                },
+                child: Container(
                 width: 240,
                 margin: const EdgeInsets.only(right: 16),
                 decoration: BoxDecoration(
@@ -702,7 +736,7 @@ class _HomepageState extends State<Homepage> {
                     ClipRRect(
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
                       child: Image.network(
-                        news["image"]!,
+                        imageUrl,
                         height: 100,
                         width: double.infinity,
                         fit: BoxFit.cover,
@@ -719,7 +753,7 @@ class _HomepageState extends State<Homepage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            news["title"]!,
+                            news["title"] ?? '',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -730,7 +764,7 @@ class _HomepageState extends State<Homepage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            news["desc"]!,
+                            news["description"] ?? '',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -742,6 +776,117 @@ class _HomepageState extends State<Homepage> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildParkingPrachaarReels() {
+    final displayReels = _reels.isNotEmpty ? _reels : [
+      {
+        "id": "reel_1",
+        "title": "How to park like a pro",
+        "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "thumbnail_url": "https://images.unsplash.com/photo-1511674900547-0e9e1bbaf259?q=80&w=300&auto=format&fit=crop",
+        "author": "Parking Mudde",
+        "likes": 1205,
+        "comments": 45
+      }
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              "Parking Prachaar Reels",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1E293B),
+                letterSpacing: 0.2,
+              ),
+            ),
+            TextButton(
+              onPressed: () => Get.to(() => ReelsScreen(reels: displayReels, initialIndex: 0)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                "Watch All",
+                style: TextStyle(
+                  color: Color(0XFF184B8C),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            )
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 220,
+          child: ListView.builder(
+            physics: const BouncingScrollPhysics(),
+            scrollDirection: Axis.horizontal,
+            itemCount: displayReels.length,
+            itemBuilder: (context, index) {
+              final reel = displayReels[index];
+              return GestureDetector(
+                onTap: () {
+                  Get.to(() => ReelsScreen(reels: displayReels, initialIndex: index));
+                },
+                child: Container(
+                  width: 140,
+                  margin: const EdgeInsets.only(right: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    image: DecorationImage(
+                      image: NetworkImage((reel['thumbnail_url'] ?? '').startsWith('/') ? '${ApiService.baseUrl}${reel['thumbnail_url']}' : (reel['thumbnail_url'] ?? '')),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: LinearGradient(
+                            colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.center,
+                          ),
+                        ),
+                      ),
+                      const Center(
+                        child: Icon(Icons.play_circle_fill, color: Colors.white, size: 40),
+                      ),
+                      Positioned(
+                        bottom: 12,
+                        left: 12,
+                        right: 12,
+                        child: Text(
+                          reel['title'] ?? '',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -1288,9 +1433,20 @@ Future<void> _checkGlobalAlerts() async {
 
               const SizedBox(height: 32),
 
+              // Add Vehicle & My Vehicles Half Section
+              _buildVehicleHalfSection(),
+              const SizedBox(height: 24),
+
               // Leaderboard (ABOVE Quick Actions)
                 _buildHomeLeaderboardSection(),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+
+              // Suggest Society Section
+              _buildSuggestSocietySection(),
+              const SizedBox(height: 32),
+
+              _buildAdCarousel(),
+              const SizedBox(height: 24),
 
                 // Quick Actions Header + View All Restored Method
                 Row(
@@ -1405,7 +1561,9 @@ Future<void> _checkGlobalAlerts() async {
                 const SizedBox(height: 32),
 
 
-              _buildParkingPracharNews(),
+              _buildParkingPrachaarBlogs(),
+                const SizedBox(height: 32),
+              _buildParkingPrachaarReels(),
                 const SizedBox(height: 32),
 
                 // Outstanding Huge Promo Action Panel constraints
@@ -1489,6 +1647,10 @@ Future<void> _checkGlobalAlerts() async {
               ),
 
               const SizedBox(height: 32),
+
+              // Parking Alerts Count Tag
+              _buildParkingAlertsCountTag(),
+              const SizedBox(height: 24),
 
               // Activity Banner mappings standard form boundaries spaces limit
               const Text(
@@ -1596,6 +1758,11 @@ Future<void> _checkGlobalAlerts() async {
                   ],
                 ),
               ),
+
+              const SizedBox(height: 32),
+
+              // Refer & Earn Section
+              _buildReferAndEarnSection(),
 
               const SizedBox(height: 120),
             ],
@@ -1980,6 +2147,721 @@ Future<void> _checkGlobalAlerts() async {
 
   Widget _buildFloatingNewsTicker() {
     return Container(
+    );
+  }
+
+  // ================= NEW SECTION: ADD VEHICLE & MY VEHICLES (HALF-HALF) =================
+  Widget _buildVehicleHalfSection() {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () async {
+              final added = await Get.to(() => const AddVehicleScreen());
+              if (added == true) {
+                Get.to(() => const MyVehiclesScreen());
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green.shade600, Colors.green.shade400],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.add_circle_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    "Add Vehicle",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Register your car",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withOpacity(0.85),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => Get.to(() => const MyVehiclesScreen()),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple.shade600, Colors.purple.shade400],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purple.withOpacity(0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.directions_car_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    "My Vehicles",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Manage your fleet",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withOpacity(0.85),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ================= NEW SECTION: SUGGEST SOCIETY =================
+  Widget _buildSuggestSocietySection() {
+    return GestureDetector(
+      onTap: () => _showSuggestSocietyDialog(),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1E88E5), Color(0xFF42A5F5)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1E88E5).withOpacity(0.25),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.apartment_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Suggest a Society",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Help us expand to your community",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withOpacity(0.85),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Colors.white70,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSuggestSocietyDialog() {
+    final societyNameController = TextEditingController();
+    final addressPincodeController = TextEditingController();
+    final contactDetailsController = TextEditingController();
+    final personalNameController = TextEditingController();
+
+    // Pre-fill contact details from user profile
+    final userName = user?["full_name"]?.toString() ?? "";
+    final userMobile = user?["mobile_number"]?.toString() ?? "";
+    final userEmail = user?["email"]?.toString() ?? "";
+    final userLocation = user?["location"]?.toString() ?? "";
+
+    personalNameController.text = userName;
+    contactDetailsController.text = userMobile.isNotEmpty ? userMobile : userEmail;
+    addressPincodeController.text = userLocation;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 50,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.apartment_rounded, color: primaryBlue, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        "Suggest a Society",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: textBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Help ParkingMudde expand to your society. We'll review your suggestion and reach out.",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildSocietyTextField(
+                    controller: societyNameController,
+                    label: "Society / Community Name",
+                    icon: Icons.location_city_rounded,
+                    hint: "e.g. Green Valley Apartments",
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSocietyTextField(
+                    controller: addressPincodeController,
+                    label: "Address / Pincode",
+                    icon: Icons.pin_drop_rounded,
+                    hint: "e.g. Sector 14, Gurgaon - 122001",
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSocietyTextField(
+                    controller: personalNameController,
+                    label: "Your Name",
+                    icon: Icons.person_rounded,
+                    hint: "e.g. Rahul Sharma",
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSocietyTextField(
+                    controller: contactDetailsController,
+                    label: "Contact Details",
+                    icon: Icons.phone_rounded,
+                    hint: "Phone or email",
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "* Pre-filled from your profile. You can update if needed.",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final name = societyNameController.text.trim();
+                      final address = addressPincodeController.text.trim();
+                      final contact = contactDetailsController.text.trim();
+                      final pName = personalNameController.text.trim();
+
+                      if (name.isEmpty || address.isEmpty || contact.isEmpty || pName.isEmpty) {
+                        Get.snackbar("Missing Info", "Please fill all fields.",
+                            backgroundColor: Colors.orange, colorText: Colors.white);
+                        return;
+                      }
+
+                      final userId = user?["user_id"];
+                      if (userId == null) {
+                        Get.snackbar("Error", "Please log in first.",
+                            backgroundColor: Colors.red, colorText: Colors.white);
+                        return;
+                      }
+
+                      Navigator.pop(ctx);
+
+                      final result = await ApiService.suggestSociety(
+                        userId: int.tryParse(userId.toString()) ?? 0,
+                        societyName: name,
+                        addressPincode: address,
+                        contactDetails: "$pName ($contact)",
+                      );
+
+                      if (result["success"] == true) {
+                        Get.snackbar(
+                          "Thank You! 🎉",
+                          "Your society suggestion has been submitted. We'll review it soon!",
+                          backgroundColor: Colors.green.shade600,
+                          colorText: Colors.white,
+                          snackPosition: SnackPosition.BOTTOM,
+                          margin: const EdgeInsets.all(16),
+                        );
+                      } else {
+                        Get.snackbar(
+                          "Error",
+                          result["message"] ?? "Something went wrong.",
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
+                          snackPosition: SnackPosition.BOTTOM,
+                          margin: const EdgeInsets.all(16),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryBlue,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: const Text(
+                      "Submit Suggestion",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSocietyTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required String hint,
+  }) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(icon, color: primaryBlue, size: 20),
+        labelStyle: TextStyle(
+          color: Colors.grey.shade700,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
+        hintStyle: TextStyle(
+          color: Colors.grey.shade400,
+          fontSize: 13,
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: primaryBlue, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+
+  // ================= NEW SECTION: PARKING ALERTS COUNT TAG =================
+  Widget _buildParkingAlertsCountTag() {
+    final int totalAlerts = _alertsRaisedByYou + _alertsAgainstYou;
+
+    return GestureDetector(
+      onTap: () => Get.to(() => const AlertsScreen()),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: totalAlerts > 0 ? Colors.orange.shade200 : Colors.grey.shade200,
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.shade100,
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.notifications_active_rounded,
+                      color: totalAlerts > 0 ? Colors.orange.shade700 : Colors.grey.shade500,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      "Parking Alerts",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: textBlack,
+                      ),
+                    ),
+                  ],
+                ),
+                if (totalAlerts > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade600,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "$totalAlerts Active",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.arrow_upward_rounded, color: Colors.blue.shade700, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Raised by You",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                "$_alertsRaisedByYou",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.blue.shade800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.arrow_downward_rounded, color: Colors.red.shade700, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Against You",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.red.shade700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                "$_alertsAgainstYou",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.red.shade800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Center(
+              child: Text(
+                "Tap to view all alerts →",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= NEW SECTION: REFER & EARN =================
+  Widget _buildReferAndEarnSection() {
+    final referralCode = user?["referral_code"]?.toString() ?? "";
+
+    return GestureDetector(
+      onTap: () => Get.to(() => const ReferralScreen()),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6C63FF), Color(0xFF8B5CF6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6C63FF).withOpacity(0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.card_giftcard_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        "Refer & Earn",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Invite friends to ParkingMudde and\nearn PM Coins for every referral!",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withOpacity(0.9),
+                      height: 1.4,
+                    ),
+                  ),
+                  if (referralCode.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.code_rounded, color: Colors.white70, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            referralCode,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.share_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
