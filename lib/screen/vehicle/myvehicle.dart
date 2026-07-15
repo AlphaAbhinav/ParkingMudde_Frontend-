@@ -8,7 +8,9 @@ import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
 
 class MyVehiclesScreen extends StatefulWidget {
-  const MyVehiclesScreen({super.key});
+  final bool isFromBottomNav;
+  final VoidCallback? onBackPressed;
+  const MyVehiclesScreen({super.key, this.isFromBottomNav = false, this.onBackPressed});
 
   @override
   State<MyVehiclesScreen> createState() => _MyVehiclesScreenState();
@@ -74,7 +76,13 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
             color: Color(0XFF184B8C),
             size: 22,
           ),
-          onPressed: () => Get.back(),
+          onPressed: () {
+            if (widget.isFromBottomNav && widget.onBackPressed != null) {
+              widget.onBackPressed!();
+            } else {
+              Get.back();
+            }
+          },
         ),
         title: const Text(
           "My Garage",

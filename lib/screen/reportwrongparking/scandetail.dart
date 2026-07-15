@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:parkingmudde/services/razorpay_web_checkout.dart';
 import 'package:provider/provider.dart';
 import '../../providers/wallet_provider.dart';
+import 'package:geolocator/geolocator.dart';
 
 class ReportProofScreen extends StatefulWidget {
   final String? typev;
@@ -54,10 +55,12 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   @override
   void initState() {
     super.initState();
-    _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    if (!kIsWeb) {
+      _razorpay = Razorpay();
+      _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+      _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+      _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    }
   }
 
 
@@ -83,7 +86,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
   @override
   void dispose() {
-    _razorpay.clear();
+    if (!kIsWeb) {
+      _razorpay.clear();
+    }
     situationController.dispose();
     super.dispose();
   }
@@ -334,6 +339,49 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     if (!mounted) return;
     setState(() => isLoading = true);
     
+    // ENFORCE LIVE LOCATION
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        showSnack("Please enable location services to submit a report.");
+        setState(() => isLoading = false);
+      }
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          showSnack("Location permissions are denied.");
+          setState(() => isLoading = false);
+        }
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        showSnack("Location permissions are permanently denied.");
+        setState(() => isLoading = false);
+      }
+      return;
+    }
+
+    Position position;
+    try {
+      position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    } catch (e) {
+      if (mounted) {
+        showSnack("Failed to get current location. Please try again.");
+        setState(() => isLoading = false);
+      }
+      return;
+    }
+
+    final double reportLat = position.latitude;
+    final double reportLng = position.longitude;
+
     final storedUser = await ApiService.getStoredUser();
     final currentUserId = storedUser?["user_id"]?.toString();
     final targetVehicle = (_isHelpFlow || _isEmergencyFlow) ? widget.vehicleNumber?.trim() ?? "" : "";
@@ -344,7 +392,8 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
         userId: currentUserId!,
         vehicleNumber: targetVehicle,
         situation: _issueTitle.isNotEmpty ? _issueTitle : situationController.text.trim(),
-        location: "Not provided",
+        reasonCode: widget.selectedIssueCode,
+        location: "$reportLat,$reportLng",
         image: images.isNotEmpty ? images.first : null,
       );
     } else if (_isHelpFlow) {
@@ -353,16 +402,13 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
         vehicleNumber: targetVehicle,
         image: images.isNotEmpty ? images.first : null,
         parkingError: _issueTitle,
-        location: "Not provided",
+        reasonCode: widget.selectedIssueCode,
+        location: "$reportLat,$reportLng",
       );
     } else {
       int? aiScore;
       String? aiVerdict;
       String? aiReasons;
-
-      // Read real GPS coordinates from stored prefs
-      final double reportLat = storedUser?["latitude"] as double? ?? 19.0760;
-      final double reportLng = storedUser?["longitude"] as double? ?? 72.8777;
 
       result = await ApiService.createWrongParkingReport(
         vehicleNumber: targetVehicle,

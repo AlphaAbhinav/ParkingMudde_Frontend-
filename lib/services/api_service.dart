@@ -1044,6 +1044,7 @@ class ApiService {
     required String vehicleNumber,
     XFile? image,
     String? parkingError,
+    String? reasonCode,
     String? location,
   }) async {
     try {
@@ -1055,6 +1056,7 @@ class ApiService {
       request.fields['user_id'] = userId;
       request.fields['vehicle_number'] = vehicleNumber;
       if (parkingError != null) request.fields['parking_error'] = parkingError;
+      if (reasonCode != null) request.fields['reason_code'] = reasonCode;
       if (location != null) request.fields['location'] = location;
 
       if (image != null) {
@@ -1472,6 +1474,7 @@ class ApiService {
     required String userId,
     required String vehicleNumber,
     required String situation,
+    String? reasonCode,
     String? location,
     XFile? image,
   }) async {
@@ -1484,6 +1487,7 @@ class ApiService {
       request.fields['user_id'] = userId;
       request.fields['vehicle_number'] = vehicleNumber;
       request.fields['situation'] = situation;
+      if (reasonCode != null) request.fields['reason_code'] = reasonCode;
       if (location != null && location.isNotEmpty) {
         request.fields['location'] = location;
       }
@@ -1884,5 +1888,28 @@ class ApiService {
       print("Error fetching reels: $e");
       return [];
     }
+  }
+  static Future<Map<String, dynamic>> fetchMyChallans() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      var userId = prefs.getString("user_id");
+      if (!_isBackendUserId(userId)) {
+        userId = await _resolveBackendUserIdFromPrefs(prefs);
+      }
+      if (!_isBackendUserId(userId)) {
+        return {"challans": []};
+      }
+
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/vehicle/my-challans/$userId"),
+        headers: {"Content-Type": "application/json"},
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print("Fetch My Challans Exception: $e");
+    }
+    return {"challans": []};
   }
 }

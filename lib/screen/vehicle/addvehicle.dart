@@ -314,7 +314,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
         } else {
           Get.snackbar(
             "Success",
-            "Vehicle added successfully. 10 PM Coins added to your wallet.",
+            "Vehicle added successfully. PM Coins added to your wallet.",
             backgroundColor: Colors.green.shade600,
             colorText: Colors.white,
           );

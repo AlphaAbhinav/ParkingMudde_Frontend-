@@ -41,15 +41,19 @@ class _WalletScreenState extends State<WalletScreen> {
     Future.microtask(() {
       if (mounted) context.read<WalletProvider>().fetchWallet();
     });
-    _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    if (!kIsWeb) {
+      _razorpay = Razorpay();
+      _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+      _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+      _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    }
   }
 
   @override
   void dispose() {
-    _razorpay.clear();
+    if (!kIsWeb) {
+      _razorpay.clear();
+    }
     super.dispose();
   }
 
@@ -119,10 +123,11 @@ class _WalletScreenState extends State<WalletScreen> {
     final walletProvider = context.watch<WalletProvider>();
     final walletCoins = walletProvider.pmCoinsBalance;
     final coinsbackBalance = walletProvider.coinsbackBalance;
+    final totalBalance = walletCoins + coinsbackBalance;
     final rawTransactions = walletProvider.transactions;
     final transactions = rawTransactions.where((txn) {
       final desc = (txn['description'] ?? txn['reason'] ?? '').toString().toLowerCase();
-      final amountStr = txn['amount']?.toString() ?? "0";
+      final amountStr = txn['coins']?.toString() ?? txn['amount']?.toString() ?? "0";
       final amount = double.tryParse(amountStr.replaceAll('-', '')) ?? 0;
       if (desc.contains("report") && amount == 0) return false;
       return true;
@@ -172,7 +177,7 @@ class _WalletScreenState extends State<WalletScreen> {
                   child: Column(
                     children: [
                       // 1. Beautiful Orange Card
-                      _buildFigmaOrangeWalletCard(walletCoins.toString()),
+                      _buildFigmaOrangeWalletCard(totalBalance.toString()),
 
                       const SizedBox(height: 24),
 
@@ -194,7 +199,7 @@ class _WalletScreenState extends State<WalletScreen> {
                               icon: Icons.card_giftcard_rounded,
                               iconColor: secondaryYellow,
                               label: "Use Coins",
-                              onTap: () => Get.to(() => CouponStoreScreen(coinsbackBalance: context.read<WalletProvider>().pmCoinsBalance)),
+                              onTap: () => Get.to(() => CouponStoreScreen(coinsbackBalance: context.read<WalletProvider>().coinsbackBalance)),
                             ),
                           ),
                         ],
@@ -362,7 +367,7 @@ class _WalletScreenState extends State<WalletScreen> {
           ),
           const SizedBox(height: 12),
           const Text(
-            "PM Coins",
+            "Total Balance",
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -530,7 +535,7 @@ class _WalletScreenState extends State<WalletScreen> {
 
   Widget _buildRedeemRewardsPanel(int coinsbackBalance) {
     return InkWell(
-      onTap: () => Get.to(() => CouponStoreScreen(coinsbackBalance: context.read<WalletProvider>().pmCoinsBalance)),
+      onTap: () => Get.to(() => CouponStoreScreen(coinsbackBalance: context.read<WalletProvider>().coinsbackBalance)),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(

@@ -71,10 +71,12 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   @override
   void initState() {
     super.initState();
-    _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    if (!kIsWeb) {
+      _razorpay = Razorpay();
+      _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+      _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+      _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    }
 
     if (isReport) {
       startTimer();
@@ -200,9 +202,6 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   }
 
   Future<void> _startIdentificationPayment() async {
-    await _openOffenderIdentificationScreen();
-    return;
-
     setState(() => _isPaymentLoading = true);
     try {
       final storedUser = await ApiService.getStoredUser();
@@ -334,10 +333,38 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
 
   Future<void> _callHelpline() async {
     if (widget.reportId != null && !isEmergency) {
-      await ApiService.triggerReportAction(
+      final result = await ApiService.triggerReportAction(
         reportId: widget.reportId!,
         action: "sos",
       );
+      
+      // Show confirmation dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green.shade600, size: 28),
+                const SizedBox(width: 8),
+                const Expanded(child: Text("SOS Sent!", style: TextStyle(fontWeight: FontWeight.bold))),
+              ],
+            ),
+            content: const Text(
+              "Your request has been sent to the nearest Thana. An officer is on their way to handle the situation.",
+              style: TextStyle(fontSize: 15),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
     }
     final uri = Uri(scheme: 'tel', path: isEmergency ? '108' : '100');
     await launchUrl(uri);
@@ -402,7 +429,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                     : isHelp
                     ? (!_plateAttached 
                         ? "The AI has verified your image with a score of ${widget.aiScore}. Please enter or scan the number plate."
-                        : "Thank you for helping, car owner has been notified, and as for your efforts you have been awarded 10 PM coins.")
+                        : "Thank you for helping, car owner has been notified, and as for your efforts you have been awarded PM coins.")
                     : isRejected
                     ? "Your report was evaluated by AI and rejected due to insufficient evidence. The fee is non-refundable."
                     : (!_plateAttached)
@@ -443,7 +470,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                           label: "Enter Vehicle Plate",
                           icon: Icons.camera_alt_rounded,
                           enabled: true,
-                          onTap: _openOffenderIdentificationScreen,
+                          onTap: _startIdentificationPayment,
                         )
                 else ...[
                   _actionButton(
@@ -482,7 +509,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                               : "Enter or Scan Number Plate",
                           icon: Icons.camera_alt,
                           enabled: true,
-                          onTap: _openOffenderIdentificationScreen,
+                          onTap: _startIdentificationPayment,
                         ),
                 const SizedBox(height: 12),
               ],
@@ -572,7 +599,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                 icon: Icons.favorite_rounded,
                 iconColor: Colors.pink.shade500,
                 label: "Helping Reward",
-                value: "+10 PM Coins",
+                value: "PM Coins",
                 valueColor: Colors.green.shade700,
                 sublabel: "Awarded for helping the community",
               ),
@@ -594,7 +621,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                 icon: Icons.gavel_rounded,
                 iconColor: Colors.orange.shade600,
                 label: "Offender Penalty",
-                value: "-10 PM Coins",
+                value: "PM Coins Deducted",
                 valueColor: Colors.orange.shade700,
                 sublabel: "Deducted from offender on confirmation",
               ),
@@ -771,12 +798,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
       width: double.infinity,
       height: 52,
       child: ElevatedButton.icon(
-        onPressed: isTimerActive
-            ? null
-            : () {
-                Get.snackbar("Coming Soon", "$label feature is coming soon!",
-                    backgroundColor: const Color(0xFF184B8C), colorText: Colors.white);
-              },
+        onPressed: isTimerActive ? null : onTap,
         icon: Icon(icon, color: Colors.white, size: 20),
         label: Text(
           buttonText,

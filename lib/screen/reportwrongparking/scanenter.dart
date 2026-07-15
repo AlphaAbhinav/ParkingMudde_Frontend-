@@ -145,6 +145,33 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
       return;
     }
 
+    // Prevent attaching own vehicle
+    final user = await ApiService.getStoredUser();
+    final userId = user?["user_id"]?.toString();
+    if (userId != null) {
+      try {
+        final myVehicles = await ApiService.getMyVehicles(userId);
+        final isMyVehicle = myVehicles.any((v) => 
+          (v["registration_number"]?.toString().replaceAll(" ", "").toUpperCase() ?? "") == vehicleNumber
+        );
+        
+        if (isMyVehicle) {
+          Get.snackbar(
+            "Action Blocked",
+            "You cannot report your own vehicle.",
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.amber.shade800,
+            colorText: Colors.white,
+            margin: const EdgeInsets.all(16),
+            borderRadius: 12,
+          );
+          return;
+        }
+      } catch (e) {
+        // Ignore error and proceed
+      }
+    }
+
     Get.defaultDialog(
       title: "Attaching Plate",
       content: const CircularProgressIndicator(),
@@ -648,8 +675,37 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
   Future<void> _onManualSubmit() async {
     if (!isValidVehicle) return;
 
-    final vehicleNumber = vehicleController.text.toUpperCase();
+    final vehicleNumber = vehicleController.text.toUpperCase().replaceAll(" ", "");
     setState(() => isLookingUpVehicle = true);
+
+    // Prevent reporting own vehicle
+    final user = await ApiService.getStoredUser();
+    final userId = user?["user_id"]?.toString();
+    if (userId != null) {
+      try {
+        final myVehicles = await ApiService.getMyVehicles(userId);
+        final isMyVehicle = myVehicles.any((v) => 
+          (v["registration_number"]?.toString().replaceAll(" ", "").toUpperCase() ?? "") == vehicleNumber
+        );
+        
+        if (isMyVehicle) {
+          if (mounted) setState(() => isLookingUpVehicle = false);
+          Get.snackbar(
+            "Action Blocked",
+            "You cannot report your own vehicle.",
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.amber.shade800,
+            colorText: Colors.white,
+            margin: const EdgeInsets.all(16),
+            borderRadius: 12,
+          );
+          return;
+        }
+      } catch (e) {
+        // Ignore error and proceed if getMyVehicles fails
+      }
+    }
+
 
     final result = await ApiService.lookupVehicleByNumber(vehicleNumber);
     if (!mounted) return;

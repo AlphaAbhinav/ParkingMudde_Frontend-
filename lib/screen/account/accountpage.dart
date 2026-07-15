@@ -21,7 +21,9 @@ import 'package:parkingmudde/screen/account/suggest_society_thanks.dart';
 import '../../services/api_service.dart';
 
 class Accountpage extends StatefulWidget {
-  const Accountpage({super.key});
+  final bool isFromBottomNav;
+  final VoidCallback? onBackPressed;
+  const Accountpage({super.key, this.isFromBottomNav = false, this.onBackPressed});
 
   @override
   State<Accountpage> createState() => _AccountpageState();
@@ -111,7 +113,13 @@ class _AccountpageState extends State<Accountpage> {
               color: primaryBlue,
               size: 20,
             ),
-            onPressed: () => Get.offAll(() => const Dash()),
+            onPressed: () {
+              if (widget.isFromBottomNav && widget.onBackPressed != null) {
+                widget.onBackPressed!();
+              } else {
+                Get.back();
+              }
+            },
           ),
           title: const Text(
             "My Profile",

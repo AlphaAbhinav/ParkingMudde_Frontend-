@@ -1,34 +1,72 @@
 import 'package:flutter/material.dart';
+import 'package:parkingmudde_authority/services/api_service.dart';
 
-class EarnCoinsPage extends StatelessWidget {
+class EarnCoinsPage extends StatefulWidget {
   const EarnCoinsPage({super.key});
 
+  @override
+  State<EarnCoinsPage> createState() => _EarnCoinsPageState();
+}
+
+class _EarnCoinsPageState extends State<EarnCoinsPage> {
   static const Color primaryBlue = Color(0xFF2A5EE8);
   static const Color textBlack = Color(0xFF222222);
   static const Color subTextGrey = Color(0xFF888888);
 
+  Map<String, int> coinConfigs = {};
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    final configs = await ApiService.fetchCoinConfig();
+    setState(() {
+      coinConfigs = configs;
+      isLoading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: primaryBlue),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator(color: primaryBlue)),
+      );
+    }
+
     final ways = [
       _EarnWay(
         icon: Icons.directions_car_filled_rounded,
         title: "Add a vehicle",
         description: "Register your vehicle in My Garage and earn PM Coins.",
-        coins: "+10",
+        coins: "+${coinConfigs['add_vehicle_reward'] ?? 10}",
         color: primaryBlue,
       ),
       _EarnWay(
         icon: Icons.volunteer_activism_rounded,
         title: "Help a vehicle owner",
         description: "Submit a help activity when another driver needs support.",
-        coins: "+10",
+        coins: "+${coinConfigs['help_proof_reward'] ?? 5}",
         color: const Color(0xFF20C475),
       ),
       _EarnWay(
         icon: Icons.report_problem_rounded,
         title: "Report wrong parking",
         description: "Send a valid wrong-parking report with proper evidence.",
-        coins: "+10",
+        coins: "+${coinConfigs['report_parking_reward'] ?? 50}",
         color: const Color(0xFFFF8A00),
       ),
     ];
@@ -59,15 +97,16 @@ class EarnCoinsPage extends StatelessWidget {
           const Text(
             "Ways to earn",
             style: TextStyle(
-              color: textBlack,
               fontSize: 22,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.bold,
+              color: textBlack,
             ),
           ),
           const SizedBox(height: 8),
           const Text(
-            "PM Coins are rewarded for useful actions that improve the Parking Mudde community.",
+            "Complete tasks and engage with the community to build up your PM Coins balance.",
             style: TextStyle(
+              fontSize: 14,
               color: subTextGrey,
               fontSize: 13,
               height: 1.35,

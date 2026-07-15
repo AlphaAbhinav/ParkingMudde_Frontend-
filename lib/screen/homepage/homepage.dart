@@ -24,6 +24,7 @@ import 'package:parkingmudde/screen/parkingAlert/parkingalertpage.dart'
     show AlertsScreen;
 import 'package:parkingmudde/screen/parkingnearby/parkingnearbypage.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
+import 'package:parkingmudde/screen/vehicle/my_challans_screen.dart';
 import 'package:parkingmudde/screen/vehicle/myvehicle.dart';
 import 'package:parkingmudde/screen/wallet/walletpage.dart';
 
@@ -226,6 +227,17 @@ class _HomepageState extends State<Homepage> {
                     ),
 
                     _buildQuickActionCard(
+                      icon: Icons.gavel_rounded,
+                      title: "Challans/Towed",
+                      subtitle: "View history",
+                      color: Colors.red.shade600,
+                      onTap: () {
+                        Get.back();
+                        Get.to(() => const MyChallansScreen());
+                      },
+                    ),
+
+                    _buildQuickActionCard(
                       icon: Icons.directions_car_rounded,
                       title: "My Vehicles",
                       subtitle: "Manage fleet",
@@ -353,7 +365,7 @@ class _HomepageState extends State<Homepage> {
                       color: Colors.red.shade600,
                       onTap: () {
                         Get.back();
-                        Get.to(() => const IssueSelectionScreen(typev: "emergency"));
+                        Get.to(() => const EmergencyAlertScreen());
                       },
                     ),
                   ],
@@ -515,22 +527,6 @@ class _HomepageState extends State<Homepage> {
               return _buildCoachMarkContent(
                 title: "Help a Vehicle",
                 body: "Alert an owner that their vehicle needs attention (e.g., lights left on, window open).\n\nHelp your community and earn rewards!",
-              );
-            },
-          )
-        ],
-      ),
-      TargetFocus(
-        identify: "walletTarget",
-        keyTarget: _walletKey,
-        alignSkip: Alignment.topRight,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            builder: (context, controller) {
-              return _buildCoachMarkContent(
-                title: "PM Coins",
-                body: "These are your PM Coins. Use them in the Coupon Store for exciting discounts!",
                 isLast: true,
               );
             },
@@ -545,10 +541,12 @@ class _HomepageState extends State<Homepage> {
         super.initState();
     _loadShownAlerts().then((_) => _checkGlobalAlerts());
     _startGlobalAlertPolling();
-    _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    if (!kIsWeb) {
+      _razorpay = Razorpay();
+      _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+      _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+      _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    }
 
     _loadUser();
     
@@ -579,11 +577,12 @@ class _HomepageState extends State<Homepage> {
       if (userId != null && userId.isNotEmpty) {
         await _showAddVehiclePromptIfNeeded(userId);
         final wallet = await ApiService.getWalletBalance(userId);
-        if (mounted && wallet["pm_coins_balance"] != null) {
-          setState(
-            () => walletCoins =
-                int.tryParse(wallet["pm_coins_balance"].toString()) ?? walletCoins,
-          );
+        if (mounted) {
+          setState(() {
+            final pm = int.tryParse(wallet["pm_coins_balance"]?.toString() ?? "0") ?? 0;
+            final cb = int.tryParse(wallet["coinsback_balance"]?.toString() ?? "0") ?? 0;
+            walletCoins = pm + cb;
+          });
         }
         final lb = await ApiService.getLeaderboard();
         final me = await ApiService.getMyGamificationProgress(userId);
@@ -642,18 +641,8 @@ class _HomepageState extends State<Homepage> {
   }
 
   Widget _buildParkingPrachaarBlogs() {
-    final displayBlogs = _blogs.isNotEmpty ? _blogs : [
-      {
-        "title": "Smart Parking Zones Active",
-        "description": "Find new automated zones in Sector 14.",
-        "image_url": "https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?q=80&w=300&auto=format&fit=crop",
-      },
-      {
-        "title": "FASTag Integration Live",
-        "description": "Pay seamlessly with your vehicle FASTag.",
-        "image_url": "https://images.unsplash.com/photo-1549317661-bd32c8ce0be2?q=80&w=300&auto=format&fit=crop",
-      }
-    ];
+    if (_blogs.isEmpty) return const SizedBox.shrink();
+    final displayBlogs = _blogs;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -787,17 +776,8 @@ class _HomepageState extends State<Homepage> {
   }
 
   Widget _buildParkingPrachaarReels() {
-    final displayReels = _reels.isNotEmpty ? _reels : [
-      {
-        "id": "reel_1",
-        "title": "How to park like a pro",
-        "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        "thumbnail_url": "https://images.unsplash.com/photo-1511674900547-0e9e1bbaf259?q=80&w=300&auto=format&fit=crop",
-        "author": "Parking Mudde",
-        "likes": 1205,
-        "comments": 45
-      }
-    ];
+    if (_reels.isEmpty) return const SizedBox.shrink();
+    final displayReels = _reels;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -937,9 +917,6 @@ class _HomepageState extends State<Homepage> {
   }
 
   Future<void> _startReportPayment() async {
-    Get.to(() => const IssueSelectionScreen(typev: "report"));
-    return;
-
     Get.defaultDialog(
       title: "Processing",
       content: const CircularProgressIndicator(),
@@ -1055,11 +1032,12 @@ class _HomepageState extends State<Homepage> {
       if (Get.isDialogOpen == true) Get.back();
 
       if (vehicles.isEmpty) {
-        Get.defaultDialog(
+        _showBeautifulDialog(
           title: "Vehicle Required",
-          middleText: "You must add at least one vehicle to your account to report wrong parking.",
-          textConfirm: "Add Vehicle",
-          textCancel: "Cancel",
+          description: "You must add at least one vehicle to your account to report wrong parking.",
+          icon: Icons.directions_car_rounded,
+          iconColor: Colors.orange.shade600,
+          confirmText: "Add Vehicle",
           onConfirm: () {
             Get.back();
             Get.to(() => const MyVehiclesScreen());
@@ -1068,11 +1046,12 @@ class _HomepageState extends State<Homepage> {
         return;
       }
 
-      Get.defaultDialog(
-                title: "Report Wrong Parking",
-        middleText: "Upload proof first. AI will validate the report before asking for the vehicle plate.",
-        textConfirm: "Proceed to Report",
-        textCancel: "Cancel",
+      _showBeautifulDialog(
+        title: "Report Wrong Parking",
+        description: "Upload proof first. AI will validate the report before asking for the vehicle plate.\n\nNote: A ₹1 fee may apply for valid reports.",
+        icon: Icons.security_rounded,
+        iconColor: primaryBlue,
+        confirmText: "Continue",
         onConfirm: () {
           Get.back();
           Get.to(() => const IssueSelectionScreen(typev: "report"));
@@ -1083,6 +1062,90 @@ class _HomepageState extends State<Homepage> {
       Get.snackbar("Error", "Failed to verify vehicle registration. Please try again.",
           backgroundColor: Colors.redAccent, colorText: Colors.white);
     }
+  }
+
+  void _showBeautifulDialog({
+    required String title,
+    required String description,
+    required IconData icon,
+    required Color iconColor,
+    required String confirmText,
+    required VoidCallback onConfirm,
+  }) {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 8,
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(28.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 42),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: textBlack,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey.shade700,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Get.back(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        side: BorderSide(color: Colors.grey.shade300, width: 2),
+                      ),
+                      child: const Text("Cancel", style: TextStyle(color: textBlack, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: onConfirm,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      child: Text(confirmText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
   // ================= END RAZORPAY LOGIC =================
 
@@ -1373,6 +1436,12 @@ Future<void> _checkGlobalAlerts() async {
             children: [
               _buildFloatingNewsTicker(),
                 const SizedBox(height: 16),
+
+              // Parking Alerts Count Tag
+              _buildParkingAlertsCountTag(),
+              const SizedBox(height: 24),
+
+
                 // Figma Header Primary Actions layout
               Container(key: _reportKey, child: _buildFeatureButton(
                 title: "Report Wrong Parking",
@@ -1428,7 +1497,7 @@ Future<void> _checkGlobalAlerts() async {
                     color: Colors.white,
                   ),
                 ),
-                onTap: () => Get.to(() => const IssueSelectionScreen(typev: "emergency")),
+                onTap: () => Get.to(() => const EmergencyAlertScreen()),
               ),
 
               const SizedBox(height: 32),
@@ -1436,6 +1505,60 @@ Future<void> _checkGlobalAlerts() async {
               // Add Vehicle & My Vehicles Half Section
               _buildVehicleHalfSection(),
               const SizedBox(height: 24),
+
+              // Activity Banner mappings standard form boundaries spaces limit
+              const Text(
+                "Activity Status",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: textBlack,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2FDF5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.green.shade100, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      backgroundColor: Colors.green,
+                      radius: 16,
+                      child: Icon(Icons.check, color: Colors.white, size: 18),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "All Clear!",
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "No active parking alerts at this moment.\nYour community is parking responsibly.",
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
 
               // Leaderboard (ABOVE Quick Actions)
                 _buildHomeLeaderboardSection(),
@@ -1521,6 +1644,87 @@ Future<void> _checkGlobalAlerts() async {
 
                 const SizedBox(height: 32),
 
+                // Outstanding Huge Promo Action Panel constraints
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFEAD1D), Color(0xFFFF9000)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.diamond_rounded,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                walletCoins.toString(),
+                                style: const TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Text(
+                            "Total Balance",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            "Earn coins by helping others,\npark better",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    OutlinedButton(
+                      onPressed: () =>
+                          Get.to(() => WalletScreen(totalCoins: walletCoins)),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: Colors.white.withOpacity(0.6),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        "View Wallet",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+
                 // FAQ & Blogs (BELOW Quick Actions)
                 const Text(
                   "Help & Info",
@@ -1566,144 +1770,8 @@ Future<void> _checkGlobalAlerts() async {
               _buildParkingPrachaarReels(),
                 const SizedBox(height: 32),
 
-                // Outstanding Huge Promo Action Panel constraints
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFEAD1D), Color(0xFFFF9000)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.diamond_rounded,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                walletCoins.toString(),
-                                style: const TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Text(
-                            "PM Coins Balance",
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            "Earn coins by helping others,\npark better",
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    OutlinedButton(
-                      onPressed: () =>
-                          Get.to(() => WalletScreen(totalCoins: walletCoins)),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: Colors.white.withOpacity(0.6),
-                          width: 1.5,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        "View Wallet",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
-              const SizedBox(height: 32),
 
-              // Parking Alerts Count Tag
-              _buildParkingAlertsCountTag(),
-              const SizedBox(height: 24),
-
-              // Activity Banner mappings standard form boundaries spaces limit
-              const Text(
-                "Activity Status",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: textBlack,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2FDF5),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.green.shade100, width: 1),
-                ),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      backgroundColor: Colors.green,
-                      radius: 16,
-                      child: Icon(Icons.check, color: Colors.white, size: 18),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "All Clear!",
-                            style: TextStyle(
-                              color: Colors.black87,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "No active parking alerts at this moment.\nYour community is parking responsibly.",
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
               // Testimonials Section
               const SizedBox(height: 32),

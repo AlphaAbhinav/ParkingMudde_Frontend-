@@ -23,7 +23,9 @@ class AlertModel {
 }
 
 class AlertsScreen extends StatefulWidget {
-  const AlertsScreen({super.key});
+  final bool isFromBottomNav;
+  final VoidCallback? onBackPressed;
+  const AlertsScreen({super.key, this.isFromBottomNav = false, this.onBackPressed});
 
   @override
   State<AlertsScreen> createState() => _AlertsScreenState();
@@ -73,9 +75,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
         date: _formatDate(item),
         reward: coins > 0 ? coins : 0,
         penalty: coins < 0 ? coins.abs() : 0,
-        isResolved: status == "COMPLETED" ||
-            status == "CONFIRMED" ||
-            status == "APPROVED",
+        isResolved: true, // Always resolved per user request
         description: item["description"]?.toString() ?? "Alert activity",
       );
     }).toList();
@@ -107,7 +107,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
-          centerTitle: false,
+          centerTitle: true,
           scrolledUnderElevation: 1,
           leading: IconButton(
             icon: const Icon(
@@ -115,7 +115,13 @@ class _AlertsScreenState extends State<AlertsScreen> {
               color: Color(0XFF184B8C),
               size: 22,
             ),
-            onPressed: () => Get.back(),
+            onPressed: () {
+              if (widget.isFromBottomNav && widget.onBackPressed != null) {
+                widget.onBackPressed!();
+              } else {
+                Get.back();
+              }
+            },
           ),
           title: const Text(
             "Security Alerts",

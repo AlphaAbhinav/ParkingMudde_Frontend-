@@ -102,10 +102,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return false;
     }
 
-    if (license.isEmpty) {
-      _showSnackbarError("Please enter your driving license number.");
-      return false;
-    }
+
 
     if (aadhaar.isNotEmpty && aadhaar.length != 12) {
       _showSnackbarError("Aadhaar number must be 12 digits.");
@@ -270,7 +267,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 18),
                 _buildFigmaField(
-                  label: "Driving license *",
+                  label: "Driving license",
                   hint: "Enter your driving license number",
                   controller: drivingLicenseCtrl,
                   textCapitalization: TextCapitalization.characters,
@@ -297,7 +294,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Society name (Optional)", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: textBlack)),
+                    const Text("Society name ", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: textBlack)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       value: _selectedSociety,
@@ -345,7 +342,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   children: [
                     Expanded(
                       child: _buildFigmaField(
-                        label: "Tower (Optional)",
+                        label: "Tower",
                         hint: "Tower no.",
                         controller: towerCtrl,
                       ),
@@ -353,7 +350,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildFigmaField(
-                        label: "Flat (Optional)",
+                        label: "Flat",
                         hint: "Flat no.",
                         controller: flatCtrl,
                       ),
