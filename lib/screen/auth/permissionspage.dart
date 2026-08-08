@@ -4,15 +4,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:parkingmudde/screen/auth/profilepicturepage.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
-import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
 
 class PermissionsPage extends StatefulWidget {
   final bool requireVehicleOnSuccess;
-  
-  const PermissionsPage({
-    super.key,
-    this.requireVehicleOnSuccess = false,
-  });
+
+  const PermissionsPage({super.key, this.requireVehicleOnSuccess = false});
 
   @override
   State<PermissionsPage> createState() => _PermissionsPageState();
@@ -42,14 +38,6 @@ class _PermissionsPageState extends State<PermissionsPage>
       color: const Color(0xFF20C475),
     ),
     _PermissionItem(
-      permission: Permission.photos,
-      icon: Icons.photo_library_rounded,
-      title: "Photos & Media",
-      description:
-          "To upload parking proof images and manage your documents.",
-      color: const Color(0xFFFF6B35),
-    ),
-    _PermissionItem(
       permission: Permission.notification,
       icon: Icons.notifications_active_rounded,
       title: "Notifications",
@@ -73,9 +61,7 @@ class _PermissionsPageState extends State<PermissionsPage>
       ),
     );
     _fadeAnims = _controllers
-        .map(
-          (c) => CurvedAnimation(parent: c, curve: Curves.easeOut),
-        )
+        .map((c) => CurvedAnimation(parent: c, curve: Curves.easeOut))
         .toList();
 
     // Stagger the card animations
@@ -100,7 +86,6 @@ class _PermissionsPageState extends State<PermissionsPage>
     // Request all permissions one by one
     await Permission.camera.request();
     await Permission.location.request();
-    await [Permission.photos, Permission.storage].request();
     await Permission.notification.request();
 
     if (!mounted) return;
@@ -119,7 +104,12 @@ class _PermissionsPageState extends State<PermissionsPage>
     await prefs.setBool("has_seen_permissions", true);
 
     if (widget.requireVehicleOnSuccess) {
-      Get.offAll(() => ProfilePicturePage(requireVehicleOnSuccess: widget.requireVehicleOnSuccess), transition: Transition.fadeIn);
+      Get.offAll(
+        () => ProfilePicturePage(
+          requireVehicleOnSuccess: widget.requireVehicleOnSuccess,
+        ),
+        transition: Transition.fadeIn,
+      );
     } else {
       Get.offAll(() => const Dash(), transition: Transition.fadeIn);
     }
@@ -250,7 +240,7 @@ class _PermissionsPageState extends State<PermissionsPage>
                             ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   TextButton(
                     onPressed: _isRequesting ? null : _skipToNext,
                     child: Text(

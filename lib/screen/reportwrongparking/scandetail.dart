@@ -1,10 +1,13 @@
-import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart' as parkingmudde_scanenter;
+import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart'
+    as parkingmudde_scanenter;
 import 'package:parkingmudde/screen/homepage/homepage.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:parkingmudde/screen/reportwrongparking/thankspagecall.dart';
+import 'package:parkingmudde/widgets/ai_confidence_badge.dart';
+import 'package:parkingmudde/screen/wallet/walletpage.dart';
 import 'package:parkingmudde/services/api_service.dart';
 
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -20,6 +23,7 @@ class ReportProofScreen extends StatefulWidget {
   final Map<String, dynamic>? vehicleLookupData;
   final String? selectedIssueTitle;
   final String? selectedIssueCode;
+  final String? selectedIssueConfidenceGroup;
   final String? razorpayOrderId;
   final String? razorpayPaymentId;
   final String? razorpaySignature;
@@ -30,6 +34,7 @@ class ReportProofScreen extends StatefulWidget {
     this.vehicleLookupData,
     this.selectedIssueTitle,
     this.selectedIssueCode,
+    this.selectedIssueConfidenceGroup,
     this.razorpayOrderId,
     this.razorpayPaymentId,
     this.razorpaySignature,
@@ -63,10 +68,13 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     }
   }
 
-
   bool get _isHelpFlow => widget.typev == "help";
   bool get _isEmergencyFlow => widget.typev == "emergency";
   bool get _requiresSinglePhoto => _isHelpFlow || _isEmergencyFlow;
+  String get _aiConfidenceLevel => AiConfidenceBadge.confidenceLevelForFlow(
+        flow: widget.typev,
+        group: widget.selectedIssueConfidenceGroup,
+      );
   String get _issueTitle {
     if (widget.selectedIssueTitle?.trim().isNotEmpty == true) {
       return widget.selectedIssueTitle!.trim();
@@ -83,7 +91,6 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     "Right",
   ];
 
-
   @override
   void dispose() {
     if (!kIsWeb) {
@@ -92,7 +99,6 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     situationController.dispose();
     super.dispose();
   }
-
 
   // Original Backend method 1
   Future<void> pickImage() async {
@@ -103,7 +109,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
     final maxImages = _requiresSinglePhoto ? 1 : 4;
     if (images.length >= maxImages) {
-      showSnack(_requiresSinglePhoto ? "Only 1 photo is required" : "Maximum 4 images allowed");
+      showSnack(
+        _requiresSinglePhoto
+            ? "Only 1 photo is required"
+            : "Maximum 4 images allowed",
+      );
       return;
     }
 
@@ -170,7 +180,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   }
 
   // Original Backend Submit logic preserved explicitly
-  
+
   void _handlePaymentSuccess(PaymentSuccessResponse response) {
     _razorpayEventReceived = true;
     _finishSubmitReport(
@@ -185,7 +195,8 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     setState(() => isLoading = false);
     Get.defaultDialog(
       title: "Payment Failed",
-      middleText: response.message ?? 'Payment was not completed or was cancelled.',
+      middleText:
+          response.message ?? 'Payment was not completed or was cancelled.',
       textConfirm: "OK",
       onConfirm: () => Get.back(),
     );
@@ -203,102 +214,19 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   }
 
   Future<void> _startRazorpayPayment(String currentUserId) async {
-    await _finishSubmitReport(rOrderId: null, rPaymentId: null, rSignature: null);
-    return;
-
-    final orderResult = await ApiService.createReportRazorpayOrder(userId: currentUserId);
-    
-    if (!mounted) return;
-
-    final razorpayOrderId = orderResult['razorpay_order_id']?.toString();
-    final razorpayKeyId = orderResult['razorpay_key_id']?.toString();
-
-    if (razorpayOrderId == null || razorpayOrderId.isEmpty || razorpayKeyId == null || razorpayKeyId.isEmpty) {
-      setState(() => isLoading = false);
-      Get.defaultDialog(
-        title: "API Error",
-        middleText: orderResult['message']?.toString() ?? 'Could not initiate payment from backend.',
-        textConfirm: "OK",
-        onConfirm: () => Get.back(),
-      );
-      return;
-    }
-
-    _razorpayEventReceived = false;
-    final options = {
-      'key': razorpayKeyId,
-      'order_id': razorpayOrderId,
-      'amount': orderResult['amount'],
-      'currency': orderResult['currency'] ?? 'INR',
-      'name': 'Parking Mudde',
-      'description': 'Wrong Parking Report Fee',
-      'prefill': {
-        'contact': '9999999999',
-        'email': 'payments@parkingmudde.com',
-      },
-      'retry': {'enabled': true, 'max_count': 1},
-      'theme': {'color': '#184B8C'},
-    };
-
-    if (kIsWeb) {
-      try {
-        await openRazorpayWebCheckout(
-          Map<String, dynamic>.from(options),
-          onSuccess: (response) {
-            _razorpayEventReceived = true;
-            _finishSubmitReport(
-              rOrderId: response['razorpay_order_id']?.toString(),
-              rPaymentId: response['razorpay_payment_id']?.toString(),
-              rSignature: response['razorpay_signature']?.toString(),
-            );
-          },
-          onFailure: (message) {
-            _razorpayEventReceived = true;
-            setState(() => isLoading = false);
-            Get.defaultDialog(
-              title: "Payment Failed",
-              middleText: message,
-              textConfirm: "OK",
-              onConfirm: () => Get.back(),
-            );
-          },
-          onDismiss: () {
-            _razorpayEventReceived = true;
-            setState(() => isLoading = false);
-          },
-        );
-      } catch (e) {
-        setState(() => isLoading = false);
-        Get.defaultDialog(
-          title: "Payment Error",
-          middleText: "Could not open Razorpay on web. Error: $e",
-          textConfirm: "OK",
-          onConfirm: () => Get.back(),
-        );
-      }
-      return;
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      try {
-        _razorpay.open(options);
-      } catch (e) {
-        setState(() => isLoading = false);
-        Get.defaultDialog(
-          title: "Plugin Error",
-          middleText: "Razorpay error: $e",
-          textConfirm: "OK",
-          onConfirm: () => Get.back(),
-        );
-      }
-    });
+    await _finishSubmitReport(
+      rOrderId: null,
+      rPaymentId: null,
+      rSignature: null,
+    );
   }
 
   Future<void> submitReport() async {
     if (isLoading) return;
 
-    if (_isEmergencyFlow && _issueTitle.isEmpty && situationController.text.trim().isEmpty) {
+    if (_isEmergencyFlow &&
+        _issueTitle.isEmpty &&
+        situationController.text.trim().isEmpty) {
       showSnack("Please specify the emergency situation");
       return;
     }
@@ -335,10 +263,14 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     );
   }
 
-  Future<void> _finishSubmitReport({String? rOrderId, String? rPaymentId, String? rSignature}) async {
+  Future<void> _finishSubmitReport({
+    String? rOrderId,
+    String? rPaymentId,
+    String? rSignature,
+  }) async {
     if (!mounted) return;
     setState(() => isLoading = true);
-    
+
     // ENFORCE LIVE LOCATION
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -370,7 +302,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
     Position position;
     try {
-      position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
     } catch (e) {
       if (mounted) {
         showSnack("Failed to get current location. Please try again.");
@@ -384,14 +318,18 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
     final storedUser = await ApiService.getStoredUser();
     final currentUserId = storedUser?["user_id"]?.toString();
-    final targetVehicle = (_isHelpFlow || _isEmergencyFlow) ? widget.vehicleNumber?.trim() ?? "" : "";
+    final targetVehicle = (_isHelpFlow || _isEmergencyFlow)
+        ? widget.vehicleNumber?.trim() ?? ""
+        : "";
 
     Map<String, dynamic> result;
     if (_isEmergencyFlow) {
       result = await ApiService.createEmergencyAlertActivity(
         userId: currentUserId!,
         vehicleNumber: targetVehicle,
-        situation: _issueTitle.isNotEmpty ? _issueTitle : situationController.text.trim(),
+        situation: _issueTitle.isNotEmpty
+            ? _issueTitle
+            : situationController.text.trim(),
         reasonCode: widget.selectedIssueCode,
         location: "$reportLat,$reportLng",
         image: images.isNotEmpty ? images.first : null,
@@ -446,9 +384,15 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
           : null;
       final coinsCharged = result["coins_charged"] ?? 0;
       final coinsbackOnConfirm = result["coinsback_on_confirm"] ?? 0;
-      final aiScoreRes = result["data"] is Map ? result["data"]["ai_score"] ?? 0 : 0;
-      final aiVerdictRes = result["data"] is Map ? result["data"]["ai_verdict"] ?? "UNDER_REVIEW" : "UNDER_REVIEW";
-      final aiReasonsRes = result["data"] is Map ? result["data"]["ai_reasons"] : null;
+      final aiScoreRes = result["data"] is Map
+          ? result["data"]["ai_score"] ?? 0
+          : 0;
+      final aiVerdictRes = result["data"] is Map
+          ? result["data"]["ai_verdict"] ?? "UNDER_REVIEW"
+          : "UNDER_REVIEW";
+      final aiReasonsRes = result["data"] is Map
+          ? result["data"]["ai_reasons"]
+          : null;
 
       Get.to(
         () => ThankYouReportScreen(
@@ -460,13 +404,18 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
           aiScore: aiScoreRes,
           aiVerdict: aiVerdictRes,
           aiReasons: aiReasonsRes,
+          aiConfidenceLevel: _aiConfidenceLevel,
+          issueTitle: _issueTitle,
         ),
       );
     } else if (result["insufficient_coins"] == true) {
       // 402 — show rich dialog
       _showInsufficientCoinsDialog(result["message"] ?? "Not enough PM Coins.");
     } else {
-      showSnack(result['message']?.toString() ?? "Something went wrong. Please try again.");
+      showSnack(
+        result['message']?.toString() ??
+            "Something went wrong. Please try again.",
+      );
     }
   }
 
@@ -486,8 +435,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                   color: Colors.orange.shade50,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.account_balance_wallet_rounded,
-                    color: Colors.orange.shade700, size: 40),
+                child: Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.orange.shade700,
+                  size: 40,
+                ),
               ),
               const SizedBox(height: 16),
               const Text(
@@ -499,35 +451,55 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
               Text(
                 message,
                 style: TextStyle(
-                    color: Colors.blueGrey.shade500,
-                    fontSize: 13,
-                    height: 1.4),
+                  color: Colors.blueGrey.shade500,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.of(context).pop();
-                    Get.back(); // Go back to home where wallet is accessible
+                    final wallet = context.read<WalletProvider>();
+                    final toppedUp = await Get.to<bool>(
+                      () => WalletScreen(
+                        totalCoins: wallet.pmCoinsBalance + wallet.coinsbackBalance,
+                        returnOnSuccessfulTopUp: true,
+                      ),
+                    );
+                    if (!mounted) return;
+                    await context.read<WalletProvider>().fetchWallet();
+                    if (toppedUp == true) {
+                      submitReport();
+                    }
                   },
                   icon: const Icon(Icons.add_card_rounded, color: Colors.white),
-                  label: const Text("Top Up Wallet",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                  label: const Text(
+                    "Top Up Wallet",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF184B8C),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 10),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: Text("Cancel",
-                    style: TextStyle(color: Colors.blueGrey.shade400)),
+                child: Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.blueGrey.shade400),
+                ),
               ),
             ],
           ),
@@ -576,137 +548,145 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
           LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    /// Top Evidence Header
-                    Text(
-                      _isEmergencyFlow ? "Emergency Details" : "Review & Attach",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _isEmergencyFlow
-                          ? "Add a photo and specify the victim situation."
-                          : _isHelpFlow
-                          ? "Add 1 photo proof of the parking error."
-                          : "Upload proof from 4 sides. This keeps reporting fair.",
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-
-                    _selectedIssueCard(),
-
-                    const SizedBox(height: 28),
-
-                    if (_isEmergencyFlow) ...[
-                      const Text(
-                        "Situation Specification",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: situationController,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          hintText: "Describe the accident or emergency condition",
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(color: Colors.grey.shade200),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(color: Colors.grey.shade200),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                    ],
-
-                    /// Upload Titles Section
-                    const Row(
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.perm_media,
-                          color: Color(0XFF184B8C),
-                          size: 18,
-                        ),
-                        SizedBox(width: 8),
+                        /// Top Evidence Header
                         Text(
-                          "Upload Digital Proof",
+                          _isEmergencyFlow
+                              ? "Emergency Details"
+                              : "Review & Attach",
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
                             color: Colors.black87,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    RichText(
-                      text: TextSpan(
-                        text: "Required: ",
-                        style: TextStyle(
-                          color: Colors.red.shade700,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                        const SizedBox(height: 6),
+                        Text(
+                          _isEmergencyFlow
+                              ? "Add a photo and specify the victim situation."
+                              : _isHelpFlow
+                              ? "Add 1 photo proof of the parking error."
+                              : "Upload proof from 4 sides. This keeps reporting fair.",
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                        children: [
-                          TextSpan(
-                            text: _requiresSinglePhoto
-                                ? "Upload 1 real-time photo proof."
-                                : "Capture Front, Back, Left and Right photos OR 1 clear video.",
+                        const SizedBox(height: 16),
+                        AiConfidenceBadge(level: _aiConfidenceLevel),
+
+                        const SizedBox(height: 24),
+
+                        _selectedIssueCard(),
+
+                        const SizedBox(height: 28),
+
+                        if (_isEmergencyFlow) ...[
+                          const Text(
+                            "Situation Specification",
                             style: TextStyle(
-                              color: Colors.blueGrey.shade500,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
                             ),
                           ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: situationController,
+                            maxLines: 3,
+                            decoration: InputDecoration(
+                              hintText:
+                                  "Describe the accident or emergency condition",
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 28),
                         ],
-                      ),
+
+                        /// Upload Titles Section
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.perm_media,
+                              color: Color(0XFF184B8C),
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              "Upload Digital Proof",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        RichText(
+                          text: TextSpan(
+                            text: "Required: ",
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: _requiresSinglePhoto
+                                    ? "Upload 1 real-time photo proof."
+                                    : "Capture Front, Back, Left and Right photos OR 1 clear video.",
+                                style: TextStyle(
+                                  color: Colors.blueGrey.shade500,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        /// Premium Mode Actions & View Previews
+                        _uploadActions(),
+
+                        const SizedBox(height: 16),
+
+                        /// Gallery output Views
+                        if (images.isNotEmpty) _imagePreview(),
+                        if (videoFile != null) _videoPreview(),
+
+                        const SizedBox(height: 20),
+                        const SizedBox(height: 30),
+
+                        /// Solid Bottom Continuation Actions Block
+                        _submitFooterBtn(),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-
-                    /// Premium Mode Actions & View Previews
-                    _uploadActions(),
-
-                    const SizedBox(height: 16),
-
-                    /// Gallery output Views
-                    if (images.isNotEmpty) _imagePreview(),
-                    if (videoFile != null) _videoPreview(),
-
-                    const SizedBox(height: 20),
-                    const SizedBox(height: 30),
-
-                    /// Solid Bottom Continuation Actions Block
-                    _submitFooterBtn(),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          );
+              );
             },
           ),
           if (isLoading) _requestLoadingOverlay(),
@@ -822,6 +802,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
+                const SizedBox(height: 8),
+                AiConfidenceBadge(
+                  level: _aiConfidenceLevel,
+                  compact: true,
+                ),
               ],
             ),
           ),
@@ -911,9 +896,10 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
               title: hasMaxPhotos
                   ? "Limit Reached"
                   : (_requiresSinglePhoto
-                      ? "Capture Proof"
-                      : "Capture ${_reportAngleLabels[images.length]}"),
-              subtitle: "${images.length}/${_requiresSinglePhoto ? 1 : 4} captured",
+                        ? "Capture Proof"
+                        : "Capture ${_reportAngleLabels[images.length]}"),
+              subtitle:
+                  "${images.length}/${_requiresSinglePhoto ? 1 : 4} captured",
               colorTint: const Color(0XFF184B8C),
               onTap: pickImage,
             ),
@@ -1189,7 +1175,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   Widget _submitFooterBtn() {
     bool hasPassedRequirements = _requiresSinglePhoto
         ? images.isNotEmpty &&
-            (!_isEmergencyFlow || situationController.text.trim().isNotEmpty)
+              (!_isEmergencyFlow || situationController.text.trim().isNotEmpty)
         : (images.length == 4 || videoFile != null);
 
     return InkWell(
@@ -1272,3 +1258,5 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     );
   }
 }
+
+

@@ -1,4 +1,5 @@
 import 'package:parkingmudde/screen/reportwrongparking/thankspagecall.dart';
+import 'package:parkingmudde/screen/wallet/walletpage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -10,6 +11,7 @@ import 'package:parkingmudde/widgets/ad_banner.dart';
 import 'package:parkingmudde/widgets/ad_banner.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
+import 'package:parkingmudde/widgets/ai_confidence_badge.dart';
 
 class VehicleNumberInputScreen extends StatefulWidget {
   final String? reportId;
@@ -51,35 +53,160 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
     final TextEditingController _controller = TextEditingController(
       text: initialVehicleNumber,
     );
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text("Enter Vehicle Number"),
-          content: TextField(
-            controller: _controller,
-            decoration: const InputDecoration(hintText: "e.g. MH01AB1234"),
-            textCapitalization: TextCapitalization.characters,
+        return Dialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor:
+              Colors.transparent, // Blocks Android 12+ purple color shifting
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Get.back(),
-              child: const Text("Cancel"),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min, // Wraps tightly around its content
+              children: [
+                // 1. Sleek Icon Header
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: primaryBlue.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.directions_car_filled_rounded,
+                    color: primaryBlue,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // 2. Bold Titles
+                const Text(
+                  "Enter Vehicle Number",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E293B), // Premium rich slate
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Type the license plate cleanly without any spaces or symbols.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade500,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 28),
+
+                // 3. Premium License Plate-Style Input
+                TextField(
+                  controller: _controller,
+                  textCapitalization: TextCapitalization.characters,
+                  textAlign: TextAlign.center, // Centered like a real plate
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900, // Very heavy font for impact
+                    letterSpacing: 2.0, // Space out the text like a real plate
+                    color: Color(0xFF1E293B),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: "MH01AB1234",
+                    hintStyle: TextStyle(
+                      color: Colors.blueGrey.shade300,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.5,
+                    ),
+                    filled: true,
+                    fillColor: const Color(
+                      0xFFF8FAFC,
+                    ), // Ultra-soft premium gray
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 20,
+                      horizontal: 16,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: Colors.blueGrey.shade100,
+                        width: 1.5,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: primaryBlue, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // 4. Equal-Weighted Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Get.back(),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          "Cancel",
+                          style: TextStyle(
+                            color: Colors.blueGrey.shade500,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // Original Logic perfectly maintained
+                          Get.back();
+                          _attachPlate(
+                            _controller.text.replaceAll(" ", "").toUpperCase(),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryBlue,
+                          elevation:
+                              0, // Flat premium shading instead of popups
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          "Submit",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: primaryBlue),
-              onPressed: () {
-                Get.back();
-                _attachPlate(
-                  _controller.text.replaceAll(" ", "").toUpperCase(),
-                );
-              },
-              child: const Text(
-                "Submit",
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
+          ),
         );
       },
     );
@@ -151,10 +278,16 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
     if (userId != null) {
       try {
         final myVehicles = await ApiService.getMyVehicles(userId);
-        final isMyVehicle = myVehicles.any((v) => 
-          (v["registration_number"]?.toString().replaceAll(" ", "").toUpperCase() ?? "") == vehicleNumber
+        final isMyVehicle = myVehicles.any(
+          (v) =>
+              (v["registration_number"]
+                      ?.toString()
+                      .replaceAll(" ", "")
+                      .toUpperCase() ??
+                  "") ==
+              vehicleNumber,
         );
-        
+
         if (isMyVehicle) {
           Get.snackbar(
             "Action Blocked",
@@ -184,26 +317,34 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
               vehicleNumber: vehicleNumber,
             )
           : widget.guardPlateAttach
-              ? await ApiService.attachGuardReportPlate(
-                  reportId: widget.reportId!,
-                  vehicleNumber: vehicleNumber,
-                )
-              : await ApiService.attachWrongParkingPlate(
-                  reportId: widget.reportId!,
-                  vehicleNumber: vehicleNumber,
-                  razorpayOrderId: widget.razorpayOrderId,
-                  razorpayPaymentId: widget.razorpayPaymentId,
-                  razorpaySignature: widget.razorpaySignature,
-                );
+          ? await ApiService.attachGuardReportPlate(
+              reportId: widget.reportId!,
+              vehicleNumber: vehicleNumber,
+            )
+          : await ApiService.attachWrongParkingPlate(
+              reportId: widget.reportId!,
+              vehicleNumber: vehicleNumber,
+              razorpayOrderId: widget.razorpayOrderId,
+              razorpayPaymentId: widget.razorpayPaymentId,
+              razorpaySignature: widget.razorpaySignature,
+            );
       if (Get.isDialogOpen == true) Get.back();
 
       if (result['success'] == true) {
         if (widget.isAttachingPlate) {
-          final isRegistered = result['data']?['vehicle_registered'] == true;
-          Get.back(result: isRegistered); // Return to ThankYouScreen
+          final data = Map<String, dynamic>.from(result['data'] ?? {});
+          final isRegistered = data['vehicle_registered'] == true;
+          Get.back(
+            result: {...data, 'vehicle_registered': isRegistered},
+          ); // Return to ThankYouScreen
         } else {
           Get.offAll(() => ThankYouReportScreen(reportId: widget.reportId!));
         }
+      } else if (result['insufficient_coins'] == true) {
+        _showInsufficientCoinsDialog(
+          result['message'] ?? "Not enough PM Coins to attach the plate.",
+          vehicleNumber,
+        );
       } else {
         Get.snackbar(
           "Error",
@@ -223,6 +364,92 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
     }
   }
 
+  void _showInsufficientCoinsDialog(String message, String vehicleNumber) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.orange.shade700,
+                  size: 40,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Insufficient PM Coins",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                style: TextStyle(
+                  color: Colors.blueGrey.shade500,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    final toppedUp = await Get.to<bool>(
+                      () => const WalletScreen(
+                        totalCoins: 0,
+                        returnOnSuccessfulTopUp: true,
+                      ),
+                    );
+                    if (!mounted) return;
+                    if (toppedUp == true) {
+                      _attachPlate(vehicleNumber);
+                    }
+                  },
+                  icon: const Icon(Icons.add_card_rounded, color: Colors.white),
+                  label: const Text(
+                    "Top Up Wallet",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF184B8C),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.blueGrey.shade400),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
   // Beautiful modern native bottom-sheet call layout forms
   void _openManualEntrySheet({String? initialVehicleNumber}) {
     if (widget.isAttachingPlate) {
@@ -244,37 +471,43 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: Colors
-            .white, // Exact stripped-down minimal form background mapping boundaries limits map constraint
+        backgroundColor: const Color(
+          0xFFF8FAFC,
+        ), // Shifted to premium app-background color
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
           scrolledUnderElevation: 0,
           centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(
-              Icons.arrow_back_rounded, // Match exactly image boundaries
-              color: textBlack,
-              size: 24,
+          surfaceTintColor: Colors.transparent,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 8.0),
+            child: IconButton(
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: textBlack,
+                size: 20,
+              ),
+              onPressed: () => Get.offAll(() => const Dash()),
             ),
-            onPressed: () => Get.offAll(() => const Dash()),
           ),
           title: const Text(
             "Report Wrong Parking",
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: textBlack,
               letterSpacing: 0.2,
             ),
           ),
           bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(1),
-            child: Container(color: const Color(0xFFF3F4F6), height: 1.5),
+            preferredSize: const Size.fromHeight(1.5),
+            child: Container(color: const Color(0xFFF1F5F9), height: 1.5),
           ),
         ),
         body: Stack(
@@ -283,151 +516,216 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
-                  vertical: 30,
+                  vertical: 24,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 1. TOP INFORMATION CARD boundaries mapping layouts boundaries standard map forms boundary mapped constraints
+                    // 1. TOP INFORMATION & TRUST CARD
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: lightBlueBg,
+                        color:
+                            lightBlueBg ??
+                            primaryBlue.withOpacity(
+                              0.04,
+                            ), // Falls back securely to premium aesthetic
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: borderGrey,
-                          width: 1,
-                        ), // Exact replica constraints limits map layouts mapping spaces forms boundaries
+                          color: primaryBlue.withOpacity(0.12),
+                          width: 1.2,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            "Clear the way peacefully.\nWe'll notify the vehicle owner privately\nso they can resolve the issue quickly.",
-                            style: TextStyle(
-                              fontSize: 14,
-                              height: 1.5,
-                              fontWeight: FontWeight.w700,
-                              color: textBlack,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                Icons.verified_rounded,
-                                color: primaryBlue,
-                                size: 16,
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.6),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.front_hand_rounded,
+                                  color: primaryBlue,
+                                  size: 20,
+                                ),
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                "Your phone number is never shared.",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: textDarkGrey,
+                              const SizedBox(width: 16),
+                              const Expanded(
+                                child: Text(
+                                  "Clear the way peacefully.\nWe'll notify the owner privately to help resolve this quickly.",
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    height: 1.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: textBlack,
+                                    letterSpacing: 0.2,
+                                  ),
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.green.shade100),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.verified_user_rounded,
+                                  color: Colors.green.shade600,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "100% Private • Phone number hidden",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.blueGrey.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
 
-                    // 2. PRIMARY SCAN TRIGGER BOX spaces mappings map constraints bounds layout limits mapping maps bound space bounds mapping forms boundaries boundaries forms maps map mapping standard boundary
-                    InkWell(
-                      onTap: _scanNumberPlateAction,
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: borderGrey, width: 1.2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.01),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "Scan Vehicle Number",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: textBlack,
-                                  ),
-                                ),
-                                SizedBox(height: 6),
-                                Text(
-                                  "Fast and accurate",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF6B7280),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFFDFE8FC,
-                                ), // Perfectly identical visual limits layouts boundary layouts
-                                shape: BoxShape.circle,
-                              ),
-                              child: isScanningPlate
-                                  ? const SizedBox(
-                                      height: 22,
-                                      width: 22,
-                                      child: CircularProgressIndicator(
-                                        color: primaryBlue,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.camera_alt_rounded,
-                                      color: primaryBlue,
-                                      size: 24,
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 40),
-
-                    // 3. SECONDARY TEXT BUTTON FOR MANUAL TRIGGER
-                    Center(
+                    // 2. PRIMARY SCAN TRIGGER BOX
+                    Material(
+                      color: Colors.transparent,
                       child: InkWell(
-                        onTap: () => _openManualEntrySheet(),
-                        child: const Text(
-                          "Enter Vehicle Number Manually",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: primaryBlue,
-                            letterSpacing: 0.2,
+                        onTap: isScanningPlate ? null : _scanNumberPlateAction,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Ink(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 20,
+                            horizontal: 20,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.grey.shade200,
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.04),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Scan Number Plate",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: textBlack,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Fastest & most accurate",
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.blueGrey.shade400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                padding: EdgeInsets.all(
+                                  isScanningPlate ? 14 : 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: primaryBlue.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: isScanningPlate
+                                    ? SizedBox(
+                                        height: 22,
+                                        width: 22,
+                                        child: CircularProgressIndicator(
+                                          color: primaryBlue,
+                                          strokeWidth: 2.5,
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.center_focus_strong_rounded,
+                                        color: primaryBlue,
+                                        size: 26,
+                                      ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
+
+                    // 3. SECONDARY MANUAL TRIGGER - upgraded to a structured secondary touch area
+                    Center(
+                      child: InkWell(
+                        onTap: () => _openManualEntrySheet(),
+                        borderRadius: BorderRadius.circular(30),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.keyboard_alt_outlined,
+                                color: primaryBlue,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Enter Vehicle Number Manually",
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: primaryBlue,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
 
                     // AdB2 — Sponsored banner
                     const DynamicAdCarousel(pageName: 'Scan'),
@@ -435,33 +733,38 @@ class _VehicleNumberInputScreenState extends State<VehicleNumberInputScreen> {
                     const Spacer(),
 
                     // 4. BOTTOM SAFETY DISCLOSURE
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.info_rounded,
-                          color: Colors.grey.shade400,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            "Only report genuine parking issues to keep the\ncommunity responsible",
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              height: 1.4,
-                              color: Color(0xFF9AA4B2),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.security_rounded,
+                            color: Colors.blueGrey.shade300,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              "Please ensure you only report genuine issues.\nMisuse damages our community infrastructure.",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                height: 1.4,
+                                color: Color(0xFF94A3B8), // Slate gray text
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+
+            // Maintain loading layout exactly as requested!
             if (isScanningPlate) _loadingOverlay(),
           ],
         ),
@@ -675,7 +978,10 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
   Future<void> _onManualSubmit() async {
     if (!isValidVehicle) return;
 
-    final vehicleNumber = vehicleController.text.toUpperCase().replaceAll(" ", "");
+    final vehicleNumber = vehicleController.text.toUpperCase().replaceAll(
+      " ",
+      "",
+    );
     setState(() => isLookingUpVehicle = true);
 
     // Prevent reporting own vehicle
@@ -684,10 +990,16 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
     if (userId != null) {
       try {
         final myVehicles = await ApiService.getMyVehicles(userId);
-        final isMyVehicle = myVehicles.any((v) => 
-          (v["registration_number"]?.toString().replaceAll(" ", "").toUpperCase() ?? "") == vehicleNumber
+        final isMyVehicle = myVehicles.any(
+          (v) =>
+              (v["registration_number"]
+                      ?.toString()
+                      .replaceAll(" ", "")
+                      .toUpperCase() ??
+                  "") ==
+              vehicleNumber,
         );
-        
+
         if (isMyVehicle) {
           if (mounted) setState(() => isLookingUpVehicle = false);
           Get.snackbar(
@@ -705,7 +1017,6 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
         // Ignore error and proceed if getMyVehicles fails
       }
     }
-
 
     final result = await ApiService.lookupVehicleByNumber(vehicleNumber);
     if (!mounted) return;
@@ -801,7 +1112,7 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
                         const Padding(
                           padding: EdgeInsets.only(top: 16, bottom: 8),
                           child: Text(
-                            "Coming soon",
+                            "Experimental",
                             style: TextStyle(
                               color: Colors.orange,
                               fontSize: 13,
@@ -820,6 +1131,7 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
                               vehicleLookupData: vehicleLookupData,
                               selectedIssueTitle: issue["title"],
                               selectedIssueCode: issue["code"],
+                              selectedIssueConfidenceGroup: issue["group"],
                             ),
                           );
                         },
@@ -847,15 +1159,26 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Text(
-                                  issue["title"]!,
-                                  style: const TextStyle(
-                                    color: Color(0xFF1E212D),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      issue["title"]!,
+                                      style: const TextStyle(
+                                        color: Color(0xFF1E212D),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 7),
+                                    AiConfidenceBadge.fromGroup(
+                                      issue["group"],
+                                      compact: true,
+                                    ),
+                                  ],
                                 ),
                               ),
+                              const SizedBox(width: 10),
                               const Icon(
                                 Icons.chevron_right_rounded,
                                 color: Color(0xFF94A3B8),
@@ -1259,3 +1582,5 @@ class _ManualVehicleEntrySheetState extends State<_ManualVehicleEntrySheet> {
     );
   }
 }
+
+

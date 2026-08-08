@@ -8,6 +8,7 @@ import 'package:parkingmudde/screen/auth/forgotpasswordpage.dart';
 import 'package:parkingmudde/screen/auth/otppage.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/auth/permissionspage.dart';
+import 'package:parkingmudde/widgets/screen_slogan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class Loginpage extends StatefulWidget {
@@ -53,7 +54,7 @@ class _LoginpageState extends State<Loginpage> {
     final password = passwordController.text.trim();
 
     if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+').hasMatch(email)) {
-      _showError("Please input a valid email address.");
+      _showError("Please enter a valid email address.");
       return;
     }
     if (password.length < 6) {
@@ -69,6 +70,7 @@ class _LoginpageState extends State<Loginpage> {
     if (result["success"] == true) {
       await ApiService.saveUserSession(result);
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool("pending_feature_walkthrough", false);
       final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
       if (!hasSeenPermissions) {
         Get.offAll(
@@ -79,8 +81,10 @@ class _LoginpageState extends State<Loginpage> {
         Get.offAll(() => const Dash(), transition: Transition.fadeIn);
       }
     } else {
-      _showError(
-        result["message"] ?? "Invalid email or password. Please try again.",
+      _showAuthToast(
+        title: result["title"]?.toString() ?? "Couldn't log you in",
+        message: result["message"]?.toString() ??
+            "Invalid email or password. Please try again.",
       );
     }
   }
@@ -90,7 +94,7 @@ class _LoginpageState extends State<Loginpage> {
     final mobile = phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
 
     if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(mobile)) {
-      _showError("Enter a valid 10-digit mobile number.");
+      _showError("Please enter a valid 10-digit mobile number.");
       return;
     }
 
@@ -110,26 +114,46 @@ class _LoginpageState extends State<Loginpage> {
         transition: Transition.rightToLeft,
       );
     } else {
-      _showError(result["message"] ?? "Could not send OTP. Please try again.");
+      _showAuthToast(
+        title: result["title"]?.toString() ?? "Couldn't send OTP",
+        message: result["message"]?.toString() ??
+            "Could not send OTP. Please try again.",
+      );
     }
   }
 
   void _showError(String message) {
+    _showAuthToast(title: "A quick check", message: message);
+  }
+
+  void _showAuthToast({required String title, required String message}) {
     Get.snackbar(
-      "Error",
+      title,
       message,
-      backgroundColor: Colors.red.shade600,
-      colorText: Colors.white,
+      backgroundColor: const Color(0xFFFFF1A8),
+      colorText: const Color(0xFF253047),
       snackPosition: SnackPosition.BOTTOM,
       margin: const EdgeInsets.all(20),
-      borderRadius: 8,
+      borderRadius: 14,
+      borderColor: const Color(0xFFFFB300),
+      borderWidth: 1.4,
+      boxShadows: [
+        BoxShadow(
+          color: const Color(0xFFFFB300).withOpacity(0.26),
+          blurRadius: 18,
+          spreadRadius: 1,
+          offset: const Offset(0, 6),
+        ),
+      ],
+      icon: const Icon(Icons.info_outline_rounded, color: Color(0xFF167C80)),
+      duration: const Duration(seconds: 4),
     );
   }
 
   void _showComingSoon() {
     Get.snackbar(
       "Coming soon",
-      "This authentication provider will be available shortly.",
+      "We're setting this up for you. It'll be ready shortly!",
       backgroundColor: Colors.black87,
       colorText: Colors.white,
       snackPosition: SnackPosition.BOTTOM,
@@ -158,15 +182,7 @@ class _LoginpageState extends State<Loginpage> {
               if (Navigator.canPop(context)) Get.back();
             },
           ),
-          centerTitle: true,
-          title: const Text(
-            "Login",
-            style: TextStyle(
-              color: textBlack,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          // Cleaned up App Bar - moved the text below to make it warmer
         ),
         body: SafeArea(
           child: SingleChildScrollView(
@@ -175,6 +191,27 @@ class _LoginpageState extends State<Loginpage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // ── Warm Greeting Section ──
+                const Text(
+                  "Welcome back! 👋",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: textBlack,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "We're so glad to see you again.",
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: subTextGrey,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                const SizedBox(height: 32),
+
                 // ── Tab Toggle ──
                 _buildToggle(),
                 const SizedBox(height: 28),
@@ -194,8 +231,20 @@ class _LoginpageState extends State<Loginpage> {
 
                 const SizedBox(height: 42),
 
-                // ── Sign Up Footer ──
+                // ── Join Footer ──
                 _buildSignUpFooter(),
+
+                const SizedBox(height: 16),
+                const ScreenSlogan(
+                  "Nice to see you again.",
+                  color: primaryBlue,
+                  icon: Icons.bolt_rounded,
+                  imagePath: 'assets/loginslogan.png',
+                  normalImageWidth: 160,
+                  compactImageWidth: 145,
+                ),
+
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -206,24 +255,21 @@ class _LoginpageState extends State<Loginpage> {
 
   Widget _buildToggle() {
     return Container(
-      height: 54, // Given slightly more breathing space to make it look robust
-      padding: const EdgeInsets.all(6), // Margin framing the slide
+      height: 54,
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(
-          0xFFF1F3F6,
-        ), // Smooth muted off-white/gray base layer
+        color: const Color(0xFFF1F3F6),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.black.withOpacity(0.04), width: 1.0),
       ),
       child: Stack(
         children: [
-          // Elegant animated sliding foreground background
           AnimatedAlign(
             alignment: _selectedTab == 0
                 ? Alignment.centerLeft
                 : Alignment.centerRight,
             duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic, // A beautiful gliding animation
+            curve: Curves.easeOutCubic,
             child: FractionallySizedBox(
               widthFactor: 0.5,
               child: Container(
@@ -246,18 +292,13 @@ class _LoginpageState extends State<Loginpage> {
               ),
             ),
           ),
-          // Interactive tappable UI overlays aligned directly atop slider track
           Row(
             children: [
-              _tabOption(
-                index: 0,
-                icon: Icons.email_outlined,
-                label: "Email & Password",
-              ),
+              _tabOption(index: 0, icon: Icons.email_outlined, label: "Email"),
               _tabOption(
                 index: 1,
                 icon: Icons.phone_android_rounded,
-                label: "Phone & OTP",
+                label: "Phone",
               ),
             ],
           ),
@@ -275,8 +316,7 @@ class _LoginpageState extends State<Loginpage> {
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _selectedTab = index),
-        behavior: HitTestBehavior
-            .opaque, // Required so tapping invisible areas triggers accurately!
+        behavior: HitTestBehavior.opaque,
         child: Center(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -294,8 +334,7 @@ class _LoginpageState extends State<Loginpage> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                    letterSpacing:
-                        0.1, // Added tiny kerning so it feels sleeker
+                    letterSpacing: 0.1,
                     color: isSelected ? primaryBlue : const Color(0xFF8A92A0),
                   ),
                 ),
@@ -329,7 +368,7 @@ class _LoginpageState extends State<Loginpage> {
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
-          decoration: _inputDecoration("Input email address"),
+          decoration: _inputDecoration("e.g. name@example.com"),
         ),
         const SizedBox(height: 18),
         const Text(
@@ -349,7 +388,7 @@ class _LoginpageState extends State<Loginpage> {
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
-          decoration: _inputDecoration("Input your password").copyWith(
+          decoration: _inputDecoration("Enter your password").copyWith(
             suffixIcon: IconButton(
               icon: Icon(
                 obscurePassword
@@ -385,7 +424,7 @@ class _LoginpageState extends State<Loginpage> {
                     ),
                   )
                 : const Text(
-                    "Login",
+                    "Sign in",
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -442,11 +481,11 @@ class _LoginpageState extends State<Loginpage> {
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
-          decoration: _inputDecoration("Enter 10-digit mobile number"),
+          decoration: _inputDecoration("Enter your 10-digit number"),
         ),
         const SizedBox(height: 8),
         const Text(
-          "We'll send a 6-digit OTP to verify your number.",
+          "We'll send a 6-digit OTP to securely verify you.",
           style: TextStyle(
             color: subTextGrey,
             fontSize: 12,
@@ -505,7 +544,7 @@ class _LoginpageState extends State<Loginpage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Text(
-                "Or continue with",
+                "Or easily connect with",
                 style: TextStyle(
                   color: subTextGrey.withOpacity(0.8),
                   fontSize: 12,
@@ -555,10 +594,10 @@ class _LoginpageState extends State<Loginpage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Text(
-          "You don't have an account? ",
+          "New here? ",
           style: TextStyle(
             color: labelGrey,
-            fontSize: 14,
+            fontSize: 15,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -568,11 +607,11 @@ class _LoginpageState extends State<Loginpage> {
             transition: Transition.rightToLeft,
           ),
           child: const Text(
-            "Sign up",
+            "Join",
             style: TextStyle(
               color: primaryBlue,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              fontWeight: FontWeight.w800, // Makes "Join" pop perfectly!
             ),
           ),
         ),

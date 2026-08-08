@@ -7,6 +7,7 @@ import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scandetail.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/services/plate_scanner_service.dart';
+import 'package:parkingmudde/widgets/ai_confidence_badge.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class VehicleNumberHelpScreen extends StatefulWidget {
@@ -580,7 +581,7 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
                         const Padding(
                           padding: EdgeInsets.only(top: 16, bottom: 8),
                           child: Text(
-                            "Coming soon",
+                            "Experimental",
                             style: TextStyle(
                               color: Colors.orange,
                               fontSize: 13,
@@ -598,6 +599,7 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
                               vehicleNumber: vehicleNumber,
                               vehicleLookupData: vehicleLookupData,
                               selectedIssueTitle: error["title"],
+                              selectedIssueConfidenceGroup: error["group"],
                             ),
                           );
                         },
@@ -625,15 +627,26 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Text(
-                                  error["title"]!,
-                                  style: const TextStyle(
-                                    color: Color(0xFF1E212D),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      error["title"]!,
+                                      style: const TextStyle(
+                                        color: Color(0xFF1E212D),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 7),
+                                    AiConfidenceBadge.fromGroup(
+                                      error["group"],
+                                      compact: true,
+                                    ),
+                                  ],
                                 ),
                               ),
+                              const SizedBox(width: 10),
                               const Icon(
                                 Icons.chevron_right_rounded,
                                 color: Color(0xFF94A3B8),

@@ -1,11 +1,11 @@
 {
-    "name": "parkingmudde",
-    "short_name": "parkingmudde",
+    "name": "Parkingमुद्दे®",
+    "short_name": "Parkingमुद्दे®",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Parkingमुद्दे® app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

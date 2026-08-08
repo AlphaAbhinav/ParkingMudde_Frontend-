@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Parking Mudde</string>
+	<string>Parkingमुद्दे®</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>parkingmudde</string>
+	<string>Parkingमुद्दे®</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -25,9 +25,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Parking Mudde uses the camera to scan vehicle number plates.</string>
+	<string>Parkingमुद्दे® uses the camera to scan vehicle number plates.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Parking Mudde uses your current location to complete your signup profile and find nearby parking.</string>
+	<string>Parkingमुद्दे® uses your current location to complete your signup profile and find nearby parking.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

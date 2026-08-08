@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../services/api_service.dart';
 import 'package:parkingmudde/screen/gamification/badges_screen.dart';
+import 'package:parkingmudde/widgets/screen_slogan.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -27,7 +28,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     setState(() => isLoading = true);
     final user = await ApiService.getStoredUser();
     final data = await ApiService.getLeaderboard();
-    
+
     if (mounted) {
       setState(() {
         currentUser = user;
@@ -57,18 +58,29 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           backgroundColor: Colors.white,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Color(0XFF184B8C), size: 22),
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Color(0XFF184B8C),
+              size: 22,
+            ),
             onPressed: () => Get.back(),
           ),
           title: const Text(
             "Leaderboard",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1E293B),
+            ),
           ),
           bottom: TabBar(
             isScrollable: true,
             labelColor: const Color(0XFF184B8C),
             unselectedLabelColor: Colors.blueGrey.shade400,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+            ),
             indicatorColor: const Color(0XFF184B8C),
             indicatorWeight: 3.5,
             dividerColor: Colors.grey.shade200,
@@ -79,7 +91,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             ],
           ),
         ),
-        body: isLoading 
+        body: isLoading
             ? const Center(child: CircularProgressIndicator())
             : TabBarView(
                 children: [
@@ -95,33 +107,84 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Widget _buildList(List<dynamic> users, {required bool isCity}) {
     if (users.isEmpty) {
-      return Center(
-        child: Text("No top users yet!", style: TextStyle(color: Colors.blueGrey.shade400)),
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 96, 16, 24),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        children: [
+          Center(
+            child: Text(
+              "No top users yet!",
+              style: TextStyle(color: Colors.blueGrey.shade400),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const ScreenSlogan(
+            "Celebrating our top contributors.",
+            color: Color(0XFF184B8C),
+            icon: Icons.emoji_events_rounded,
+            imagePath: 'assets/leaderboard.png',
+            normalImageWidth: 146,
+            compactImageWidth: 124,
+            textMaxLines: 2,
+          ),
+        ],
       );
     }
-    
+
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      itemCount: users.length,
+      itemCount: users.length + 1,
       itemBuilder: (context, index) {
+        if (index == users.length) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 24),
+            child: ScreenSlogan(
+              "Celebrating our top contributors.",
+              color: Color(0XFF184B8C),
+              icon: Icons.emoji_events_rounded,
+              imagePath: 'assets/leaderboard.png',
+              normalImageWidth: 146,
+              compactImageWidth: 124,
+              textMaxLines: 2,
+            ),
+          );
+        }
         final user = users[index];
         final isTop3 = index < 3;
         final rank = index + 1;
-        
+
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: isTop3 ? const Color(0XFFfdd708).withOpacity(0.5) : Colors.transparent, width: 2),
+            border: Border.all(
+              color: isTop3
+                  ? const Color(0XFFfdd708).withOpacity(0.5)
+                  : Colors.transparent,
+              width: 2,
+            ),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
             ],
           ),
           child: Row(
             children: [
-              Text("#$rank", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: isTop3 ? const Color(0XFFfdd708) : Colors.blueGrey)),
+              Text(
+                "#$rank",
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  color: isTop3 ? const Color(0XFFfdd708) : Colors.blueGrey,
+                ),
+              ),
               const SizedBox(width: 16),
               const CircleAvatar(
                 radius: 20,
@@ -133,12 +196,30 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(user["username"] ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    Text(user["score"].toString() + " Coins", style: const TextStyle(color: Color(0XFF184B8C), fontSize: 13, fontWeight: FontWeight.bold)),
+                    Text(
+                      user["username"] ?? "Unknown",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      user["score"].toString() + " Coins",
+                      style: const TextStyle(
+                        color: Color(0XFF184B8C),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              if (isTop3) const Icon(Icons.workspace_premium_rounded, color: Color(0XFFfdd708), size: 28),
+              if (isTop3)
+                const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Color(0XFFfdd708),
+                  size: 28,
+                ),
             ],
           ),
         );
@@ -162,7 +243,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         decoration: BoxDecoration(
           color: const Color(0XFF184B8C),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, -4)),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -4),
+            ),
           ],
         ),
         child: SafeArea(
@@ -170,10 +255,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
                 child: Text(
                   myRank > 0 ? "#$myRank" : "-",
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -184,17 +276,28 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   children: [
                     Text(
                       "You ($currentTitle)",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       "Score: $myScore",
-                      style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 28),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
             ],
           ),
         ),

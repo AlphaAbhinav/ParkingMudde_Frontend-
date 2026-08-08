@@ -4,8 +4,9 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:parkingmudde/screen/auth/loginpage.dart';
-import 'package:parkingmudde/screen/auth/onboarding.dart';
+
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
+import 'package:parkingmudde/services/api_service.dart';
 
 class Splashpage extends StatefulWidget {
   const Splashpage({super.key});
@@ -17,6 +18,7 @@ class Splashpage extends StatefulWidget {
 class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
   late AnimationController _introController;
   late AnimationController _loopController;
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -25,7 +27,7 @@ class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
     // The Master sequence timeline for driving the car and dropping the logo.
     _introController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3500),
+      duration: const Duration(milliseconds: 1200),
     );
 
     // Continuous idle loops (The hovering logic, blinking button, glowing scanning radar).
@@ -38,6 +40,11 @@ class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
     // We launch into perpetual animations instantly while intro sequence governs coordinates.
     _introController.forward();
     _loopController.repeat();
+    _introController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _navigateToNextPage();
+      }
+    });
   }
 
   @override
@@ -48,19 +55,28 @@ class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
   }
 
   Future<void> _navigateToNextPage() async {
+    if (!mounted || _hasNavigated) return;
+    _hasNavigated = true;
+
     final prefs = await SharedPreferences.getInstance();
-    final hasSeenOnboarding = prefs.getBool("has_seen_onboarding") ?? false;
+    await ApiService.clearRestoredSessionIfNeeded();
+    if (!mounted) return;
     final userId = prefs.getString("user_id");
 
     if (userId != null && userId.isNotEmpty) {
       // User is already logged in, go straight to Dash!
-      Get.offAll(() => const Dash(), transition: Transition.fadeIn, duration: const Duration(milliseconds: 800));
-    } else {
-      // User is not logged in, show Onboarding or Login
       Get.offAll(
-        () => hasSeenOnboarding ? const Loginpage() : const ParkingOnboarding(),
+        () => const Dash(),
         transition: Transition.fadeIn,
-        duration: const Duration(milliseconds: 800),
+        duration: const Duration(milliseconds: 180),
+      );
+    } else {
+      // Anonymous launches always go to login. Onboarding is shown only after
+      // the backend creates a new user id.
+      Get.offAll(
+        () => const Loginpage(),
+        transition: Transition.fadeIn,
+        duration: const Duration(milliseconds: 180),
       );
     }
   }
@@ -293,7 +309,7 @@ class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
                                 ),
                                 const SizedBox(height: 10),
                                 Text(
-                                  "TAP SCREEN TO CONTINUE",
+                                  "OPENING Parkingमुद्दे®",
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: Colors.yellowAccent.withOpacity(0.9),

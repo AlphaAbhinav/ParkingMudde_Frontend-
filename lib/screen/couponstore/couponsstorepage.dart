@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'package:get/get.dart';
 import '../../services/api_service.dart';
+import '../../providers/wallet_provider.dart';
 import 'scratch_reveal_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:parkingmudde/widgets/screen_slogan.dart';
+import 'package:provider/provider.dart';
 
 class CouponStoreScreen extends StatefulWidget {
   final int coinsbackBalance;
@@ -31,10 +34,40 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     currentCoins = widget.coinsbackBalance;
-    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
 
     fetchCoupons();
     fetchMyCoupons();
+    fetchWalletBalance();
+  }
+
+  int _readInt(dynamic value) {
+    if (value is num) return value.round();
+    return int.tryParse(value?.toString() ?? "0") ?? 0;
+  }
+
+  Future<void> fetchWalletBalance() async {
+    try {
+      final user = await ApiService.getStoredUser();
+      final userId = user?["user_id"]?.toString();
+      if (userId == null || userId.isEmpty) return;
+
+      final wallet = await ApiService.getWalletBalance(userId);
+      if (wallet["success"] == false) return;
+
+      final pmCoins = _readInt(wallet["pm_coins_balance"]);
+      final coinsback = _readInt(wallet["coinsback_balance"]);
+      final total = pmCoins + coinsback;
+
+      if (!mounted) return;
+      setState(() {
+        currentCoins = total;
+      });
+    } catch (e) {
+      print("Coupon wallet fetch error: $e");
+    }
   }
 
   // ================= FETCH STORE COUPONS =================
@@ -48,7 +81,22 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
           brand: c["brand"],
           title: c["title"],
           offerType: c["coupon_type"],
+          originalCost: (c["original_cost"] is num)
+              ? (c["original_cost"] as num).round()
+              : int.tryParse("${c["original_cost"] ?? c["cost"] ?? 0}") ?? 0,
           coinCost: c["cost"],
+          discountPercent: (c["discount_percent"] is num)
+              ? (c["discount_percent"] as num).round()
+              : int.tryParse("${c["discount_percent"] ?? 0}") ?? 0,
+          flatDiscountAmount: (c["flat_discount_amount"] is num)
+              ? (c["flat_discount_amount"] as num).round()
+              : int.tryParse("${c["flat_discount_amount"] ?? 0}") ?? 0,
+          buyQuantity: (c["buy_quantity"] is num)
+              ? (c["buy_quantity"] as num).round()
+              : int.tryParse("${c["buy_quantity"] ?? 0}") ?? 0,
+          freeQuantity: (c["free_quantity"] is num)
+              ? (c["free_quantity"] as num).round()
+              : int.tryParse("${c["free_quantity"] ?? 0}") ?? 0,
           description: c["description"],
         );
       }).toList();
@@ -81,7 +129,22 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
           brand: c["brand"],
           title: c["title"],
           offerType: c["coupon_type"],
+          originalCost: (c["original_cost"] is num)
+              ? (c["original_cost"] as num).round()
+              : int.tryParse("${c["original_cost"] ?? c["cost"] ?? 0}") ?? 0,
           coinCost: c["cost"],
+          discountPercent: (c["discount_percent"] is num)
+              ? (c["discount_percent"] as num).round()
+              : int.tryParse("${c["discount_percent"] ?? 0}") ?? 0,
+          flatDiscountAmount: (c["flat_discount_amount"] is num)
+              ? (c["flat_discount_amount"] as num).round()
+              : int.tryParse("${c["flat_discount_amount"] ?? 0}") ?? 0,
+          buyQuantity: (c["buy_quantity"] is num)
+              ? (c["buy_quantity"] as num).round()
+              : int.tryParse("${c["buy_quantity"] ?? 0}") ?? 0,
+          freeQuantity: (c["free_quantity"] is num)
+              ? (c["free_quantity"] as num).round()
+              : int.tryParse("${c["free_quantity"] ?? 0}") ?? 0,
           description: c["description"],
           couponCode: c["coupon_code"],
           purchased: true,
@@ -125,17 +188,27 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
       }
 
       setState(() {
-        currentCoins -= coupon.coinCost;
+        currentCoins = _readInt(
+          result["balance"] ?? result["total_balance"] ?? currentCoins - coupon.coinCost,
+        );
       });
+      if (mounted) {
+        await context.read<WalletProvider>().fetchWallet();
+      }
       fetchMyCoupons();
       _confettiController.play();
-      
+
       final purchasedCoupon = CouponModel(
         id: coupon.id,
         brand: coupon.brand,
         title: coupon.title,
         offerType: coupon.offerType,
+        originalCost: coupon.originalCost,
         coinCost: coupon.coinCost,
+        discountPercent: coupon.discountPercent,
+        flatDiscountAmount: coupon.flatDiscountAmount,
+        buyQuantity: coupon.buyQuantity,
+        freeQuantity: coupon.freeQuantity,
         description: coupon.description,
         couponCode: result["coupon_code"]?.toString(),
         purchased: true,
@@ -172,89 +245,98 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
     return Stack(
       children: [
         Scaffold(
-      backgroundColor: const Color(0xFFF6F8FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
-        scrolledUnderElevation: 1,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Color(0XFF184B8C),
-            size: 22,
-          ),
-          onPressed: () => Get.back(),
-        ),
-        title: const Text(
-          "Rewards Store",
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w900,
-            color: Color(0xFF1E293B),
-            letterSpacing: 0.3,
-          ),
-        ),
-        actions: [
-          /// Integrated Balance indicator directly bridging purchasing capabilities!
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade100,
-              borderRadius: BorderRadius.circular(20),
+          backgroundColor: const Color(0xFFF6F8FA),
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            centerTitle: false,
+            scrolledUnderElevation: 1,
+            leading: IconButton(
+              icon: const Icon(
+                Icons.arrow_back_ios_new,
+                color: Color(0XFF184B8C),
+                size: 22,
+              ),
+              onPressed: () => Get.back(),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  "$currentCoins 🪙",
-                  style: TextStyle(
-                    color: Colors.amber.shade900,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                    letterSpacing: 0.5,
-                  ),
+            title: const Text(
+              "Rewards Store",
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1E293B),
+                letterSpacing: 0.3,
+              ),
+            ),
+            actions: [
+              /// Integrated Balance indicator directly bridging purchasing capabilities!
+              Container(
+                margin: const EdgeInsets.only(right: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
                 ),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "$currentCoins 🪙",
+                      style: TextStyle(
+                        color: Colors.amber.shade900,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            bottom: TabBar(
+              controller: _tabController,
+              labelColor: const Color(0XFF184B8C),
+              unselectedLabelColor: Colors.blueGrey.shade400,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+              indicatorColor: const Color(0XFF184B8C),
+              indicatorWeight: 3,
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.grey.shade200,
+              tabs: const [
+                Tab(text: "Explore Store"),
+                Tab(text: "My Coupons"),
               ],
             ),
           ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: const Color(0XFF184B8C),
-          unselectedLabelColor: Colors.blueGrey.shade400,
-          labelStyle: const TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 14,
+          body: TabBarView(
+            controller: _tabController,
+            physics: const BouncingScrollPhysics(),
+            children: [_storeTab(), _myCouponsTab()],
           ),
-          unselectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-          indicatorColor: const Color(0XFF184B8C),
-          indicatorWeight: 3,
-          indicatorSize: TabBarIndicatorSize.tab,
-          dividerColor: Colors.grey.shade200,
-          tabs: const [
-            Tab(text: "Explore Store"),
-            Tab(text: "My Coupons"),
-          ],
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        physics: const BouncingScrollPhysics(),
-        children: [_storeTab(), _myCouponsTab()],
-      ),
-    ),
         Align(
           alignment: Alignment.topCenter,
           child: ConfettiWidget(
             confettiController: _confettiController,
             blastDirectionality: BlastDirectionality.explosive,
             shouldLoop: false,
-            colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple],
+            colors: const [
+              Colors.green,
+              Colors.blue,
+              Colors.pink,
+              Colors.orange,
+              Colors.purple,
+            ],
           ),
         ),
       ],
@@ -299,8 +381,22 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
     return ListView.builder(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.only(top: 16, bottom: 40, left: 16, right: 16),
-      itemCount: coupons.length,
+      itemCount: coupons.length + 1,
       itemBuilder: (_, index) {
+        if (index == coupons.length) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 24),
+            child: ScreenSlogan(
+              "Turning your PM Coins into rewards.",
+              color: Color(0XFF184B8C),
+              icon: Icons.card_giftcard_rounded,
+              imagePath: 'assets/couponstoreslogan.png',
+              normalImageWidth: 130,
+              compactImageWidth: 112,
+              textMaxLines: 2,
+            ),
+          );
+        }
         final coupon = coupons[index];
         final purchased = isPurchased(coupon.id);
         final canBuy = currentCoins >= coupon.coinCost && !purchased;
@@ -327,8 +423,22 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
     return ListView.builder(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.only(top: 16, bottom: 40, left: 16, right: 16),
-      itemCount: myCoupons.length,
+      itemCount: myCoupons.length + 1,
       itemBuilder: (_, index) {
+        if (index == myCoupons.length) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 24),
+            child: ScreenSlogan(
+              "Turning your PM Coins into rewards.",
+              color: Color(0XFF184B8C),
+              icon: Icons.card_giftcard_rounded,
+              imagePath: 'assets/couponstoreslogan.png',
+              normalImageWidth: 130,
+              compactImageWidth: 112,
+              textMaxLines: 2,
+            ),
+          );
+        }
         final coupon = myCoupons[index];
 
         return _buildModernOwnedCard(coupon);
@@ -410,6 +520,10 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
                       ),
                       _offerBadge(
                         coupon.offerType,
+                        coupon.discountPercent,
+                        coupon.flatDiscountAmount,
+                        coupon.buyQuantity,
+                        coupon.freeQuantity,
                       ), // Retained logic perfectly mapped!
                     ],
                   ),
@@ -435,6 +549,40 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (coupon.originalCost > coupon.coinCost) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text(
+                          "${coupon.originalCost} coins",
+                          style: TextStyle(
+                            color: Colors.blueGrey.shade300,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          "${coupon.coinCost} coins",
+                          style: const TextStyle(
+                            color: Color(0XFF184B8C),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          "Save ${coupon.originalCost - coupon.coinCost}",
+                          style: TextStyle(
+                            color: Colors.green.shade700,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -557,7 +705,9 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
                 GestureDetector(
                   onTap: () {
                     if (coupon.couponCode != null) {
-                      Clipboard.setData(ClipboardData(text: coupon.couponCode!));
+                      Clipboard.setData(
+                        ClipboardData(text: coupon.couponCode!),
+                      );
                       Get.snackbar(
                         "Copied!",
                         "Coupon code copied to clipboard",
@@ -697,7 +847,13 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
   }
 
   // ================= PREMIUM OFFER BADGE =================
-  Widget _offerBadge(String type) {
+  Widget _offerBadge(
+    String type, [
+    int discountPercent = 0,
+    int flatDiscountAmount = 0,
+    int buyQuantity = 0,
+    int freeQuantity = 0,
+  ]) {
     Color color;
     Color bTint;
     String text;
@@ -706,17 +862,21 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
       case "FLAT":
         color = Colors.green.shade800;
         bTint = Colors.green.shade100;
-        text = "FLAT OFF";
+        text = flatDiscountAmount > 0
+            ? "Rs $flatDiscountAmount OFF"
+            : "FLAT OFF";
         break;
       case "PERCENT":
         color = Colors.blue.shade800;
         bTint = Colors.blue.shade100;
-        text = "% OFF";
+        text = discountPercent > 0 ? "$discountPercent% OFF" : "% OFF";
         break;
       default:
         color = Colors.orange.shade800;
         bTint = Colors.orange.shade100;
-        text = "BOGO DEAL";
+        text = buyQuantity > 0 && freeQuantity > 0
+            ? "BUY $buyQuantity GET $freeQuantity"
+            : "BOGO DEAL";
     }
 
     return Container(
@@ -745,7 +905,12 @@ class CouponModel {
   final String brand;
   final String title;
   final String offerType;
+  final int originalCost;
   final int coinCost;
+  final int discountPercent;
+  final int flatDiscountAmount;
+  final int buyQuantity;
+  final int freeQuantity;
   final String description;
   final String? couponCode;
   final bool purchased;
@@ -755,7 +920,12 @@ class CouponModel {
     required this.brand,
     required this.title,
     required this.offerType,
+    required this.originalCost,
     required this.coinCost,
+    this.discountPercent = 0,
+    this.flatDiscountAmount = 0,
+    this.buyQuantity = 0,
+    this.freeQuantity = 0,
     required this.description,
     this.couponCode,
     this.purchased = false,

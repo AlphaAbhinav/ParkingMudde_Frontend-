@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import '../../services/api_service.dart';
+import 'package:parkingmudde/widgets/screen_slogan.dart';
 
 class MyBookingsPage extends StatefulWidget {
   const MyBookingsPage({super.key});
@@ -63,18 +63,28 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
         child: isLoading
             ? const Center(child: CircularProgressIndicator())
             : bookings.isEmpty
-                ? _emptyState()
-                : ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(
-                      parent: BouncingScrollPhysics(),
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    itemCount: bookings.length,
-                    itemBuilder: (context, index) {
-                      final booking = bookings[index];
-                      return _bookingCard(booking);
-                    },
-                  ),
+            ? _emptyState()
+            : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                padding: const EdgeInsets.all(16),
+                itemCount: bookings.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == bookings.length) {
+                    return const Padding(
+                      padding: EdgeInsets.only(top: 10, bottom: 24),
+                      child: ScreenSlogan(
+                        "Forget parking spots. Not with us around.",
+                        color: Color(0xFF2A5EE8),
+                        icon: Icons.local_parking_rounded,
+                      ),
+                    );
+                  }
+                  final booking = bookings[index];
+                  return _bookingCard(booking);
+                },
+              ),
       ),
     );
   }
@@ -85,11 +95,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
       padding: const EdgeInsets.all(24),
       children: const [
         SizedBox(height: 120),
-        Icon(
-          Icons.local_parking_rounded,
-          size: 46,
-          color: Color(0xFF2A5EE8),
-        ),
+        Icon(Icons.local_parking_rounded, size: 46, color: Color(0xFF2A5EE8)),
         SizedBox(height: 14),
         Center(
           child: Text(
@@ -104,6 +110,12 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.blueGrey, fontSize: 12),
           ),
+        ),
+        SizedBox(height: 18),
+        ScreenSlogan(
+          "Forget parking spots. Not with us around.",
+          color: Color(0xFF2A5EE8),
+          icon: Icons.local_parking_rounded,
         ),
       ],
     );
@@ -187,13 +199,10 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                 amount == null
                     ? "On approval"
                     : amount == 0
-                        ? "Free"
-                        : "Rs$amount",
+                    ? "Free"
+                    : "Rs$amount",
               ),
-              _detailChip(
-                Icons.verified_rounded,
-                paymentStatus,
-              ),
+              _detailChip(Icons.verified_rounded, paymentStatus),
               if (vehicleNumber != null && vehicleNumber.isNotEmpty)
                 _detailChip(Icons.directions_car_rounded, vehicleNumber),
             ],
@@ -208,8 +217,8 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
     final color = upper == "APPROVED" || upper == "COMPLETED"
         ? Colors.green.shade700
         : upper == "REJECTED" || upper == "CANCELLED"
-            ? Colors.red.shade700
-            : Colors.orange.shade700;
+        ? Colors.red.shade700
+        : Colors.orange.shade700;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
@@ -258,8 +267,8 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
     final hour = createdAt.hour > 12
         ? createdAt.hour - 12
         : createdAt.hour == 0
-            ? 12
-            : createdAt.hour;
+        ? 12
+        : createdAt.hour;
     final minute = createdAt.minute.toString().padLeft(2, "0");
     final suffix = createdAt.hour >= 12 ? "PM" : "AM";
     return "${createdAt.day}/${createdAt.month}/${createdAt.year} - $hour:$minute $suffix";

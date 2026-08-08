@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:parkingmudde/widgets/screen_slogan.dart';
 
 class ParkingPracharScreen extends StatefulWidget {
   const ParkingPracharScreen({super.key});
@@ -50,25 +51,58 @@ class _ParkingPracharScreenState extends State<ParkingPracharScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _blogs.isEmpty
-              ? const Center(child: Text("No blogs available."))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: _blogs.length,
-                  itemBuilder: (context, index) {
-                    final blog = _blogs[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: _buildBlogCard(
-                        title: blog["title"] ?? "Untitled",
-                        category: "Blog",
-                        imageUrl: blog["image_url"] ?? "",
-                        description: blog["description"] ?? "",
-                        targetUrl: blog["url"] ?? "",
-                      ),
-                    );
-                  },
+          ? ListView(
+              padding: const EdgeInsets.all(16),
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              children: const [
+                SizedBox(height: 140),
+                Center(child: Text("No blogs available.")),
+                SizedBox(height: 24),
+                ScreenSlogan(
+                  "Your daily dose of parking insights.",
+                  color: Color(0xFF2A5EE8),
+                  icon: Icons.article_rounded,
+                  imagePath: 'assets/parkingprachaarslogan.png',
+                  normalImageWidth: 146,
+                  compactImageWidth: 124,
+                  textMaxLines: 2,
                 ),
+              ],
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              physics: const BouncingScrollPhysics(),
+              itemCount: _blogs.length + 1,
+              itemBuilder: (context, index) {
+                if (index == _blogs.length) {
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: 24),
+                    child: ScreenSlogan(
+                      "Your daily dose of parking insights.",
+                      color: Color(0xFF2A5EE8),
+                      icon: Icons.article_rounded,
+                      imagePath: 'assets/parkingprachaarslogan.png',
+                      normalImageWidth: 146,
+                      compactImageWidth: 124,
+                      textMaxLines: 2,
+                    ),
+                  );
+                }
+                final blog = _blogs[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: _buildBlogCard(
+                    title: blog["title"] ?? "Untitled",
+                    category: "Blog",
+                    imageUrl: blog["image_url"] ?? "",
+                    description: blog["description"] ?? "",
+                    targetUrl: blog["url"] ?? "",
+                  ),
+                );
+              },
+            ),
     );
   }
 
@@ -79,19 +113,21 @@ class _ParkingPracharScreenState extends State<ParkingPracharScreen> {
     required String description,
     required String targetUrl,
   }) {
-    final fullImageUrl = imageUrl.startsWith('/') ? '${ApiService.baseUrl}$imageUrl' : imageUrl;
+    final fullImageUrl = imageUrl.startsWith('/')
+        ? '${ApiService.baseUrl}$imageUrl'
+        : imageUrl;
 
     return GestureDetector(
       onTap: () async {
-          var uri = Uri.parse(targetUrl);
-          if (!uri.hasScheme) {
-            uri = Uri.parse('https://$targetUrl');
-          }
-          try {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          } catch (e) {
-            debugPrint("Could not launch $targetUrl");
-          }
+        var uri = Uri.parse(targetUrl);
+        if (!uri.hasScheme) {
+          uri = Uri.parse('https://$targetUrl');
+        }
+        try {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } catch (e) {
+          debugPrint("Could not launch $targetUrl");
+        }
       },
       child: Container(
         decoration: BoxDecoration(
@@ -116,9 +152,17 @@ class _ParkingPracharScreenState extends State<ParkingPracharScreen> {
                   ? Image.network(
                       fullImageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, size: 64, color: Colors.grey),
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.image_not_supported,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
                     )
-                  : const Icon(Icons.article_rounded, size: 64, color: Colors.grey),
+                  : const Icon(
+                      Icons.article_rounded,
+                      size: 64,
+                      color: Colors.grey,
+                    ),
             ),
             Padding(
               padding: const EdgeInsets.all(16),
@@ -126,7 +170,10 @@ class _ParkingPracharScreenState extends State<ParkingPracharScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
@@ -170,7 +217,11 @@ class _ParkingPracharScreenState extends State<ParkingPracharScreen> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.blue),
+                      const Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 16,
+                        color: Colors.blue,
+                      ),
                     ],
                   ),
                 ],

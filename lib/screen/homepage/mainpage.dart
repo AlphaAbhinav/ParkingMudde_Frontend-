@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/emergency/emergencyalertpage.dart';
+import 'package:parkingmudde/services/api_service.dart';
 
 class Dash extends StatefulWidget {
   final bool fromRegistration;
@@ -43,6 +44,19 @@ class _DashState extends State<Dash> {
     });
   }
 
+
+  String _reportFeeDescription(int? feeCoins) {
+    final feeText = feeCoins == null
+        ? "The current reporting fee will be shown before submission."
+        : "$feeCoins PM Coins will be deducted only when you enter the vehicle number plate.";
+    return "Upload proof first. AI will validate the report before asking for the vehicle plate.\n\nReporting fee: $feeText";
+  }
+
+  Future<int?> _loadReportFeeCoins() async {
+    final configs = await ApiService.fetchCoinConfig();
+    final fee = configs['report_fee_coins'];
+    return fee?.toInt();
+  }
   void _showScannerOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -78,11 +92,13 @@ class _DashState extends State<Dash> {
                 ),
                 title: const Text("Report Wrong Parking", style: TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: const Text("Upload proof and alert owner", style: TextStyle(fontSize: 12)),
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
+                  final reportFeeCoins = await _loadReportFeeCoins();
+                  if (!mounted) return;
                   _showBeautifulDialog(
                     title: "Report Wrong Parking",
-                    description: "Upload proof first. AI will validate the report before asking for the vehicle plate.\n\nNote: A ₹1 fee may apply for valid reports.",
+                    description: _reportFeeDescription(reportFeeCoins),
                     icon: Icons.security_rounded,
                     iconColor: primaryBlue,
                     confirmText: "Continue",
@@ -337,3 +353,4 @@ class _DashState extends State<Dash> {
     );
   }
 }
+

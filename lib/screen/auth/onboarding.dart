@@ -1,12 +1,22 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Please adjust imports if folder names changed slightly!
 import 'package:parkingmudde/screen/auth/loginpage.dart';
+import 'package:parkingmudde/screen/common/community_impact_stats_page.dart';
+import 'package:parkingmudde/screen/auth/permissionspage.dart';
+import 'package:parkingmudde/screen/homepage/mainpage.dart';
+import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
 
 class ParkingOnboarding extends StatefulWidget {
-  const ParkingOnboarding({super.key});
+  final bool fromAccountCreation;
+  final bool requireVehicleOnSuccess;
+
+  const ParkingOnboarding({
+    super.key,
+    this.fromAccountCreation = false,
+    this.requireVehicleOnSuccess = false,
+  });
 
   @override
   State<ParkingOnboarding> createState() => _ParkingOnboardingState();
@@ -34,18 +44,21 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
         "Help Parking Errors",
         "Emergency Alerts",
       ], // Exclusive to slide 1
+      "slogan": "The last app your car will ever need.",
     },
     {
       "title": "Wrong Parking? Now\nsolve it in 60 seconds",
       "desc": "Scan number plate → alert owner → masked call → SOS if needed.",
       "image": "assets/onboardingblue.png",
       "bgColor": false,
+      "slogan": "We park the stress. You keep the car.",
     },
     {
       "title": "Be a Helper. Earn\nRewards.",
       "desc": "Help someone with simple vehicle errors and get Coinsback.",
       "image": "assets/onboardingyellow2.png",
       "bgColor": true,
+      "slogan": "Less chaos. More gaadi.",
     },
     {
       "title": "Road Accident? Alert\nfamily + nearby hospital.",
@@ -53,12 +66,14 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
           "Emergency alert sends live location + photo to emergency contacts and nearby hospitals.",
       "image": "assets/onboardingblue.png",
       "bgColor": false,
+      "slogan": "We do the worrying. You do the driving.",
     },
     {
       "title": "Earn, Spend, Redeem\n– all inside the app.",
       "desc": "Coins help you report, connect, book, and redeem rewards.",
       "image": "assets/onboardingyellow2.png",
       "bgColor": true,
+      "slogan": "Big love for your gaadi, in one app.",
     },
   ];
 
@@ -71,7 +86,44 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
   Future<void> _finishOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool("has_seen_onboarding", true);
-    Get.offAll(() => const Loginpage(), transition: Transition.fadeIn);
+
+    if (!widget.fromAccountCreation) {
+      Get.offAll(() => const Loginpage(), transition: Transition.fadeIn);
+      return;
+    }
+
+    await prefs.setBool("is_new_user", false);
+    final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
+    final hasSeenImpactPage =
+        prefs.getBool("has_seen_community_impact_page") ?? false;
+
+    if (!hasSeenImpactPage) {
+      Get.offAll(
+        () => CommunityImpactStatsPage(
+          requireVehicleOnSuccess: widget.requireVehicleOnSuccess,
+          hasSeenPermissions: hasSeenPermissions,
+        ),
+        transition: Transition.fadeIn,
+      );
+      return;
+    }
+
+    if (!hasSeenPermissions) {
+      Get.offAll(
+        () => PermissionsPage(
+          requireVehicleOnSuccess: widget.requireVehicleOnSuccess,
+        ),
+        transition: Transition.fadeIn,
+      );
+      return;
+    }
+
+    Get.offAll(
+      () => widget.requireVehicleOnSuccess
+          ? const AddVehicleScreen(fromRegistration: true)
+          : const Dash(),
+      transition: Transition.fadeIn,
+    );
   }
 
   @override
@@ -190,6 +242,8 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
                   },
                 ),
               ),
+
+              _buildOnboardingSlogan(pages[currentIndex]['slogan'] as String),
 
               // UI COMPONENT BOTTOM : (Control Navigation Matrix System Panel Footer Base Controls Elements Array limits here !)
               Padding(
@@ -327,5 +381,60 @@ class _ParkingOnboardingState extends State<ParkingOnboarding> {
         ],
       ),
     );
+  }
+
+  Widget _buildOnboardingSlogan(String slogan) {
+    final lines = _splitSloganIntoTwoLines(slogan);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+      child: SizedBox(
+        width: double.infinity,
+        height: 58,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: Text(
+            lines.join('\n'),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 23,
+              height: 1.18,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<String> _splitSloganIntoTwoLines(String text) {
+    final words = text.trim().split(RegExp(r'\s+'));
+    if (words.length <= 2) return [text.trim()];
+
+    final totalLength = words.fold<int>(
+      0,
+      (sum, word) => sum + word.length,
+    );
+    final target = totalLength / 2;
+    var running = 0;
+    var splitIndex = 1;
+
+    for (var i = 0; i < words.length - 1; i++) {
+      running += words[i].length;
+      if (running >= target) {
+        splitIndex = i + 1;
+        break;
+      }
+      running += 1;
+    }
+
+    return [
+      words.take(splitIndex).join(' '),
+      words.skip(splitIndex).join(' '),
+    ];
   }
 }

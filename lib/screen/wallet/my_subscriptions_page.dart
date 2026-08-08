@@ -20,12 +20,14 @@ class _MySubscriptionsPageState extends State<MySubscriptionsPage> {
   static const Color earnGreen = Color(0xFF20C475);
 
   List<dynamic> _vehicles = [];
+  Map<String, Map<String, dynamic>> _packageCatalog = {};
   bool _loadingVehicles = true;
 
   @override
   void initState() {
     super.initState();
     _loadVehicles();
+    _loadPackageCatalog();
   }
 
   Future<void> _loadVehicles() async {
@@ -42,6 +44,18 @@ class _MySubscriptionsPageState extends State<MySubscriptionsPage> {
     } else {
       if (mounted) setState(() => _loadingVehicles = false);
     }
+  }
+
+  Future<void> _loadPackageCatalog() async {
+    final packages = await ApiService.fetchWalletPackages();
+    if (!mounted) return;
+    setState(() {
+      _packageCatalog = {
+        for (final package in packages)
+          if ((package['package_id']?.toString() ?? '').isNotEmpty)
+            package['package_id'].toString(): package,
+      };
+    });
   }
 
   @override
@@ -124,6 +138,20 @@ class _MySubscriptionsPageState extends State<MySubscriptionsPage> {
   }
 
   // ─── Subscription Card ───────────────────────────────────
+  IconData _subscriptionIcon(String packageId, String category) {
+    if (packageId.contains('5')) return Icons.verified_rounded;
+    if (packageId.contains('3')) return Icons.notifications_active_rounded;
+    if (category == 'renewal_alert') return Icons.event_repeat_rounded;
+    return Icons.workspace_premium_rounded;
+  }
+
+  Color _subscriptionColor(String packageId, String category) {
+    if (packageId.contains('5')) return const Color(0xFF8B5CF6);
+    if (packageId.contains('3')) return const Color(0xFF0EA5E9);
+    if (category == 'renewal_alert') return const Color(0xFF6366F1);
+    return primaryBlue;
+  }
+
   Widget _buildSubscriptionCard(dynamic sub) {
     final packageId = sub['package_id']?.toString() ?? '';
     final status = sub['status']?.toString() ?? 'ACTIVE';
@@ -131,23 +159,11 @@ class _MySubscriptionsPageState extends State<MySubscriptionsPage> {
     final endDate = DateTime.tryParse(sub['end_date']?.toString() ?? '');
     final isActive = status == 'ACTIVE' && endDate != null && endDate.isAfter(DateTime.now());
 
-    String packageName = packageId;
-    IconData packageIcon = Icons.event_repeat_rounded;
-    Color accentColor = primaryBlue;
-
-    if (packageId.contains('1_year')) {
-      packageName = '1 Year Renewal Alerts';
-      packageIcon = Icons.event_repeat_rounded;
-      accentColor = const Color(0xFF6366F1);
-    } else if (packageId.contains('3_year')) {
-      packageName = '3 Years Renewal Alerts';
-      packageIcon = Icons.notifications_active_rounded;
-      accentColor = const Color(0xFF0EA5E9);
-    } else if (packageId.contains('5_year')) {
-      packageName = '5 Years Renewal Alerts';
-      packageIcon = Icons.verified_rounded;
-      accentColor = const Color(0xFF8B5CF6);
-    }
+    final packageInfo = _packageCatalog[packageId];
+    final packageName = packageInfo?['name']?.toString() ?? packageId;
+    final packageCategory = packageInfo?['category']?.toString() ?? '';
+    final packageIcon = _subscriptionIcon(packageId, packageCategory);
+    final accentColor = _subscriptionColor(packageId, packageCategory);
 
     final daysLeft = endDate != null ? endDate.difference(DateTime.now()).inDays : 0;
 

@@ -1,15 +1,15 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/api_service.dart';
-import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
+import 'package:parkingmudde/screen/auth/onboarding.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/auth/permissionspage.dart';
 import 'package:pinput/pinput.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:parkingmudde/widgets/screen_slogan.dart';
 
 class Otppage extends StatefulWidget {
   final String mobile;
@@ -31,30 +31,62 @@ class Otppage extends StatefulWidget {
 
 class _OtppageState extends State<Otppage> {
   String enteredOtp = "";
+  String? displayedTestOtp;
   bool isLoading = false;
+  bool isResending = false;
+  final TextEditingController otpController = TextEditingController();
 
   final Color brandBlue = const Color(0XFF184b8c);
   final Color brandYellow = const Color(0XFFfdd708);
+
+  @override
+  void initState() {
+    super.initState();
+    displayedTestOtp = widget.testOtp;
+  }
+
+  @override
+  void dispose() {
+    otpController.dispose();
+    super.dispose();
+  }
+
+  void _showAuthToast({required String title, required String message}) {
+    Get.snackbar(
+      title,
+      message,
+      backgroundColor: const Color(0xFFFFF1A8),
+      colorText: const Color(0xFF253047),
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(20),
+      borderRadius: 14,
+      borderColor: const Color(0xFFFFB300),
+      borderWidth: 1.4,
+      boxShadows: [
+        BoxShadow(
+          color: const Color(0xFFFFB300).withOpacity(0.26),
+          blurRadius: 18,
+          spreadRadius: 1,
+          offset: const Offset(0, 6),
+        ),
+      ],
+      icon: const Icon(Icons.info_outline_rounded, color: Color(0xFF167C80)),
+      duration: const Duration(seconds: 4),
+    );
+  }
 
   Future<void> _handleVerification() async {
     FocusScope.of(context).unfocus();
 
     if (enteredOtp.length != 6) {
-      Get.snackbar(
-        "Action Required",
-        "Please enter the complete 6-digit OTP code sent.",
-        backgroundColor: Colors.red.shade600,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(20),
-        borderRadius: 8,
+      _showAuthToast(
+        title: "A quick check",
+        message: "Please enter the complete 6-digit code we sent you.",
       );
       return;
     }
 
     setState(() => isLoading = true);
-
-
 
     final result = await ApiService.verifyOtp(
       widget.mobile,
@@ -71,8 +103,13 @@ class _OtppageState extends State<Otppage> {
         ...result,
         "mobile_number": widget.mobile,
       });
-      if (widget.requireVehicleOnSuccess) {
+      final isNewAccount =
+          result["is_new_user"] == true || widget.requireVehicleOnSuccess;
+      if (isNewAccount) {
         await prefs.setBool("is_new_user", true);
+        await prefs.setBool("pending_feature_walkthrough", true);
+      } else {
+        await prefs.setBool("pending_feature_walkthrough", false);
       }
 
       // Sync FCM Token
@@ -85,27 +122,28 @@ class _OtppageState extends State<Otppage> {
         print("Error syncing FCM token: $e");
       }
 
-      final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
-      
-      if (!hasSeenPermissions) {
-        Get.offAll(() => PermissionsPage(requireVehicleOnSuccess: widget.requireVehicleOnSuccess));
-      } else {
+      if (isNewAccount) {
         Get.offAll(
-          () => widget.requireVehicleOnSuccess
-              ? const AddVehicleScreen(fromRegistration: true)
-              : const Dash(),
+          () => ParkingOnboarding(
+            fromAccountCreation: true,
+            requireVehicleOnSuccess: widget.requireVehicleOnSuccess,
+          ),
+          transition: Transition.fadeIn,
         );
+        return;
+      }
+
+      final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
+      if (!hasSeenPermissions) {
+        Get.offAll(() => const PermissionsPage(requireVehicleOnSuccess: false));
+      } else {
+        Get.offAll(() => const Dash());
       }
     } else {
-      Get.snackbar(
-        "Invalid OTP",
-        result["message"] ??
-            "Verification failed. Please check the code and try again.",
-        backgroundColor: Colors.red.shade600,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(20),
-        borderRadius: 8,
+      _showAuthToast(
+        title: result["title"]?.toString() ?? "Invalid Code",
+        message: result["message"]?.toString() ??
+            "That code doesn't seem right. Please check and try again.",
       );
     }
   }
@@ -138,11 +176,12 @@ class _OtppageState extends State<Otppage> {
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.grey.shade100,
+                          color: Colors.grey.shade50,
+                          border: Border.all(color: Colors.grey.shade200),
                         ),
                         child: const Icon(
                           Icons.arrow_back_rounded,
-                          size: 24,
+                          size: 20,
                           color: Colors.black87,
                         ),
                       ),
@@ -156,27 +195,30 @@ class _OtppageState extends State<Otppage> {
                   const SizedBox(height: 35),
 
                   const Text(
-                    "Enter OTP Code",
+                    "Almost there! ✨",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
                       color: Colors.black87,
                       letterSpacing: -0.5,
                     ),
                   ),
 
-                  if (widget.testOtp != null) ...[
+                  if (displayedTestOtp != null) ...[
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 16,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.orange.shade200),
                       ),
                       child: Text(
-                        "TEST OTP: ${widget.testOtp}",
+                        "TEST OTP: $displayedTestOtp",
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.orange.shade800,
@@ -196,17 +238,17 @@ class _OtppageState extends State<Otppage> {
                         fontSize: 15,
                         height: 1.5,
                         color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w400,
                       ),
                       children: [
                         const TextSpan(
-                          text: "Please enter the 6-digit pin code sent to\n",
+                          text: "We've just sent a secure 6-digit code to\n",
                         ),
                         TextSpan(
                           text: "+91 ${widget.mobile}",
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black87,
                           ),
                         ),
                       ],
@@ -217,6 +259,7 @@ class _OtppageState extends State<Otppage> {
                   const SizedBox(height: 40),
 
                   Pinput(
+                    controller: otpController,
                     length: 6,
                     autofocus: true,
                     keyboardType: TextInputType.number,
@@ -231,7 +274,10 @@ class _OtppageState extends State<Otppage> {
                       decoration: BoxDecoration(
                         color: const Color(0xFFFAFAFA),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300, width: 1.8),
+                        border: Border.all(
+                          color: Colors.grey.shade200,
+                          width: 1.8,
+                        ),
                       ),
                     ),
                     focusedPinTheme: PinTheme(
@@ -243,9 +289,9 @@ class _OtppageState extends State<Otppage> {
                         fontWeight: FontWeight.w900,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFAFAFA),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: brandBlue, width: 1.8),
+                        border: Border.all(color: brandBlue, width: 2.0),
                       ),
                     ),
                     onCompleted: (pin) {
@@ -273,7 +319,7 @@ class _OtppageState extends State<Otppage> {
                       TextSpan(
                         children: [
                           TextSpan(
-                            text: "Didn't receive code?  ",
+                            text: "Didn't receive the message?  ",
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey.shade600,
@@ -283,22 +329,48 @@ class _OtppageState extends State<Otppage> {
                           TextSpan(
                             recognizer: TapGestureRecognizer()
                               ..onTap = () async {
+                                if (isResending) return;
+                                setState(() => isResending = true);
                                 final result = await ApiService.sendOtp(
                                   widget.mobile,
                                 );
 
+                                if (!mounted) return;
+                                setState(() => isResending = false);
+
                                 if (result["success"] == true) {
+                                  final newOtp = result["otp"]?.toString();
+                                  setState(() {
+                                    displayedTestOtp = newOtp;
+                                    enteredOtp = "";
+                                  });
+                                  otpController.clear();
+
+                                  if (Get.isSnackbarOpen) {
+                                    Get.closeCurrentSnackbar();
+                                  }
+
+                                  // --- REVISED: Professional popup using the brand color ---
                                   Get.snackbar(
-                                    "OTP Resent",
-                                    "Successfully sent a new code. Test OTP: ${result["otp"] ?? ''}",
-                                    backgroundColor: Colors.black87,
+                                    "Code Sent",
+                                    "A new 6-digit code has been successfully sent to your mobile.",
+                                    backgroundColor:
+                                        brandBlue, // Uses your brand blue instead of harsh black
                                     colorText: Colors.white,
                                     snackPosition: SnackPosition.TOP,
                                     margin: const EdgeInsets.all(15),
+                                    duration: const Duration(seconds: 4),
+                                    borderRadius: 12,
+                                  );
+                                } else {
+                                  _showAuthToast(
+                                    title: result["title"]?.toString() ?? "Hold on",
+                                    message: result["message"]?.toString() ??
+                                        "We couldn't resend the code just yet. Please try again.",
                                   );
                                 }
                               },
-                            text: 'Resend',
+                            text: isResending ? 'Sending...' : 'Resend it',
                             style: TextStyle(
                               fontSize: 14,
                               color: brandBlue,
@@ -340,7 +412,7 @@ class _OtppageState extends State<Otppage> {
                                 color: Colors.white,
                               )
                             : const Text(
-                                "Verify OTP",
+                                "Verify & Continue",
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -351,6 +423,16 @@ class _OtppageState extends State<Otppage> {
                     ),
                   ),
 
+                  const SizedBox(height: 20),
+                  ScreenSlogan(
+                    "One last step. Your privacy matters.",
+                    color: brandBlue,
+                    icon: Icons.verified_user_rounded,
+                    imagePath: 'assets/otpslogan.png',
+                    normalImageWidth: 140,
+                    compactImageWidth: 118,
+                    textMaxLines: 2,
+                  ),
                   const SizedBox(height: 30),
                 ],
               ),

@@ -1,0 +1,88 @@
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+
+import 'package:flutter/foundation.dart';
+
+class VisitorSoundPlayer {
+  VisitorSoundPlayer._();
+
+  static final VisitorSoundPlayer instance = VisitorSoundPlayer._();
+
+  static const List<String> _assetUrls = [
+    'assets/assets/sounds/VisitorPMFinalAlertTone.mpeg',
+    'assets/sounds/VisitorPMFinalAlertTone.mpeg',
+  ];
+
+  html.AudioElement? _audio;
+  bool _isPrimed = false;
+  bool _isPrimeListenerAttached = false;
+
+  Future<void> prime() async {
+    if (_isPrimed || _isPrimeListenerAttached) return;
+    _isPrimeListenerAttached = true;
+
+    void unlock(html.Event _) {
+      _unlockAudio();
+      html.document.removeEventListener('click', unlock);
+      html.document.removeEventListener('touchstart', unlock);
+      html.document.removeEventListener('keydown', unlock);
+    }
+
+    html.document.addEventListener('click', unlock);
+    html.document.addEventListener('touchstart', unlock);
+    html.document.addEventListener('keydown', unlock);
+  }
+
+  Future<void> _unlockAudio() async {
+    try {
+      final audio = _createAudio();
+      audio.volume = 0;
+      await audio.play();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 1;
+      _audio = audio;
+      _isPrimed = true;
+    } catch (error) {
+      debugPrint("Could not prime visitor sound on web: $error");
+    }
+  }
+
+  Future<void> playOnce() async {
+    try {
+      final audio = _audio ?? _createAudio();
+      _audio = audio;
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 1;
+      audio.loop = false;
+      await audio.play();
+      _isPrimed = true;
+    } catch (error) {
+      debugPrint("Could not play visitor sound on web: $error");
+    }
+  }
+
+  Future<void> dispose() async {
+    _audio?.pause();
+    _audio = null;
+  }
+
+  html.AudioElement _createAudio() {
+    final audio = html.AudioElement()
+      ..preload = 'auto'
+      ..autoplay = false
+      ..loop = false;
+
+    for (final url in _assetUrls) {
+      audio.append(
+        html.SourceElement()
+          ..src = url
+          ..type = 'audio/mpeg',
+      );
+    }
+
+    audio.load();
+    return audio;
+  }
+}

@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/screen/auth/loginpage.dart';
-import 'package:parkingmudde/screen/auth/otppage.dart';
+import 'package:parkingmudde/screen/auth/onboarding.dart';
 import 'package:parkingmudde/screen/pageterm/termpage.dart';
 import '../../services/api_service.dart';
+import 'package:parkingmudde/widgets/screen_slogan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:parkingmudde/screen/auth/permissionspage.dart';
-import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -18,6 +17,10 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
+  // Page Navigation State
+  final PageController _pageController = PageController();
+  int _currentStep = 0;
+
   final firstNameCtrl = TextEditingController();
   final lastNameCtrl = TextEditingController();
   final drivingLicenseCtrl = TextEditingController();
@@ -36,12 +39,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
-  static const Color primaryBlue = Color(0xFF2A5EE8);
+  static const Color primaryBlue = Color(0xFF184B8C); // Polished brand blue
   static const Color facebookBlue = Color(0xFF1877F2);
-  static const Color labelGrey = Color(0xFF555555);
-  static const Color subTextGrey = Color(0xFF999999);
-  static const Color borderGrey = Color(0xFFD2D2D2);
-  static const Color textBlack = Color(0xFF222222);
+  static const Color subTextGrey = Color(0xFF64748B);
+  static const Color bgFillGrey = Color(0xFFF1F5F9); // Muted input fill
+  static const Color textBlack = Color(0xFF1E293B);
 
   List<Map<String, dynamic>> _societiesList = [];
   String? _selectedSociety;
@@ -57,7 +59,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (res['success'] == true) {
       if (mounted) {
         setState(() {
-          _societiesList = List<Map<String, dynamic>>.from(res['societies'] ?? []);
+          _societiesList = List<Map<String, dynamic>>.from(
+            res['societies'] ?? [],
+          );
         });
       }
     }
@@ -65,6 +69,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     firstNameCtrl.dispose();
     lastNameCtrl.dispose();
     drivingLicenseCtrl.dispose();
@@ -80,67 +85,88 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  bool _validateForm() {
+  // --- Step 1 Validations (Basic) ---
+  bool _validateStep1() {
     FocusScope.of(context).unfocus();
-
-    final firstName = firstNameCtrl.text.trim();
-    final lastName = lastNameCtrl.text.trim();
-    final license = drivingLicenseCtrl.text.trim();
-    final aadhaar = aadhaarCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final email = emailCtrl.text.trim().toLowerCase();
+    if (firstNameCtrl.text.trim().isEmpty) {
+      return _err("Please enter your first name.");
+    }
+    if (lastNameCtrl.text.trim().isEmpty) {
+      return _err("Please enter your last name.");
+    }
     final mobile = mobileCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(mobile)) {
+      return _err("Enter a valid 10-digit mobile number.");
+    }
+
+    final email = emailCtrl.text.trim().toLowerCase();
+    if (email.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+').hasMatch(email)) {
+      return _err("Please enter a valid email address.");
+    }
+    return true;
+  }
+
+  // --- Step 2 Validations (ID/Referral) ---
+  bool _validateStep2() {
+    FocusScope.of(context).unfocus();
+    final aadhaar = aadhaarCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (aadhaar.isNotEmpty && aadhaar.length != 12) {
+      return _err("Aadhaar number must be exactly 12 digits.");
+    }
+    return true; // Mostly optional data
+  }
+
+  // --- Step 3 Validations (Security) & Submits Form ---
+  bool _validateStep3() {
+    FocusScope.of(context).unfocus();
     final password = passwordCtrl.text;
     final confirmPassword = confirmPasswordCtrl.text;
 
-    if (firstName.isEmpty) {
-      _showSnackbarError("Please enter your first name.");
-      return false;
-    }
-
-    if (lastName.isEmpty) {
-      _showSnackbarError("Please enter your last name.");
-      return false;
-    }
-
-
-
-    if (aadhaar.isNotEmpty && aadhaar.length != 12) {
-      _showSnackbarError("Aadhaar number must be 12 digits.");
-      return false;
-    }
-
-    if (email.isNotEmpty &&
-        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+').hasMatch(email)) {
-      _showSnackbarError("Please enter a valid email address.");
-      return false;
-    }
-
-    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(mobile)) {
-      _showSnackbarError("Enter a valid 10-digit mobile number.");
-      return false;
-    }
-
     if (password.length < 6) {
-      _showSnackbarError("Password must be at least 6 characters.");
-      return false;
+      return _err("Password must be at least 6 characters.");
     }
-
-    if (password != confirmPassword) {
-      _showSnackbarError("Passwords do not match.");
-      return false;
-    }
-
+    if (password != confirmPassword) return _err("Passwords do not match.");
     if (!acceptedTerms) {
-      _showSnackbarError("Please accept the terms of use and privacy policy.");
-      return false;
+      return _err("Please accept the terms of use and privacy policy.");
     }
 
     return true;
   }
 
-  Future<void> _handleSignup() async {
-    if (!_validateForm()) return;
+  bool _err(String msg) {
+    _showSnackbarError(msg);
+    return false;
+  }
 
+  Future<void> _handleNextStep() async {
+    if (_currentStep == 0 && !_validateStep1()) return;
+    if (_currentStep == 1 && !_validateStep2()) return;
+
+    if (_currentStep < 2) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      setState(() => _currentStep++);
+    } else {
+      if (_validateStep3()) {
+        await _handleSignup();
+      }
+    }
+  }
+
+  void _handlePrevStep() {
+    if (_currentStep > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      setState(() => _currentStep--);
+    }
+  }
+
+  Future<void> _handleSignup() async {
     final mobile = mobileCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
     final email = emailCtrl.text.trim().toLowerCase().isEmpty
         ? "pm_$mobile@parkingmudde.local"
@@ -160,30 +186,29 @@ class _SignUpScreenState extends State<SignUpScreen> {
       societyName: societyCtrl.text.trim(),
       tower: towerCtrl.text.trim(),
       flatNumber: flatCtrl.text.trim(),
-      
     );
 
     if (!mounted) return;
 
     if (result["success"] == true) {
       await ApiService.saveUserSession(result);
-              if (!mounted) return;
-        
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool("is_new_user", true);
+      if (!mounted) return;
 
-        setState(() => isLoading = false);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool("is_new_user", true);
+      await prefs.setBool("pending_feature_walkthrough", true);
 
-        // BYPASS OTP COMPLETELY for testing
-        final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
-        
-        if (!hasSeenPermissions) {
-          Get.offAll(() => const PermissionsPage(requireVehicleOnSuccess: true));
-        } else {
-          Get.offAll(() => const AddVehicleScreen(fromRegistration: true));
-        }
-        return;
-      }
+      setState(() => isLoading = false);
+
+      Get.offAll(
+        () => const ParkingOnboarding(
+          fromAccountCreation: true,
+          requireVehicleOnSuccess: true,
+        ),
+        transition: Transition.fadeIn,
+      );
+      return;
+    }
 
     setState(() => isLoading = false);
     _showSnackbarError(result["message"] ?? "Registration failed.");
@@ -191,13 +216,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   void _showSnackbarError(String message) {
     Get.snackbar(
-      "Validation Error",
+      "Notice",
       message,
       backgroundColor: Colors.red.shade600,
       colorText: Colors.white,
       snackPosition: SnackPosition.BOTTOM,
       margin: const EdgeInsets.all(20),
-      borderRadius: 10,
+      borderRadius: 12,
+      icon: const Icon(Icons.error_outline_rounded, color: Colors.white),
     );
   }
 
@@ -205,12 +231,102 @@ class _SignUpScreenState extends State<SignUpScreen> {
     Get.snackbar(
       "Coming soon",
       "This integration will be available shortly.",
-      backgroundColor: Colors.black87,
+      backgroundColor: textBlack,
       colorText: Colors.white,
       snackPosition: SnackPosition.BOTTOM,
       margin: const EdgeInsets.all(20),
-      borderRadius: 10,
-      duration: const Duration(seconds: 2),
+      borderRadius: 12,
+    );
+  }
+
+  Future<void> _openExternalLink(String url) async {
+    final uri = Uri.parse(url);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened) _showSnackbarError("Could not open this link.");
+  }
+
+  // ==== SOCIETY BOTTOM SHEET PICKER ====
+  void _openSocietyBottomSheet() {
+    FocusScope.of(context).unfocus(); // Clear Keyboard
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          height:
+              MediaQuery.of(context).size.height * 0.75, // Sleek overlay ratio
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: Column(
+            children: [
+              Center(
+                child: Container(
+                  width: 48,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                "Select Society",
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: textBlack,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.separated(
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: _societiesList.length + 1,
+                  separatorBuilder: (_, __) =>
+                      Divider(color: Colors.grey.shade200, height: 1),
+                  itemBuilder: (ctx, idx) {
+                    final isOther = (idx == _societiesList.length);
+                    final name = isOther
+                        ? "Other (Not listed)"
+                        : _societiesList[idx]['name'].toString();
+
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 8,
+                      ),
+                      title: Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: textBlack,
+                          fontSize: 16,
+                        ),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.grey.shade400,
+                      ),
+                      onTap: () {
+                        setState(() {
+                          _selectedSociety = name;
+                          societyCtrl.text = isOther ? "" : name;
+                        });
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -226,190 +342,128 @@ class _SignUpScreenState extends State<SignUpScreen> {
           leading: IconButton(
             icon: const Icon(
               Icons.arrow_back_ios_new_rounded,
-              color: primaryBlue,
+              color: textBlack,
               size: 20,
             ),
             onPressed: () {
-              if (Navigator.canPop(context)) Get.back();
+              if (_currentStep > 0) {
+                _handlePrevStep();
+              } else if (Navigator.canPop(context)) {
+                Get.back();
+              }
             },
           ),
-          centerTitle: true,
-          title: const Text(
-            "Create an account",
-            style: TextStyle(
-              color: textBlack,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 24.0, top: 18),
+              child:
+                  Text(
+                    "Login instead",
+                    style: const TextStyle(
+                      color: primaryBlue,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ).handleClick(() {
+                    Get.off(
+                      () => const Loginpage(),
+                      transition: Transition.leftToRight,
+                    );
+                  }),
             ),
+          ],
+        ),
+
+        // ---- The Footer Navigation Controller ----
+        bottomNavigationBar: _buildStickyFooter(),
+
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeroStepperHeader(),
+
+              // Animated Page views housing different card segments
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics:
+                      const NeverScrollableScrollPhysics(), // Disables finger drag navigation directly so validation runs natively via footers
+                  children: [_buildStep1(), _buildStep2(), _buildStep3()],
+                ),
+              ),
+            ],
           ),
         ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      ),
+    );
+  }
+
+  // --- Layout Generators ---
+
+  Widget _buildStickyFooter() {
+    return SafeArea(
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          16,
+          24,
+          MediaQuery.of(context).viewInsets.bottom > 0 ? 16 : 32,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: Colors.grey.shade100, width: 2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.white,
+              blurRadius: 40,
+              spreadRadius: 30,
+              offset: Offset(0, -30), // Ghost fades long scrolling forms
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
               children: [
-                const SizedBox(height: 24),
-
-                _buildFigmaField(
-                  label: "First name *",
-                  hint: "Enter your first name",
-                  controller: firstNameCtrl,
-                  keyboardType: TextInputType.name,
-                ),
-                const SizedBox(height: 18),
-                _buildFigmaField(
-                  label: "Last name *",
-                  hint: "Enter your last name",
-                  controller: lastNameCtrl,
-                  keyboardType: TextInputType.name,
-                ),
-                const SizedBox(height: 18),
-                _buildFigmaField(
-                  label: "Driving license",
-                  hint: "Enter your driving license number",
-                  controller: drivingLicenseCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                ),
-                const SizedBox(height: 18),
-                _buildFigmaField(
-                  label: "Aadhaar number",
-                  hint: "Enter Aadhaar number",
-                  controller: aadhaarCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(12),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _buildFigmaField(
-                  label: "Email ID",
-                  hint: "Enter email ID",
-                  controller: emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 18),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Society name ", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: textBlack)),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      value: _selectedSociety,
-                      hint: const Text("Select your society", style: TextStyle(color: subTextGrey, fontSize: 14)),
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: borderGrey, width: 1)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: primaryBlue, width: 1.5)),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      icon: const Icon(Icons.arrow_drop_down_rounded, color: primaryBlue),
-                      items: [
-                        ..._societiesList.map((soc) {
-                          return DropdownMenuItem<String>(
-                            value: soc['name'].toString(),
-                            child: Text(soc['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
-                          );
-                        }),
-                        const DropdownMenuItem<String>(
-                          value: "Other",
-                          child: Text("Other (Not listed)", style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                if (_currentStep > 0)
+                  Expanded(
+                    flex: 1,
+                    child: OutlinedButton(
+                      onPressed: _handlePrevStep,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                      ],
-                      onChanged: (val) {
-                        setState(() {
-                          _selectedSociety = val;
-                          societyCtrl.text = val == "Other" ? "" : (val ?? "");
-                        });
-                      },
+                        side: BorderSide(color: Colors.grey.shade300, width: 2),
+                      ),
+                      child: const Text(
+                        "Back",
+                        style: TextStyle(
+                          color: textBlack,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-                if (_selectedSociety == "Other") ...[
-                  const SizedBox(height: 16),
-                  _buildFigmaField(
-                    label: "Enter your society manually",
-                    hint: "Type society name",
-                    controller: societyCtrl,
-                    textCapitalization: TextCapitalization.words,
                   ),
-                ],
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildFigmaField(
-                        label: "Tower",
-                        hint: "Tower no.",
-                        controller: towerCtrl,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildFigmaField(
-                        label: "Flat",
-                        hint: "Flat no.",
-                        controller: flatCtrl,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _buildFigmaField(
-                  label: "Mobile number *",
-                  hint: "Enter your registered mobile number",
-                  controller: mobileCtrl,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(10),
-                  ],
-                ),
-                const SizedBox(height: 18),
 
-                // ── Password ──
-                _buildPasswordField(
-                  label: "Password *",
-                  hint: "Create a password (min 6 characters)",
-                  controller: passwordCtrl,
-                  obscure: _obscurePassword,
-                  onToggle: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
-                ),
-                const SizedBox(height: 18),
+                if (_currentStep > 0) const SizedBox(width: 12),
 
-                // ── Confirm Password ──
-                _buildPasswordField(
-                  label: "Confirm password *",
-                  hint: "Re-enter your password",
-                  controller: confirmPasswordCtrl,
-                  obscure: _obscureConfirm,
-                  onToggle: () =>
-                      setState(() => _obscureConfirm = !_obscureConfirm),
-                ),
-                const SizedBox(height: 18),
-
-                _buildFigmaField(
-                  label: "Referral code",
-                  hint: "Enter referral code if available",
-                  controller: referralCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                ),
-                const SizedBox(height: 18),
-                _buildTermsRow(),
-                const SizedBox(height: 28),
-                SizedBox(
-                  height: 52,
+                Expanded(
+                  flex: 2,
                   child: ElevatedButton(
-                    onPressed: isLoading ? null : _handleSignup,
+                    onPressed: isLoading ? null : _handleNextStep,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryBlue,
                       elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: isLoading
@@ -421,135 +475,380 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               strokeWidth: 2,
                             ),
                           )
-                        : const Text(
-                            "Let's Signup",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                _currentStep == 2
+                                    ? "Complete Setup"
+                                    : "Continue",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (_currentStep < 2) ...[
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ],
+                            ],
                           ),
                   ),
                 ),
-                const SizedBox(height: 28),
-                Row(
-                  children: [
-                    const Expanded(child: Divider(color: borderGrey)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: Text(
-                        "Or sign up with",
-                        style: TextStyle(
-                          color: subTextGrey.withOpacity(0.8),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    const Expanded(child: Divider(color: borderGrey)),
-                  ],
-                ),
-                const SizedBox(height: 28),
-                _SocialProviderButton(
-                  text: "Continue with Google",
-                  backgroundColor: Colors.white,
-                  textColor: textBlack,
-                  borderColor: borderGrey,
-                  iconWidget: const _FallbackGoogleIcon(),
-                  onTap: _showComingSoon,
-                ),
-                const SizedBox(height: 16),
-                _SocialProviderButton(
-                  text: "Continue with Facebook",
-                  backgroundColor: facebookBlue,
-                  textColor: Colors.white,
-                  borderColor: Colors.transparent,
-                  iconWidget:
-                      const Icon(Icons.facebook, color: Colors.white, size: 24),
-                  onTap: _showComingSoon,
-                ),
-                const SizedBox(height: 16),
-                _SocialProviderButton(
-                  text: "Continue with Apple",
-                  backgroundColor: Colors.black,
-                  textColor: Colors.white,
-                  borderColor: Colors.transparent,
-                  iconWidget: const Icon(
-                    Icons.apple_rounded,
-                    color: Colors.white,
-                    size: 26,
-                  ),
-                  onTap: _showComingSoon,
-                ),
-                const SizedBox(height: 42),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      "Already have an account? ",
-                      style: TextStyle(
-                        color: labelGrey,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Get.off(
-                        () => const Loginpage(),
-                        transition: Transition.leftToRight,
-                      ),
-                      child: const Text(
-                        "Login",
-                        style: TextStyle(
-                          color: primaryBlue,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
-          ),
+            const SizedBox(height: 12),
+            const ScreenSlogan(
+              "Welcome! We've saved you a spot.",
+              color: primaryBlue,
+              icon: Icons.favorite_rounded,
+              imagePath: 'assets/loginslogan.png',
+              normalImageWidth: 140,
+              compactImageWidth: 118,
+              textMaxLines: 2,
+            ),
+          ],
         ),
       ),
     );
   }
 
+  Widget _buildHeroStepperHeader() {
+    // Array controls Header States
+    const headings = ["Personal info", "ID Verification", "Secure Account"];
+    const subs = [
+      "We'd love to know your basics.",
+      "Secured completely by ParkingMudde.",
+      "Setup your neighborhood settings.",
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: List.generate(3, (idx) {
+              final active = idx <= _currentStep;
+              return Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(right: idx < 2 ? 8 : 0),
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: active ? primaryBlue : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            headings[_currentStep],
+            style: const TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              color: textBlack,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subs[_currentStep],
+            style: const TextStyle(
+              fontSize: 14,
+              color: subTextGrey,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==== WIZARD SLIDES ====
+
+  Widget _buildStep1() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 80),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Social shortcuts sit firmly atop phase 1 reducing fatigue typing entries completely
+          _buildCompactSocialLoginRow(),
+          const SizedBox(height: 28),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildModernField(
+                  label: "First name *",
+                  hint: "E.g. Rahul",
+                  controller: firstNameCtrl,
+                  keyboardType: TextInputType.name,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildModernField(
+                  label: "Last name *",
+                  hint: "E.g. Sharma",
+                  controller: lastNameCtrl,
+                  keyboardType: TextInputType.name,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildModernField(
+            label: "Mobile number *",
+            hint: "10-digit number",
+            icon: Icons.phone_android_rounded,
+            controller: mobileCtrl,
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(10),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildModernField(
+            label: "Email ID",
+            hint: "john@email.com (Optional)",
+            icon: Icons.email_outlined,
+            controller: emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep2() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 80),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSecureField(
+            label: "Aadhaar number (Optional)",
+            hint: "12-digit number",
+            icon: Icons.badge_outlined,
+            controller: aadhaarCtrl,
+            keyboardType: TextInputType.number,
+            maxLength: 12,
+            isSecureCopy: true,
+          ),
+          const SizedBox(height: 24),
+          _buildSecureField(
+            label: "Driving license (Optional)",
+            hint: "Enter DL number",
+            icon: Icons.contact_mail_outlined,
+            controller: drivingLicenseCtrl,
+            textCapitalization: TextCapitalization.characters,
+            isSecureCopy: true,
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => _openExternalLink(
+                "https://sarathi.parivahan.gov.in/sarathiservice/stateSelection.do",
+              ),
+              child: const Text(
+                "Can't find your DL info?",
+                style: TextStyle(
+                  color: primaryBlue,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          Container(
+            height: 1.5,
+            color: Colors.grey.shade100,
+            margin: const EdgeInsets.symmetric(vertical: 8),
+          ),
+          const SizedBox(height: 16),
+
+          _buildModernField(
+            label: "Friend's Referral Code",
+            hint: "E.g. MUDDE-XYZ",
+            icon: Icons.group_add_outlined,
+            controller: referralCtrl,
+            textCapitalization: TextCapitalization.characters,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep3() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 80),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Tap Triggering modern Society UI overlay
+          const Text(
+            "Society / Area Name",
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: textBlack,
+            ),
+          ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: _openSocietyBottomSheet,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: bgFillGrey,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.transparent),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.location_city_rounded,
+                    color: Colors.blueGrey,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      _selectedSociety ?? "Select community from list",
+                      style: TextStyle(
+                        color: _selectedSociety != null
+                            ? textBlack
+                            : Colors.blueGrey.shade400,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Colors.blueGrey.shade500,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_selectedSociety == "Other (Not listed)") ...[
+            const SizedBox(height: 16),
+            _buildModernField(
+              label: "Enter manual name",
+              hint: "Name of your area",
+              controller: societyCtrl,
+              textCapitalization: TextCapitalization.words,
+            ),
+          ],
+
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _buildModernField(
+                  label: "Tower",
+                  hint: "T-2, Block A",
+                  controller: towerCtrl,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildModernField(
+                  label: "Flat",
+                  hint: "No. 402",
+                  controller: flatCtrl,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 32),
+
+          _buildPasswordField(
+            label: "Create a Password *",
+            hint: "min. 6 characters",
+            controller: passwordCtrl,
+            obscure: _obscurePassword,
+            onToggle: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+          ),
+          const SizedBox(height: 20),
+          _buildPasswordField(
+            label: "Confirm Password *",
+            hint: "Re-enter securely",
+            controller: confirmPasswordCtrl,
+            obscure: _obscureConfirm,
+            onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
+          ),
+
+          const SizedBox(height: 32),
+          _buildTermsRow(),
+        ],
+      ),
+    );
+  }
+
+  // --- Specialized Micro UI Modules ---
+
   Widget _buildTermsRow() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Checkbox(
-          value: acceptedTerms,
-          activeColor: primaryBlue,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          onChanged: (value) => setState(() => acceptedTerms = value ?? false),
+        SizedBox(
+          height: 24,
+          width: 24,
+          child: Checkbox(
+            value: acceptedTerms,
+            activeColor: primaryBlue,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
+            side: BorderSide(color: Colors.blueGrey.shade300, width: 2),
+            onChanged: (value) =>
+                setState(() => acceptedTerms = value ?? false),
+          ),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 12),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.only(top: 9),
+            padding: const EdgeInsets.only(top: 2),
             child: Wrap(
               children: [
                 const Text(
-                  "I accept the ",
+                  "I consent & accept the application's ",
                   style: TextStyle(
-                    color: labelGrey,
+                    color: subTextGrey,
                     fontSize: 13,
                     height: 1.4,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 GestureDetector(
                   onTap: () =>
                       Get.to(() => const Pageterm(tittle: 'Terms of Use')),
                   child: const Text(
-                    "terms of use & privacy policy",
+                    "Terms of Service & Privacy Agreement.",
                     style: TextStyle(
-                      color: primaryBlue,
+                      color: textBlack,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       height: 1.4,
+                      decoration: TextDecoration.underline,
                     ),
                   ),
                 ),
@@ -561,10 +860,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildFigmaField({
+  // Renders Beautiful Fields strictly wiping standard boundaries unless typed over directly
+  Widget _buildModernField({
     required String label,
     required String hint,
     required TextEditingController controller,
+    IconData? icon,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     TextCapitalization textCapitalization = TextCapitalization.none,
@@ -577,7 +878,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: labelGrey,
+            color: textBlack,
           ),
         ),
         const SizedBox(height: 8),
@@ -588,29 +889,114 @@ class _SignUpScreenState extends State<SignUpScreen> {
           textCapitalization: textCapitalization,
           style: const TextStyle(
             color: textBlack,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
           ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(
-              color: Color(0xFFC0CAD8),
+            prefixIcon: icon != null
+                ? Icon(icon, color: Colors.blueGrey, size: 20)
+                : null,
+            hintStyle: TextStyle(
+              color: Colors.blueGrey.shade400,
               fontSize: 14,
-              fontWeight: FontWeight.w400,
+              fontWeight: FontWeight.w500,
             ),
             filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
+            fillColor: bgFillGrey,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: icon != null ? 0 : 16,
+              vertical: 18,
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: borderGrey, width: 1.0),
+
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: primaryBlue, width: 1.5),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: primaryBlue, width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Custom Build For Secure Vault Context UI Data
+  Widget _buildSecureField({
+    required String label,
+    required String hint,
+    required TextEditingController controller,
+    required IconData icon,
+    bool isSecureCopy = false,
+    int? maxLength,
+    TextInputType? keyboardType,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: textBlack,
+              ),
+            ),
+            if (isSecureCopy)
+              Row(
+                children: const [
+                  Icon(Icons.shield_rounded, color: Colors.green, size: 12),
+                  SizedBox(width: 4),
+                  Text(
+                    "256-bit Secure",
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          inputFormatters: maxLength != null
+              ? [LengthLimitingTextInputFormatter(maxLength)]
+              : null,
+          textCapitalization: textCapitalization,
+          style: const TextStyle(
+            color: textBlack,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icon, color: Colors.blueGrey, size: 20),
+            hintStyle: TextStyle(
+              color: Colors.blueGrey.shade400,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            filled: true,
+            fillColor: bgFillGrey,
+            contentPadding: const EdgeInsets.symmetric(vertical: 18),
+
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: primaryBlue, width: 2),
             ),
           ),
         ),
@@ -633,7 +1019,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: labelGrey,
+            color: textBlack,
           ),
         ),
         const SizedBox(height: 8),
@@ -642,94 +1028,116 @@ class _SignUpScreenState extends State<SignUpScreen> {
           obscureText: obscure,
           style: const TextStyle(
             color: textBlack,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
           ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(
-              color: Color(0xFFC0CAD8),
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: borderGrey, width: 1.0),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: primaryBlue, width: 1.5),
+            prefixIcon: const Icon(
+              Icons.lock_outline_rounded,
+              color: Colors.blueGrey,
+              size: 20,
             ),
             suffixIcon: IconButton(
               icon: Icon(
                 obscure
                     ? Icons.visibility_off_outlined
                     : Icons.visibility_outlined,
-                color: const Color(0xFF9AA4B2),
+                color: Colors.blueGrey.shade400,
                 size: 20,
               ),
               onPressed: onToggle,
+            ),
+            hintStyle: TextStyle(
+              color: Colors.blueGrey.shade400,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            filled: true,
+            fillColor: bgFillGrey,
+            contentPadding: const EdgeInsets.symmetric(vertical: 18),
+
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: primaryBlue, width: 2),
             ),
           ),
         ),
       ],
     );
   }
-}
 
-class _SocialProviderButton extends StatelessWidget {
-  final String text;
-  final Color backgroundColor;
-  final Color textColor;
-  final Color borderColor;
-  final Widget iconWidget;
-  final VoidCallback onTap;
-
-  const _SocialProviderButton({
-    required this.text,
-    required this.backgroundColor,
-    required this.textColor,
-    required this.borderColor,
-    required this.iconWidget,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: backgroundColor,
-          side: BorderSide(color: borderColor, width: 1.0),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+  Widget _buildCompactSocialLoginRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _iconSocialButton(
+          icon: const _FallbackGoogleIcon(),
+          color: Colors.white,
+          borderC: Colors.grey.shade300,
+          onTap: _showComingSoon,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            iconWidget,
-            const SizedBox(width: 12),
-            Text(
-              text,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
+        const SizedBox(width: 16),
+        _iconSocialButton(
+          icon: const Icon(Icons.facebook, color: Colors.white, size: 28),
+          color: facebookBlue,
+          borderC: facebookBlue,
+          onTap: _showComingSoon,
+        ),
+        const SizedBox(width: 16),
+        _iconSocialButton(
+          icon: const Icon(Icons.apple_rounded, color: Colors.white, size: 30),
+          color: Colors.black,
+          borderC: Colors.black,
+          onTap: _showComingSoon,
+        ),
+      ],
+    );
+  }
+
+  Widget _iconSocialButton({
+    required Widget icon,
+    required Color color,
+    required Color borderC,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 60,
+        width: 85,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderC, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
+        alignment: Alignment.center,
+        child: icon,
       ),
+    );
+  }
+}
+
+// Ext Helper Widget extensions strictly binding gesture capabilities simply onto objects rendering text natively elsewhere
+extension ActionClick on Widget {
+  Widget handleClick(VoidCallback onTap) {
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      onTap: onTap,
+      child: this,
     );
   }
 }
@@ -739,20 +1147,15 @@ class _FallbackGoogleIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      height: 24,
-      width: 24,
-      child: Center(
-        child: Text(
-          "G",
-          style: TextStyle(
-            color: Color(0xFFDB4437),
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
+    return const Center(
+      child: Text(
+        "G",
+        style: TextStyle(
+          color: Color(0xFFDB4437),
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 }
-

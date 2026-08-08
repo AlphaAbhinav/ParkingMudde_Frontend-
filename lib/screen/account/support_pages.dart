@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:parkingmudde/widgets/ad_banner.dart';
 import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
 import 'package:parkingmudde/services/api_service.dart';
+import 'package:parkingmudde/widgets/screen_slogan.dart';
 
 class HelpSupportPage extends StatelessWidget {
   const HelpSupportPage({super.key});
@@ -17,7 +18,10 @@ class HelpSupportPage extends StatelessWidget {
       children: [
         const _InfoTile(title: "Phone", body: "+91 98765 43210"),
         const _InfoTile(title: "Email", body: "support@parkingmudde.com"),
-        const _InfoTile(title: "Hours", body: "Monday to Saturday, 9 AM to 7 PM"),
+        const _InfoTile(
+          title: "Hours",
+          body: "Monday to Saturday, 9 AM to 7 PM",
+        ),
         const _InfoTile(
           title: "Address",
           body: "Parking Mudde Support Desk, New Delhi, India",
@@ -77,7 +81,10 @@ class _SupportActionTile extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                ),
               ),
             ),
             const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
@@ -91,71 +98,136 @@ class _SupportActionTile extends StatelessWidget {
 class FaqPage extends StatelessWidget {
   const FaqPage({super.key});
 
+  static const List<Map<String, String>> _defaultFaqs = [
+    {
+      "question": "How do I report wrong parking?",
+      "answer":
+          "Open Report Wrong Parking, scan or enter the vehicle number, and submit proof.",
+    },
+    {
+      "question": "When do I earn coins?",
+      "answer":
+          "Coins are added after the backend confirms a report or completed help activity.",
+    },
+    {
+      "question": "Can I manage multiple vehicles?",
+      "answer": "Yes. Add and manage them from My Vehicles.",
+    },
+    {
+      "question": "Where do booking updates appear?",
+      "answer":
+          "Parking booking status updates appear in Activities and My Bookings.",
+    },
+  ];
+
+  List<Map<String, String>> _normalizeFaqs(List<dynamic>? items) {
+    final faqs = (items ?? [])
+        .whereType<Map>()
+        .map(
+          (item) => {
+            "question": item["question"]?.toString().trim() ?? "",
+            "answer": item["answer"]?.toString().trim() ?? "",
+          },
+        )
+        .where(
+          (faq) => faq["question"]!.isNotEmpty && faq["answer"]!.isNotEmpty,
+        )
+        .toList();
+
+    return faqs;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final faqs = [
-      {
-        "question": "How do I report wrong parking?",
-        "answer":
-            "Open Report Wrong Parking, scan or enter the vehicle number, and submit proof.",
-      },
-      {
-        "question": "When do I earn coins?",
-        "answer":
-            "Coins are added after the backend confirms a report or completed help activity.",
-      },
-      {
-        "question": "Can I manage multiple vehicles?",
-        "answer": "Yes. Add and manage them from My Vehicles.",
-      },
-      {
-        "question": "Where do booking updates appear?",
-        "answer":
-            "Parking booking status updates appear in Activities and My Bookings.",
-      },
-    ];
+    return FutureBuilder<List<dynamic>>(
+      future: ApiService.getFaqs(),
+      builder: (context, snapshot) {
+        final isLoading =
+            snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData;
+        final fetchedFaqs = _normalizeFaqs(snapshot.data);
+        final faqs = fetchedFaqs.isEmpty ? _defaultFaqs : fetchedFaqs;
 
-    return _InfoShell(
-      title: "FAQs",
-      children: [
-        ...faqs
-            .map(
-              (faq) => _InfoTile(
-                title: faq["question"]!,
-                body: faq["answer"]!,
-              ),
-            )
-            .toList(),
-        const SizedBox(height: 12),
-        InkWell(
-          onTap: () => _openSupportForm(context),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A5EE8).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF2A5EE8).withOpacity(0.5)),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.support_agent_rounded, color: Color(0xFF2A5EE8)),
-                SizedBox(width: 8),
-                Text(
-                  "Can't find your answer? Connect with us",
-                  style: TextStyle(
-                    color: Color(0xFF2A5EE8),
-                    fontWeight: FontWeight.w800,
+        return _InfoShell(
+          title: "FAQs",
+          children: [
+            if (isLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else ...[
+              ...faqs
+                  .map(
+                    (faq) => _InfoTile(
+                      title: faq["question"]!,
+                      body: faq["answer"]!,
+                    ),
+                  )
+                  .toList(),
+              if (snapshot.hasError)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    "Could not refresh FAQs. Showing saved common answers.",
+                    style: TextStyle(
+                      color: Colors.orange.shade700,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ],
+            ],
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () => _openSupportForm(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 20,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A5EE8).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: const Color(0xFF2A5EE8).withOpacity(0.5),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.support_agent_rounded, color: Color(0xFF2A5EE8)),
+                    SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        "Can't find your answer? Connect with us",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF2A5EE8),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const DynamicAdCarousel(pageName: 'Help'),
-        const SizedBox(height: 8),
-      ],
+            const SizedBox(height: 16),
+            const DynamicAdCarousel(pageName: 'Help'),
+
+            const SizedBox(height: 16),
+            const ScreenSlogan(
+              "Helping you every step of the way.",
+              color: Color(0xFF2A5EE8),
+              icon: Icons.question_answer_rounded,
+              imagePath: 'assets/faqslogan.png',
+              normalImageWidth: 130,
+              compactImageWidth: 112,
+              textMaxLines: 2,
+            ),
+            const SizedBox(height: 8),
+          ],
+        );
+      },
     );
   }
 
@@ -166,7 +238,10 @@ class FaqPage extends StatelessWidget {
     final mobile = prefs.getString("mobile_number") ?? "";
 
     if (userId == null) {
-      Get.snackbar("Login Required", "Please login to submit a support request.");
+      Get.snackbar(
+        "Login Required",
+        "Please login to submit a support request.",
+      );
       return;
     }
 
@@ -222,12 +297,13 @@ class FaqPage extends StatelessWidget {
                         : () async {
                             if (questionController.text.trim().isEmpty) return;
                             setState(() => isSubmitting = true);
-                            final success = await ApiService.submitSupportTicket(
-                              userId,
-                              name,
-                              mobile,
-                              questionController.text.trim(),
-                            );
+                            final success =
+                                await ApiService.submitSupportTicket(
+                                  userId,
+                                  name,
+                                  mobile,
+                                  questionController.text.trim(),
+                                );
                             setState(() => isSubmitting = false);
                             if (success) {
                               Get.back();
@@ -238,14 +314,20 @@ class FaqPage extends StatelessWidget {
                                 colorText: Colors.white,
                               );
                             } else {
-                              Get.snackbar("Error", "Failed to submit request.");
+                              Get.snackbar(
+                                "Error",
+                                "Failed to submit request.",
+                              );
                             }
                           },
                     child: isSubmitting
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
                           )
                         : const Text(
                             "Submit Request",
@@ -346,10 +428,7 @@ class _InfoShell extends StatelessWidget {
           onPressed: Get.back,
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: children,
-      ),
+      body: ListView(padding: const EdgeInsets.all(16), children: children),
     );
   }
 }

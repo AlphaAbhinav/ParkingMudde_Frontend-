@@ -4,9 +4,16 @@ import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/services.dart';
 
 class ApiService {
-  // 🔥 IMPORTANT: Use localhost for Flutter Web
+  static const MethodChannel _installStateChannel = MethodChannel(
+    "com.parkingmudde.app/install_state",
+  );
+  static const String _installMarkerPref = "has_no_backup_install_marker";
+
+  // ðŸ”¥ IMPORTANT: Use localhost for Flutter Web
   static final String baseUrl =
       dotenv.env['BACKEND_URL'] ?? "http://localhost:8000";
 
@@ -22,6 +29,51 @@ class ApiService {
       }
     } catch (_) {}
     return '$fallback (${response.statusCode})';
+  }
+
+  static Map<String, dynamic> _authFailureFromResponse(
+    http.Response response,
+    String fallback,
+  ) {
+    final backendMessage = _messageFromResponse(response, fallback);
+    final normalized = backendMessage.toLowerCase();
+
+    if (normalized.contains('email') &&
+        (normalized.contains('not registered') ||
+            normalized.contains('no account'))) {
+      return {
+        "success": false,
+        "title": "Looks like you're new here!",
+        "message":
+            "This email isn't registered with us yet. Create a free account to join Parking Mudde.",
+      };
+    }
+
+    if ((normalized.contains('phone') || normalized.contains('mobile')) &&
+        (normalized.contains('not registered') ||
+            normalized.contains('no account'))) {
+      return {
+        "success": false,
+        "title": "Looks like you're new here!",
+        "message":
+            "This number isn't registered with us yet. Create a free account to join Parking Mudde.",
+      };
+    }
+
+    if (normalized.contains('incorrect password')) {
+      return {
+        "success": false,
+        "title": "Oops! Password didn't match",
+        "message":
+            "Double-check your password and try again. Don't worry, you can easily reset it if you've forgotten.",
+      };
+    }
+
+    return {
+      "success": false,
+      "title": "Something didn't go through",
+      "message": backendMessage,
+    };
   }
 
   static bool _isBackendUserId(String? value) {
@@ -45,14 +97,17 @@ class ApiService {
     return null;
   }
 
-
-  static Future<String?> _resolveBackendUserIdFromPrefs(SharedPreferences prefs) async {
+  static Future<String?> _resolveBackendUserIdFromPrefs(
+    SharedPreferences prefs,
+  ) async {
     final mobile = prefs.getString("mobile_number");
     if (mobile == null || mobile.isEmpty) return null;
 
     try {
       final response = await http.get(
-        Uri.parse("$baseUrl/v1/auth/user/by-mobile/${Uri.encodeComponent(mobile)}"),
+        Uri.parse(
+          "$baseUrl/v1/auth/user/by-mobile/${Uri.encodeComponent(mobile)}",
+        ),
       );
       if (response.statusCode != 200) return null;
 
@@ -69,16 +124,20 @@ class ApiService {
       return null;
     }
   }
+
   static Future<void> saveUserSession(Map<String, dynamic> user) async {
     final prefs = await SharedPreferences.getInstance();
     final userId = _extractBackendUserId(user);
+    await prefs.setBool("is_logging_out", false);
 
     if (userId != null) {
       await prefs.setString("user_id", userId);
     }
 
     Future<void> saveString(String prefKey, String apiKey) async {
-      final value = user[apiKey];
+      final nestedUser = user["user"] is Map ? user["user"] as Map : null;
+      final nestedData = user["data"] is Map ? user["data"] as Map : null;
+      final value = user[apiKey] ?? nestedUser?[apiKey] ?? nestedData?[apiKey];
       if (value != null && value.toString().isNotEmpty) {
         await prefs.setString(prefKey, value.toString());
       } else {
@@ -94,6 +153,8 @@ class ApiService {
     await saveString("date_of_birth", "date_of_birth");
     await saveString("location", "location");
     await saveString("referral_code", "referral_code");
+    await saveString("society_id", "society_id");
+    await saveString("resident_id", "resident_id");
 
     final latitude = user["latitude"];
     final longitude = user["longitude"];
@@ -102,6 +163,84 @@ class ApiService {
     }
     if (longitude is num) {
       await prefs.setDouble("longitude", longitude.toDouble());
+    }
+
+    await syncCurrentFcmToken();
+  }
+
+  static Future<bool> clearRestoredSessionIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final expectedInstallMarker = prefs.getBool(_installMarkerPref) ?? false;
+    final restoredUserId = prefs.getString("user_id");
+
+    Map<dynamic, dynamic>? installState;
+    try {
+      installState = await _installStateChannel.invokeMapMethod(
+        "getInstallState",
+      );
+    } on MissingPluginException {
+      await prefs.setBool(_installMarkerPref, true);
+      return false;
+    } catch (e) {
+      print("Install marker check failed: $e");
+      return false;
+    }
+
+    final hadNativeInstallMarker = installState?["had_marker"] == true;
+    final isFreshPackageInstall =
+        installState?["is_fresh_package_install"] == true;
+    final hasRestoredUser = restoredUserId != null && restoredUserId.isNotEmpty;
+    final restoredAfterKnownInstall =
+        !hadNativeInstallMarker && expectedInstallMarker;
+    final restoredFromOlderBuild =
+        !hadNativeInstallMarker &&
+        !expectedInstallMarker &&
+        isFreshPackageInstall &&
+        hasRestoredUser;
+
+    if (restoredAfterKnownInstall || restoredFromOlderBuild) {
+      await logoutCurrentUser();
+      await prefs.clear();
+      await prefs.setBool(_installMarkerPref, true);
+      return true;
+    }
+
+    await prefs.setBool(_installMarkerPref, true);
+    return false;
+  }
+
+  static Future<void> syncCurrentFcmToken() async {
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        await updateFcmToken(fcmToken);
+      }
+    } catch (e) {
+      print("FCM sync failed: $e");
+    }
+  }
+
+  static Future<void> logoutCurrentUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString("user_id");
+    await prefs.setBool("is_logging_out", true);
+
+    if (_isBackendUserId(userId)) {
+      try {
+        await http.post(
+          Uri.parse("$baseUrl/v1/auth/fcm-token"),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({"user_id": int.parse(userId!), "fcm_token": null}),
+        );
+      } catch (e) {
+        print("FCM unregister failed: $e");
+      }
+    }
+
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (e) {
+      print("FCM local token delete failed: $e");
     }
   }
 
@@ -123,6 +262,8 @@ class ApiService {
       "date_of_birth": prefs.getString("date_of_birth"),
       "location": prefs.getString("location"),
       "referral_code": prefs.getString("referral_code"),
+      "society_id": prefs.getString("society_id"),
+      "resident_id": prefs.getString("resident_id"),
       "latitude": prefs.getDouble("latitude"),
       "longitude": prefs.getDouble("longitude"),
     };
@@ -187,7 +328,10 @@ class ApiService {
           "reasons": jsonEncode(decoded["reasons"] ?? []),
         };
       } else {
-        return {"success": false, "message": "AI model returned ${response.statusCode}"};
+        return {
+          "success": false,
+          "message": "AI model returned ${response.statusCode}",
+        };
       }
     } catch (e) {
       print("AI Error: $e");
@@ -217,13 +361,12 @@ class ApiService {
         Uri.parse("$baseUrl/v1/reports/wrong-parking"),
       );
 
-      // 🔴 TEMP USER ID (replace after full auth integration)
+      // ðŸ”´ TEMP USER ID (replace after full auth integration)
       final prefs = await SharedPreferences.getInstance();
       String? userId = prefs.getString("user_id");
       if (!_isBackendUserId(userId)) {
         userId = await _resolveBackendUserIdFromPrefs(prefs);
       }
-
 
       request.headers['x-user-id'] = userId ?? "";
 
@@ -231,7 +374,9 @@ class ApiService {
       final double reportLat = lat ?? prefs.getDouble("latitude") ?? 19.0760;
       final double reportLng = lng ?? prefs.getDouble("longitude") ?? 72.8777;
 
-      request.fields['vehicle_number'] = vehicleNumber.trim().isEmpty ? 'PENDING' : vehicleNumber;
+      request.fields['vehicle_number'] = vehicleNumber.trim().isEmpty
+          ? 'PENDING'
+          : vehicleNumber;
       request.fields['lat'] = reportLat.toString();
       request.fields['lng'] = reportLng.toString();
       request.fields['captured_at'] = capturedAt;
@@ -241,14 +386,17 @@ class ApiService {
       if (selectedIssueCode != null && selectedIssueCode.isNotEmpty) {
         request.fields['selected_reason_code'] = selectedIssueCode;
       }
-      
+
       if (aiScore != null) request.fields['ai_score'] = aiScore.toString();
       if (aiVerdict != null) request.fields['ai_verdict'] = aiVerdict;
       if (aiReasons != null) request.fields['ai_reasons'] = aiReasons;
 
-      if (razorpayOrderId != null) request.fields['razorpay_order_id'] = razorpayOrderId;
-      if (razorpayPaymentId != null) request.fields['razorpay_payment_id'] = razorpayPaymentId;
-      if (razorpaySignature != null) request.fields['razorpay_signature'] = razorpaySignature;
+      if (razorpayOrderId != null)
+        request.fields['razorpay_order_id'] = razorpayOrderId;
+      if (razorpayPaymentId != null)
+        request.fields['razorpay_payment_id'] = razorpayPaymentId;
+      if (razorpaySignature != null)
+        request.fields['razorpay_signature'] = razorpaySignature;
 
       if (videoFile != null) {
         request.fields['evidence_mode'] = "VIDEO";
@@ -303,8 +451,9 @@ class ApiService {
         final body = jsonDecode(response.body);
         return {
           "success": false,
-          "insufficient_coins": true,
-          "message": body["detail"] ?? "Not enough PM Coins to file a report.",
+          "message":
+              body["detail"] ??
+              "Proof upload should not require PM Coins. Please try again after the backend is updated.",
         };
       }
 
@@ -323,10 +472,7 @@ class ApiService {
         }
       } catch (_) {}
 
-      return {
-        "success": false,
-        "message": errorMessage,
-      };
+      return {"success": false, "message": errorMessage};
     } catch (e) {
       print("Report Exception: $e");
       return {"success": false, "message": "Network error. Please try again."};
@@ -342,10 +488,7 @@ class ApiService {
       final response = await http.post(
         Uri.parse("$baseUrl/v1/auth/login"),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "email": email,
-          "password": password,
-        }),
+        body: jsonEncode({"email": email, "password": password}),
       );
 
       print("Login Status: ${response.statusCode}");
@@ -353,13 +496,8 @@ class ApiService {
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
-      } else {
-        final body = jsonDecode(response.body);
-        return {
-          "success": false,
-          "message": body["detail"] ?? "Login failed",
-        };
       }
+      return _authFailureFromResponse(response, "Login failed");
     } catch (e) {
       return {"success": false, "message": "Network error"};
     }
@@ -415,8 +553,8 @@ class ApiService {
         final mimeSubtype = extension == 'png'
             ? 'png'
             : extension == 'webp'
-                ? 'webp'
-                : 'jpeg';
+            ? 'webp'
+            : 'jpeg';
         profileImageData =
             "data:image/$mimeSubtype;base64,${base64Encode(bytes)}";
       }
@@ -436,7 +574,8 @@ class ApiService {
           "emergency_contact_two": emergencyContactTwo,
         if (societyId != null && societyId.isNotEmpty) "society_id": societyId,
         if (tower != null && tower.isNotEmpty) "tower": tower,
-        if (unitNumber != null && unitNumber.isNotEmpty) "unit_number": unitNumber,
+        if (unitNumber != null && unitNumber.isNotEmpty)
+          "unit_number": unitNumber,
       };
 
       if (profileImageData != null) {
@@ -550,6 +689,52 @@ class ApiService {
     }
   }
 
+  // ================= COMMUNITY IMPACT STATS =================
+  static Future<Map<String, int>> getCommunityImpactStats() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/public/community-stats"),
+      );
+
+      if (response.statusCode != 200) {
+        return {};
+      }
+
+      final data = jsonDecode(response.body);
+      final totals = data is Map ? data["totals"] : null;
+      if (totals is! Map) return {};
+
+      int readCount(String key, {String? fallbackKey}) {
+        final value =
+            totals[key] ?? (fallbackKey == null ? null : totals[fallbackKey]);
+        if (value is int) return value;
+        if (value is num) return value.round();
+        return int.tryParse(value?.toString() ?? "") ?? 0;
+      }
+
+      int displayCount(String key, {String? fallbackKey}) {
+        return readCount(key, fallbackKey: fallbackKey) * 10;
+      }
+
+      return {
+        "users": displayCount("users"),
+        "vehicles": displayCount("vehicles"),
+        "vehicles_reported": displayCount("vehicles_reported"),
+        "vehicles_helped": displayCount(
+          "vehicles_helped",
+          fallbackKey: "helps_done",
+        ),
+        "emergencies_solved": displayCount(
+          "emergencies_solved",
+          fallbackKey: "emergencies_reported",
+        ),
+      };
+    } catch (e) {
+      print("Community impact stats failed: $e");
+      return {};
+    }
+  }
+
   // ================= REGISTER =================
   static Future<Map<String, dynamic>> register({
     required String name,
@@ -577,8 +762,8 @@ class ApiService {
         final mimeSubtype = extension == 'png'
             ? 'png'
             : extension == 'webp'
-                ? 'webp'
-                : 'jpeg';
+            ? 'webp'
+            : 'jpeg';
         profileImageData =
             "data:image/$mimeSubtype;base64,${base64Encode(bytes)}";
       }
@@ -595,8 +780,12 @@ class ApiService {
           "date_of_birth": dateOfBirth?.isEmpty == true ? null : dateOfBirth,
           "referral_code": referralCode?.isEmpty == true ? null : referralCode,
           "location": location?.isEmpty == true ? null : location,
-          "driving_license_number": drivingLicenseNumber?.isEmpty == true ? null : drivingLicenseNumber,
-          "aadhaar_number": aadhaarNumber?.isEmpty == true ? null : aadhaarNumber,
+          "driving_license_number": drivingLicenseNumber?.isEmpty == true
+              ? null
+              : drivingLicenseNumber,
+          "aadhaar_number": aadhaarNumber?.isEmpty == true
+              ? null
+              : aadhaarNumber,
           "society_name": societyName?.isEmpty == true ? null : societyName,
           "tower": tower?.isEmpty == true ? null : tower,
           "flat_number": flatNumber?.isEmpty == true ? null : flatNumber,
@@ -697,14 +886,12 @@ class ApiService {
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
-      } else {
-        return {"success": false, "message": "Failed to send OTP"};
       }
+      return _authFailureFromResponse(response, "Failed to send OTP");
     } catch (e) {
       return {"success": false, "message": "Network error"};
     }
   }
-
 
   // ================= VERIFY OTP =================
   static Future<Map<String, dynamic>> verifyOtp(
@@ -728,9 +915,8 @@ class ApiService {
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
-      } else {
-        return {"success": false, "message": "Invalid OTP"};
       }
+      return _authFailureFromResponse(response, "Invalid OTP");
     } catch (e) {
       return {"success": false, "message": "Network error"};
     }
@@ -899,20 +1085,16 @@ class ApiService {
   // ================= GET MY VEHICLES =================
   static Future<List<dynamic>> getMyVehicles(String userId) async {
     try {
-      final response = await http.get(
-        Uri.parse("$baseUrl/v1/vehicle/my-vehicles/$userId"),
-      );
+      final response = await http
+          .get(Uri.parse("$baseUrl/v1/vehicle/my-vehicles/$userId"))
+          .timeout(const Duration(seconds: 8));
 
       print("Get Vehicles Status: ${response.statusCode}");
       print("Get Vehicles Response: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        List<dynamic> vehicles = data['vehicles'] ?? [];
-        if (vehicles.isNotEmpty) {
-          vehicles[0]['transfer_status'] = 'pending';
-        }
-        return vehicles;
+        return data['vehicles'] ?? [];
       } else {
         return [];
       }
@@ -923,13 +1105,13 @@ class ApiService {
   }
 
   // ================= LOOKUP VEHICLE BY NUMBER =================
-  static Future<Map<String, dynamic>> lookupVehicleByNumber(String vehicleNumber) async {
+  static Future<Map<String, dynamic>> lookupVehicleByNumber(
+    String vehicleNumber,
+  ) async {
     try {
       final response = await http.get(
         Uri.parse("$baseUrl/v1/vehicle/lookup/$vehicleNumber"),
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: {"Content-Type": "application/json"},
       );
 
       if (response.statusCode == 200) {
@@ -939,16 +1121,18 @@ class ApiService {
           "registered": data["registered"] ?? false,
           "data": {
             "vehicle_number": data["vehicle"]["vehicle_number"],
-            "owner_name": data["owner_name"] ?? data["app_user_name"] ?? "Unknown Owner",
+            "owner_name":
+                data["owner_name"] ?? data["app_user_name"] ?? "Unknown Owner",
             "city": data["vehicle"]["rto_code"] ?? "Unknown",
-            "mobile_number": data["owner_mobile"] ?? data["app_user_mobile"] ?? ""
-          }
+            "mobile_number":
+                data["owner_mobile"] ?? data["app_user_mobile"] ?? "",
+          },
         };
       } else if (response.statusCode == 404) {
         return {
           "success": true,
           "registered": false,
-          "message": "Vehicle not found"
+          "message": "Vehicle not found",
         };
       } else {
         return {"success": false, "message": "Failed to lookup vehicle"};
@@ -1017,6 +1201,67 @@ class ApiService {
     return getNotifications(userId);
   }
 
+  // ================= DELETE IN-APP NOTIFICATIONS =================
+  static Future<Map<String, dynamic>> deleteNotification({
+    required String userId,
+    required String notificationId,
+  }) async {
+    try {
+      final response = await http.delete(
+        Uri.parse(
+          "$baseUrl/v1/notifications/user/$userId/notification/$notificationId",
+        ),
+      );
+
+      print("Delete Notification Status: ${response.statusCode}");
+      print("Delete Notification Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(
+          response,
+          "Failed to delete notification",
+        ),
+      };
+    } catch (e) {
+      print("Delete Notification Exception: $e");
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteNotificationsByRange({
+    required String userId,
+    required String range,
+  }) async {
+    try {
+      final response = await http.delete(
+        Uri.parse(
+          "$baseUrl/v1/notifications/user/$userId/range/$range?timezone_offset_minutes=${DateTime.now().timeZoneOffset.inMinutes}",
+        ),
+      );
+
+      print("Delete Notifications Range Status: ${response.statusCode}");
+      print("Delete Notifications Range Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(
+          response,
+          "Failed to delete notifications",
+        ),
+      };
+    } catch (e) {
+      print("Delete Notifications Range Exception: $e");
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
   // ================= CLEAR IN-APP NOTIFICATIONS =================
   static Future<Map<String, dynamic>> clearNotifications(String userId) async {
     try {
@@ -1078,7 +1323,10 @@ class ApiService {
       }
       return {
         "success": false,
-        "message": _messageFromResponse(response, "Failed to submit help activity"),
+        "message": _messageFromResponse(
+          response,
+          "Failed to submit help activity",
+        ),
       };
     } catch (e) {
       return {"success": false, "message": "Network error"};
@@ -1112,10 +1360,13 @@ class ApiService {
         }),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         return {"success": true, "data": jsonDecode(response.body)};
       }
-      return {"success": false, "message": "Failed to create booking"};
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Failed to create booking"),
+      };
     } catch (e) {
       return {"success": false, "message": "Network error"};
     }
@@ -1145,9 +1396,7 @@ class ApiService {
   // ================= GET LEADERBOARD =================
   static Future<Map<String, dynamic>> getLeaderboard() async {
     try {
-      final response = await http.get(
-        Uri.parse("$baseUrl/v1/leaderboard/"),
-      );
+      final response = await http.get(Uri.parse("$baseUrl/v1/leaderboard/"));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1159,7 +1408,9 @@ class ApiService {
   }
 
   // ================= GET GAMIFICATION PROGRESS =================
-  static Future<Map<String, dynamic>?> getMyGamificationProgress(String userId) async {
+  static Future<Map<String, dynamic>?> getMyGamificationProgress(
+    String userId,
+  ) async {
     try {
       final response = await http.get(
         Uri.parse("$baseUrl/v1/leaderboard/me/$userId"),
@@ -1241,6 +1492,71 @@ class ApiService {
     return {"success": false, "message": "Document delete failed"};
   }
 
+  // ================= COIN CONFIG =================
+  static Future<Map<String, num>> fetchCoinConfig() async {
+    try {
+      final response = await http
+          .get(Uri.parse("$baseUrl/v1/coin-config"))
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) {
+          return decoded.map(
+            (key, value) =>
+                MapEntry(key.toString(), num.tryParse(value.toString()) ?? 0),
+          );
+        }
+      }
+    } catch (e) {
+      print("Fetch Coin Config Exception: $e");
+    }
+    return {};
+  }
+
+  static Future<Map<String, dynamic>> fetchCoinOffer() async {
+    try {
+      final response = await http
+          .get(Uri.parse("$baseUrl/v1/coin-offer"))
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+      }
+    } catch (e) {
+      print("Fetch Coin Offer Exception: $e");
+    }
+    return {
+      "discount_percent": 0,
+      "tag": "Launch Offer",
+      "is_active": false,
+    };
+  }
+
+  // ================= WALLET PACKAGE CATALOG =================
+  static Future<List<Map<String, dynamic>>> fetchWalletPackages() async {
+    try {
+      final response = await http
+          .get(Uri.parse("$baseUrl/v1/wallet/packages"))
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        final packages = decoded is Map ? decoded["packages"] : null;
+        if (packages is List) {
+          return packages
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print("Fetch Wallet Packages Exception: $e");
+    }
+    return [];
+  }
+
   // ================= PURCHASE WALLET PACKAGE (Request-type only) =================
   static Future<Map<String, dynamic>> purchaseWalletPackage({
     required String packageId,
@@ -1251,7 +1567,10 @@ class ApiService {
       final response = await http.post(
         Uri.parse("$baseUrl/v1/wallet/packages/purchase"),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"user_id": int.parse(userId), "package_id": packageId}),
+        body: jsonEncode({
+          "user_id": int.parse(userId),
+          "package_id": packageId,
+        }),
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1271,7 +1590,7 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString("token");
-      
+
       final response = await http.post(
         Uri.parse("$baseUrl/v1/reports/razorpay/create-order"),
         headers: {
@@ -1280,13 +1599,16 @@ class ApiService {
         },
         body: jsonEncode({
           "user_id": int.tryParse(userId) ?? 0,
-          "package_id": "report_fee"
+          "package_id": "report_fee",
         }),
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        return {"success": false, "message": "Failed to create report payment order."};
+        return {
+          "success": false,
+          "message": "Failed to create report payment order.",
+        };
       }
     } catch (e) {
       return {"success": false, "message": "Network error: $e"};
@@ -1294,8 +1616,6 @@ class ApiService {
   }
 
   // ================= RAZORPAY: CREATE ORDER =================
-
-
 
   static Future<Map<String, dynamic>> attachWrongParkingPlate({
     required String reportId,
@@ -1305,21 +1625,33 @@ class ApiService {
     String? razorpaySignature,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse("$baseUrl/v1/reports/$reportId/attach-plate"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "vehicle_number": vehicleNumber,
-          if (razorpayOrderId != null) "razorpay_order_id": razorpayOrderId,
-          if (razorpayPaymentId != null) "razorpay_payment_id": razorpayPaymentId,
-          if (razorpaySignature != null) "razorpay_signature": razorpaySignature,
-        }),
-      ).timeout(const Duration(seconds: 15));
-      
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/v1/reports/$reportId/attach-plate"),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({
+              "vehicle_number": vehicleNumber,
+              if (razorpayOrderId != null) "razorpay_order_id": razorpayOrderId,
+              if (razorpayPaymentId != null)
+                "razorpay_payment_id": razorpayPaymentId,
+              if (razorpaySignature != null)
+                "razorpay_signature": razorpaySignature,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
       if (response.statusCode == 200) {
         return {"success": true, "data": jsonDecode(response.body)};
       }
       final body = jsonDecode(response.body);
+      if (response.statusCode == 402) {
+        return {
+          "success": false,
+          "insufficient_coins": true,
+          "message":
+              body["detail"] ?? "Not enough PM Coins to attach the plate.",
+        };
+      }
       String errorMessage = "Failed to attach plate";
       if (body["detail"] is Map) {
         errorMessage = body["detail"]["message"] ?? errorMessage;
@@ -1330,9 +1662,9 @@ class ApiService {
     } catch (e) {
       print("Attach Plate Exception: $e");
       String errorMsg = e.toString();
-      if (errorMsg.contains("TimeoutException") || 
-          errorMsg.contains("Failed to fetch") || 
-          errorMsg.contains("SocketException") || 
+      if (errorMsg.contains("TimeoutException") ||
+          errorMsg.contains("Failed to fetch") ||
+          errorMsg.contains("SocketException") ||
           errorMsg.contains("ClientException")) {
         errorMsg = "Network error. Please check your connection or try again.";
       }
@@ -1348,17 +1680,22 @@ class ApiService {
       final userIdStr = prefs.getString("user_id") ?? "";
       final userId = int.tryParse(userIdStr) ?? 0;
 
-      final response = await http.post(
-        Uri.parse("$baseUrl/v1/wallet/razorpay/create-order"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"user_id": userId, "package_id": packageId}),
-      ).timeout(const Duration(seconds: 15));
-      
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/v1/wallet/razorpay/create-order"),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({"user_id": userId, "package_id": packageId}),
+          )
+          .timeout(const Duration(seconds: 15));
+
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
       final body = jsonDecode(response.body);
-      return {"success": false, "message": body["detail"] ?? "Could not create order"};
+      return {
+        "success": false,
+        "message": body["detail"] ?? "Could not create order",
+      };
     } catch (e) {
       print("Create Razorpay Order Exception: $e");
       return {"success": false, "message": "Error connecting to server: $e"};
@@ -1377,23 +1714,28 @@ class ApiService {
       final userIdStr = prefs.getString("user_id") ?? "";
       final userId = int.tryParse(userIdStr) ?? 0;
 
-      final response = await http.post(
-        Uri.parse("$baseUrl/v1/wallet/razorpay/verify"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "user_id": userId,
-          "package_id": packageId,
-          "razorpay_payment_id": razorpayPaymentId,
-          "razorpay_order_id": razorpayOrderId,
-          "razorpay_signature": razorpaySignature,
-        }),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/v1/wallet/razorpay/verify"),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({
+              "user_id": userId,
+              "package_id": packageId,
+              "razorpay_payment_id": razorpayPaymentId,
+              "razorpay_order_id": razorpayOrderId,
+              "razorpay_signature": razorpaySignature,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
       final body = jsonDecode(response.body);
-      return {"success": false, "message": body["detail"] ?? "Verification failed"};
+      return {
+        "success": false,
+        "message": body["detail"] ?? "Verification failed",
+      };
     } catch (e) {
       print("Verify Razorpay Payment Exception: $e");
       return {"success": false, "message": "Error connecting to server: $e"};
@@ -1412,7 +1754,11 @@ class ApiService {
     } catch (e) {
       print("Get My Visitors Exception: $e");
     }
-    return {"linked": false, "message": "Unable to fetch visitors", "visitors": []};
+    return {
+      "linked": false,
+      "message": "Unable to fetch visitors",
+      "visitors": [],
+    };
   }
 
   // ================= CREATE VISITOR PASS =================
@@ -1442,7 +1788,10 @@ class ApiService {
         return {"success": true, ...data};
       }
       final err = jsonDecode(response.body);
-      return {"success": false, "message": err["detail"] ?? "Failed to create pass"};
+      return {
+        "success": false,
+        "message": err["detail"] ?? "Failed to create pass",
+      };
     } catch (e) {
       print("Create Visitor Pass Exception: $e");
     }
@@ -1511,7 +1860,10 @@ class ApiService {
       }
       return {
         "success": false,
-        "message": _messageFromResponse(response, "Unable to submit emergency alert"),
+        "message": _messageFromResponse(
+          response,
+          "Unable to submit emergency alert",
+        ),
       };
     } catch (e) {
       print("Emergency Alert Exception: $e");
@@ -1526,14 +1878,16 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('guard_access_token');
-      final response = await http.post(
-        Uri.parse("$baseUrl/api/guard/reports/$reportId/attach-plate"),
-        headers: {
-          "Content-Type": "application/json",
-          if (token != null) "Authorization": "Bearer $token",
-        },
-        body: jsonEncode({"vehicle_number": vehicleNumber}),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/api/guard/reports/$reportId/attach-plate"),
+            headers: {
+              "Content-Type": "application/json",
+              if (token != null) "Authorization": "Bearer $token",
+            },
+            body: jsonEncode({"vehicle_number": vehicleNumber}),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         return {"success": true, "data": jsonDecode(response.body)};
@@ -1546,16 +1900,19 @@ class ApiService {
       return {"success": false, "message": "Network error. Please try again."};
     }
   }
+
   static Future<Map<String, dynamic>> attachNotificationPlate({
     required String notificationId,
     required String vehicleNumber,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse("$baseUrl/v1/notifications/$notificationId/attach-plate"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"vehicle_number": vehicleNumber}),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/v1/notifications/$notificationId/attach-plate"),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({"vehicle_number": vehicleNumber}),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         return {"success": true, "data": jsonDecode(response.body)};
@@ -1569,6 +1926,7 @@ class ApiService {
       return {"success": false, "message": "Network error. Please try again."};
     }
   }
+
   // ================= TRIGGER REPORT ACTION =================
   static Future<Map<String, dynamic>> triggerReportAction({
     required String reportId,
@@ -1600,7 +1958,10 @@ class ApiService {
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
-      return {"success": false, "message": "Request failed: ${response.statusCode}"};
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Request failed"),
+      };
     } catch (e) {
       print("OnTheWay Exception: $e");
       return {"success": false, "message": "Network error"};
@@ -1777,7 +2138,12 @@ class ApiService {
     }
   }
 
-  static Future<bool> submitSupportTicket(String userId, String name, String mobile, String question) async {
+  static Future<bool> submitSupportTicket(
+    String userId,
+    String name,
+    String mobile,
+    String question,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse("$baseUrl/v1/support/tickets"),
@@ -1801,7 +2167,9 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> checkAppUpdate() async {
     try {
-      final response = await http.get(Uri.parse("$baseUrl/v1/system/app-config"));
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/system/app-config"),
+      );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -1811,7 +2179,10 @@ class ApiService {
     return null;
   }
 
-  static Future<Map<String, dynamic>> updateNotificationStatus(String notificationId, String status) async {
+  static Future<Map<String, dynamic>> updateNotificationStatus(
+    String notificationId,
+    String status,
+  ) async {
     try {
       final response = await http.put(
         Uri.parse("$baseUrl/v1/notifications/$notificationId/status"),
@@ -1831,6 +2202,9 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       var userId = prefs.getString("user_id");
+      if (prefs.getBool("is_logging_out") == true) {
+        return {"success": false, "message": "Logout in progress"};
+      }
       if (!_isBackendUserId(userId)) {
         userId = await _resolveBackendUserIdFromPrefs(prefs);
       }
@@ -1842,7 +2216,7 @@ class ApiService {
         Uri.parse("$baseUrl/v1/auth/fcm-token"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"user_id": int.parse(userId!), "fcm_token": token}),
-      );      
+      );
       if (response.statusCode == 200) {
         return {"success": true};
       }
@@ -1851,6 +2225,63 @@ class ApiService {
       return {"success": false, "message": e.toString()};
     }
   }
+
+  static Future<List<dynamic>> getCommunityStories() async {
+    try {
+      final response = await http.get(Uri.parse("$baseUrl/v1/content/reviews"));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching community stories: $e");
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> submitCommunityReview({
+    required String reviewerName,
+    String? reviewerRole,
+    required int rating,
+    required String story,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/content/reviews"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "reviewer_name": reviewerName,
+          "reviewer_role": reviewerRole,
+          "rating": rating,
+          "story": story,
+        }),
+      );
+      if (response.statusCode == 200) {
+        return {"success": true, "data": jsonDecode(response.body)};
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Failed to submit review"),
+      };
+    } catch (e) {
+      print("Error submitting community review: $e");
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
+  static Future<List<dynamic>> getFaqs() async {
+    try {
+      final response = await http.get(Uri.parse("$baseUrl/v1/content/faqs"));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching FAQs: $e");
+      return [];
+    }
+  }
+
   static Future<List<dynamic>> getAds() async {
     try {
       final response = await http.get(Uri.parse("$baseUrl/v1/content/ads"));
@@ -1877,9 +2308,26 @@ class ApiService {
     }
   }
 
+  static Future<String?> _currentBackendUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    var userId = prefs.getString("user_id");
+    if (!_isBackendUserId(userId)) {
+      userId = await _resolveBackendUserIdFromPrefs(prefs);
+    }
+    return _isBackendUserId(userId) ? userId : null;
+  }
+
+  static Future<String?> getCurrentUserId() async {
+    return _currentBackendUserId();
+  }
+
   static Future<List<dynamic>> getReels() async {
     try {
-      final response = await http.get(Uri.parse("$baseUrl/v1/content/reels"));
+      final userId = await _currentBackendUserId();
+      final uri = Uri.parse(
+        "$baseUrl/v1/content/reels",
+      ).replace(queryParameters: userId == null ? null : {"user_id": userId});
+      final response = await http.get(uri);
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -1889,6 +2337,134 @@ class ApiService {
       return [];
     }
   }
+
+  static Future<Map<String, dynamic>> toggleReelLike(String reelId) async {
+    try {
+      final userId = await _currentBackendUserId();
+      if (userId == null) {
+        return {"success": false, "message": "Please log in to like reels."};
+      }
+      final response = await http.post(
+        Uri.parse(
+          "$baseUrl/v1/content/reels/${Uri.encodeComponent(reelId)}/like",
+        ),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"user_id": int.parse(userId)}),
+      );
+      if (response.statusCode == 200) {
+        return {"success": true, ...jsonDecode(response.body)};
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Could not update like"),
+      };
+    } catch (e) {
+      return {"success": false, "message": "Could not update like."};
+    }
+  }
+
+  static Future<List<dynamic>> getReelComments(String reelId) async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+          "$baseUrl/v1/content/reels/${Uri.encodeComponent(reelId)}/comments",
+        ),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching reel comments: $e");
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> createReelComment(
+    String reelId,
+    String text,
+  ) async {
+    try {
+      final userId = await _currentBackendUserId();
+      if (userId == null) {
+        return {"success": false, "message": "Please log in to comment."};
+      }
+      final response = await http.post(
+        Uri.parse(
+          "$baseUrl/v1/content/reels/${Uri.encodeComponent(reelId)}/comments",
+        ),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"user_id": int.parse(userId), "text": text}),
+      );
+      if (response.statusCode == 200) {
+        return {"success": true, "comment": jsonDecode(response.body)};
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Could not add comment"),
+      };
+    } catch (e) {
+      return {"success": false, "message": "Could not add comment."};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateReelComment(
+    String reelId,
+    int commentId,
+    String text,
+  ) async {
+    try {
+      final userId = await _currentBackendUserId();
+      if (userId == null) {
+        return {"success": false, "message": "Please log in to edit comments."};
+      }
+      final response = await http.put(
+        Uri.parse(
+          "$baseUrl/v1/content/reels/${Uri.encodeComponent(reelId)}/comments/$commentId",
+        ),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"user_id": int.parse(userId), "text": text}),
+      );
+      if (response.statusCode == 200) {
+        return {"success": true, "comment": jsonDecode(response.body)};
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Could not edit comment"),
+      };
+    } catch (e) {
+      return {"success": false, "message": "Could not edit comment."};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteReelComment(
+    String reelId,
+    int commentId,
+  ) async {
+    try {
+      final userId = await _currentBackendUserId();
+      if (userId == null) {
+        return {
+          "success": false,
+          "message": "Please log in to delete comments.",
+        };
+      }
+      final uri = Uri.parse(
+        "$baseUrl/v1/content/reels/${Uri.encodeComponent(reelId)}/comments/$commentId",
+      ).replace(queryParameters: {"user_id": userId});
+      final response = await http.delete(uri);
+      if (response.statusCode == 200) {
+        return {"success": true, ...jsonDecode(response.body)};
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Could not delete comment"),
+      };
+    } catch (e) {
+      return {"success": false, "message": "Could not delete comment."};
+    }
+  }
+
   static Future<Map<String, dynamic>> fetchMyChallans() async {
     try {
       final prefs = await SharedPreferences.getInstance();

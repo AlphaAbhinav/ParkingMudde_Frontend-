@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 
 class WalletProvider extends ChangeNotifier {
-
   int pmCoinsBalance = 0;
   int pmCoinsEarned = 0;
   int pmCoinsSpent = 0;
@@ -13,53 +12,54 @@ class WalletProvider extends ChangeNotifier {
   int coinsbackSpent = 0;
 
   List transactions = [];
-List subscriptions = [];
+  List subscriptions = [];
 
-Future<void> fetchWallet() async {
+  Future<void> fetchWallet() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? userId = prefs.getString("user_id");
 
+    if (userId == null) {
+      print("User not logged in");
+      return;
+    }
 
-final prefs = await SharedPreferences.getInstance();
-String? userId = prefs.getString("user_id");
+    final response = await ApiService.getWalletBalance(userId);
 
-if (userId == null) {
-  print("User not logged in");
-  return;
-}
+    if (response != null) {
+      if (response["success"] == false) {
+        print('Wallet fetch failed');
+        return;
+      }
 
-final response = await ApiService.getWalletBalance(userId);
+      pmCoinsBalance = response["pm_coins_balance"] ?? 0;
+      pmCoinsEarned = response["pm_coins_earned"] ?? 0;
+      pmCoinsSpent = response["pm_coins_spent"] ?? 0;
 
-if (response != null) {
+      coinsbackBalance = response["coinsback_balance"] ?? 0;
+      coinsbackEarned = response["coinsback_earned"] ?? 0;
+      coinsbackSpent = response["coinsback_spent"] ?? 0;
 
-    pmCoinsBalance = response["pm_coins_balance"] ?? 0;
-    pmCoinsEarned = response["pm_coins_earned"] ?? 0;
-    pmCoinsSpent = response["pm_coins_spent"] ?? 0;
+      transactions = response["transactions"] ?? [];
+      subscriptions = response["subscriptions"] ?? [];
 
-    coinsbackBalance = response["coinsback_balance"] ?? 0;
-    coinsbackEarned = response["coinsback_earned"] ?? 0;
-    coinsbackSpent = response["coinsback_spent"] ?? 0;
+      notifyListeners();
+    }
+  }
 
-    transactions = response["transactions"] ?? [];
-    subscriptions = response["subscriptions"] ?? [];
+  bool hasActiveSubscription(String packageId) {
+    return subscriptions.any(
+      (sub) => sub['package_id'] == packageId && sub['status'] == 'ACTIVE',
+    );
+  }
 
-  notifyListeners();
-}
-
-
-}
-
-bool hasActiveSubscription(String packageId) {
-  return subscriptions.any((sub) =>
-    sub['package_id'] == packageId && sub['status'] == 'ACTIVE');
-}
-
-String? subscriptionEndDate(String packageId) {
-  final sub = subscriptions.cast<Map<String, dynamic>?>().firstWhere(
-    (s) => s?['package_id'] == packageId && s?['status'] == 'ACTIVE',
-    orElse: () => null,
-  );
-  if (sub == null) return null;
-  final endDate = DateTime.tryParse(sub['end_date']?.toString() ?? '');
-  if (endDate == null) return null;
-  return "${endDate.day}/${endDate.month}/${endDate.year}";
-}
+  String? subscriptionEndDate(String packageId) {
+    final sub = subscriptions.cast<Map<String, dynamic>?>().firstWhere(
+      (s) => s?['package_id'] == packageId && s?['status'] == 'ACTIVE',
+      orElse: () => null,
+    );
+    if (sub == null) return null;
+    final endDate = DateTime.tryParse(sub['end_date']?.toString() ?? '');
+    if (endDate == null) return null;
+    return "${endDate.day}/${endDate.month}/${endDate.year}";
+  }
 }

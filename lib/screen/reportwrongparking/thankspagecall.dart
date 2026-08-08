@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
 import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
+import 'package:parkingmudde/widgets/ai_confidence_badge.dart';
 
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -21,6 +22,7 @@ class ThankYouReportScreen extends StatefulWidget {
   final String aiVerdict;
   final String? aiReasons;
   final String? issueTitle;
+  final String? aiConfidenceLevel;
 
   const ThankYouReportScreen({
     super.key,
@@ -33,6 +35,7 @@ class ThankYouReportScreen extends StatefulWidget {
     this.aiVerdict = "UNDER_REVIEW",
     this.aiReasons,
     this.issueTitle,
+    this.aiConfidenceLevel,
   });
 
   @override
@@ -48,6 +51,8 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   bool sitBackRelax = false;
   bool _plateAttached = false;
   bool _vehicleRegistered = false; 
+  int _offenderPenaltyCoins = 0;
+  int _coinsCharged = 0;
   bool _smsAlertChecked = false;
 
   late Razorpay _razorpay;
@@ -67,10 +72,70 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   bool get isEmergency => widget.typecv == "emergency";
   bool get isReport => !isHelp && !isEmergency;
   bool get isRejected => isReport && widget.aiScore < 45;
+  String get _displayConfidenceLevel => widget.aiConfidenceLevel ??
+      AiConfidenceBadge.confidenceLevelForFlow(
+        flow: widget.typecv?.toString(),
+        aiScore: widget.aiScore,
+      );
+  bool get _isUnregisteredAfterPlate =>
+      _plateAttached && !_vehicleRegistered && (isHelp || isEmergency);
+
+  Color get _statusColor {
+    if (isRejected) return Colors.red;
+    if (isEmergency && _isUnregisteredAfterPlate) return Colors.red;
+    if (isHelp && _isUnregisteredAfterPlate) return Colors.pink;
+    if (isReport && !_plateAttached) return Colors.orange;
+    return Colors.green;
+  }
+
+  IconData get _statusIcon {
+    if (isRejected) return Icons.cancel_rounded;
+    if (isEmergency && _isUnregisteredAfterPlate) {
+      return Icons.local_hospital_rounded;
+    }
+    if (isHelp && _isUnregisteredAfterPlate) {
+      return Icons.favorite_rounded;
+    }
+    if (isReport && !_plateAttached) return Icons.hourglass_top_rounded;
+    return Icons.check_circle_rounded;
+  }
+
+  String get _statusTitle {
+    if (isHelp) return "Thanks for helping!";
+    if (isEmergency && _isUnregisteredAfterPlate) return "Emergency Help Needed";
+    if (isEmergency) return "Emergency Alert Sent!";
+    if (isRejected) return "Report Rejected";
+    return !_plateAttached ? "Almost Done!" : "Report Submitted!";
+  }
+
+  String get _statusMessage {
+    if (isEmergency && _isUnregisteredAfterPlate) {
+      return "This user is not a part of the Parking Mudde family. Please contact the nearest hospital to help.";
+    }
+    if (isEmergency) {
+      return "Emergency alert has been recorded. If the victim needs immediate help, call the helpline now.";
+    }
+    if (isHelp) {
+      if (!_plateAttached) {
+        return "AI-assisted review is ready. Please enter or scan the number plate.";
+      }
+      if (!_vehicleRegistered) {
+        return "Thanks for helping. Though this vehicle is not a part of the Parking Mudde family, we appreciate your efforts. Keep helping.";
+      }
+      return "Thank you for helping, car owner has been notified, and as for your efforts you have been awarded PM coins.";
+    }
+    if (isRejected) {
+      return "Your report was evaluated by AI and rejected due to insufficient evidence. No coins were charged.";
+    }
+    return !_plateAttached
+        ? "Your report has been successfully evaluated by AI! Please identify the offending vehicle to notify the owner."
+        : "Your report has been submitted. The vehicle owner has been notified privately.";
+  }
 
   @override
   void initState() {
     super.initState();
+    _coinsCharged = widget.coinsCharged;
     if (!kIsWeb) {
       _razorpay = Razorpay();
       _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
@@ -202,80 +267,8 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   }
 
   Future<void> _startIdentificationPayment() async {
-    setState(() => _isPaymentLoading = true);
-    try {
-      final storedUser = await ApiService.getStoredUser();
-      final currentUserId = storedUser?["user_id"]?.toString() ?? "";
-
-      final orderResult = await ApiService.createReportRazorpayOrder(userId: currentUserId);
-      if (orderResult['success'] == false) {
-        setState(() => _isPaymentLoading = false);
-        Get.defaultDialog(
-          title: "API Error",
-          middleText: orderResult['message']?.toString() ?? 'Could not initiate payment.',
-          textConfirm: "OK",
-          onConfirm: () => Get.back(),
-        );
-        return;
-      }
-
-      final razorpayOrderId = orderResult['razorpay_order_id']?.toString();
-      final razorpayKeyId = orderResult['razorpay_key_id']?.toString();
-
-      if (razorpayOrderId == null || razorpayKeyId == null) {
-        setState(() => _isPaymentLoading = false);
-        Get.defaultDialog(
-          title: "Error",
-          middleText: "Invalid response from server.",
-          textConfirm: "OK",
-          onConfirm: () => Get.back(),
-        );
-        return;
-      }
-
-      final options = {
-        'key': razorpayKeyId,
-        'order_id': razorpayOrderId,
-        'amount': 100, // 1 INR in paise
-        'currency': 'INR',
-        'name': 'Parking Mudde',
-        'description': 'Identify Vehicle Owner',
-        'prefill': {
-          'contact': '',
-          'email': ''
-        }
-      };
-
-      if (kIsWeb) {
-        await openRazorpayWebCheckout(
-          Map<String, dynamic>.from(options),
-          onSuccess: (response) {
-            _handlePaymentSuccess(PaymentSuccessResponse(
-              response['razorpay_payment_id'],
-              response['razorpay_order_id'],
-              response['razorpay_signature'],
-              null,
-            ));
-          },
-          onFailure: (message) {
-            _handlePaymentError(PaymentFailureResponse(0, message, null));
-          },
-          onDismiss: () {
-            _handlePaymentError(PaymentFailureResponse(0, 'Cancelled', null));
-          },
-        );
-      } else {
-        _razorpay.open(options);
-      }
-    } catch (e) {
-      setState(() => _isPaymentLoading = false);
-      Get.defaultDialog(
-        title: "Error",
-        middleText: e.toString(),
-        textConfirm: "OK",
-        onConfirm: () => Get.back(),
-      );
-    }
+    if (_isPaymentLoading) return;
+    await _openOffenderIdentificationScreen();
   }
 
   Future<void> _openOffenderIdentificationScreen() async {
@@ -290,9 +283,17 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
         ));
 
     if (result != null) {
+      final data = result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'vehicle_registered': result == true};
+      final penaltyCoins = int.tryParse(data['offender_penalty_coins']?.toString() ?? '0') ?? 0;
+      final coinsCharged = int.tryParse(data['coins_charged']?.toString() ?? '0') ?? 0;
+
       setState(() {
         _plateAttached = true;
-        _vehicleRegistered = result == true;
+        _vehicleRegistered = data['vehicle_registered'] == true;
+        _offenderPenaltyCoins = penaltyCoins;
+        _coinsCharged = coinsCharged;
       });
 
       if (isReport) {
@@ -397,24 +398,18 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: (isRejected ? Colors.red : (isReport && !_plateAttached ? Colors.orange : Colors.green)).withOpacity(0.1),
+                  color: _statusColor.withOpacity(0.1),
                 ),
                 child: Icon(
-                  isRejected ? Icons.cancel_rounded : (isReport && !_plateAttached ? Icons.hourglass_top_rounded : Icons.check_circle_rounded),
-                  color: isRejected ? Colors.red : (isReport && !_plateAttached ? Colors.orange : Colors.green),
+                  _statusIcon,
+                  color: _statusColor,
                   size: 80,
                 ),
               ),
               const SizedBox(height: 20),
 
               Text(
-                isHelp
-                    ? "Thanks for helping!"
-                    : isEmergency
-                    ? "Emergency Alert Sent!"
-                    : isRejected
-                    ? "Report Rejected"
-                    : (!_plateAttached) ? "Almost Done!" : "Report Submitted!",
+                _statusTitle,
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
@@ -424,17 +419,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                isEmergency
-                    ? "Emergency alert has been recorded. If the victim needs immediate help, call the helpline now."
-                    : isHelp
-                    ? (!_plateAttached 
-                        ? "The AI has verified your image with a score of ${widget.aiScore}. Please enter or scan the number plate."
-                        : "Thank you for helping, car owner has been notified, and as for your efforts you have been awarded PM coins.")
-                    : isRejected
-                    ? "Your report was evaluated by AI and rejected due to insufficient evidence. The fee is non-refundable."
-                    : (!_plateAttached)
-                        ? "Your report has been successfully evaluated by AI! Please identify the offending vehicle to notify the owner."
-                        : "Your report has been submitted. The vehicle owner has been notified privately.",
+                _statusMessage,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.blueGrey.shade500,
@@ -442,6 +427,9 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                   height: 1.4,
                 ),
               ),
+
+              const SizedBox(height: 16),
+              AiConfidenceBadge(level: _displayConfidenceLevel),
 
               const SizedBox(height: 24),
 
@@ -580,12 +568,12 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
           const SizedBox(height: 16),
 
           // PM Coins charged
-          if (widget.coinsCharged > 0) ...[
+          if (_coinsCharged > 0) ...[
             _economyRow(
               icon: Icons.remove_circle_rounded,
               iconColor: Colors.red.shade400,
               label: "Reporting Fee",
-              value: "-${widget.coinsCharged} PM Coins",
+              value: "-$_coinsCharged PM Coins",
               valueColor: Colors.red.shade600,
               sublabel: "Charged now",
             ),
@@ -613,35 +601,36 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                 valueColor: Colors.green.shade700,
                 sublabel: "Awarded when report is confirmed",
               ),
-
-              Divider(color: Colors.grey.shade100, height: 20),
-
-              // Offender penalty
-              _economyRow(
-                icon: Icons.gavel_rounded,
-                iconColor: Colors.orange.shade600,
-                label: "Offender Penalty",
-                value: "PM Coins Deducted",
-                valueColor: Colors.orange.shade700,
-                sublabel: "Deducted from offender on confirmation",
-              ),
-
-              Divider(color: Colors.grey.shade100, height: 20),
+              if (_plateAttached) ...[
+                Divider(color: Colors.grey.shade100, height: 20),
+                _economyRow(
+                  icon: Icons.gavel_rounded,
+                  iconColor: Colors.orange.shade600,
+                  label: "Offender Penalty",
+                  value: _vehicleRegistered
+                      ? "-$_offenderPenaltyCoins PM Coins"
+                      : "No deduction",
+                  valueColor: _vehicleRegistered
+                      ? Colors.orange.shade700
+                      : Colors.blueGrey.shade500,
+                  sublabel: _vehicleRegistered
+                      ? "Deducted after vehicle number was identified"
+                      : "Vehicle is not registered with ParkingMudde",
+                ),
+                Divider(color: Colors.grey.shade100, height: 20),
+              ],
             ]
           ],
 
-          // AI verdict
           _economyRow(
             icon: Icons.smart_toy_rounded,
             iconColor: Colors.purple.shade400,
-            label: "AI Verdict",
-            value: widget.aiVerdict == "UNDER_REVIEW" 
-                   ? "Under Review" 
-                   : "${widget.aiScore} - ${widget.aiVerdict.replaceAll('_', ' ')}",
+            label: "AI Confidence",
+            value: _displayConfidenceLevel,
             valueColor: Colors.purple.shade600,
-            sublabel: widget.aiVerdict == "UNDER_REVIEW" 
-                      ? "Score & verdict generated after analysis" 
-                      : "Analysis complete",
+            sublabel: widget.aiVerdict == "UNDER_REVIEW"
+                ? "AI-assisted review is in progress"
+                : "Verdict: ${widget.aiVerdict.replaceAll('_', ' ')}",
           ),
         ],
       ),
@@ -844,4 +833,5 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     );
   }
 }
+
 

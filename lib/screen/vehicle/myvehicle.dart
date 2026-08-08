@@ -2,23 +2,36 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
-import 'package:parkingmudde/screen/vehicle/transfer_vehicle.dart';
 import 'package:parkingmudde/screen/vehicle/vehicledetail.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
+import 'package:parkingmudde/widgets/screen_slogan.dart';
 
 class MyVehiclesScreen extends StatefulWidget {
   final bool isFromBottomNav;
   final VoidCallback? onBackPressed;
-  const MyVehiclesScreen({super.key, this.isFromBottomNav = false, this.onBackPressed});
+  const MyVehiclesScreen({
+    super.key,
+    this.isFromBottomNav = false,
+    this.onBackPressed,
+  });
 
   @override
   State<MyVehiclesScreen> createState() => _MyVehiclesScreenState();
 }
 
 class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
+  // ─── STRICT GLOBAL DESIGN TOKENS ───
+  static const Color brandBlue = Color(0XFF184B8C);
+  static const Color brandBlueLight = Color(0xFFEFF6FF); // Soft blue background
+  static const Color textDark = Color(0xFF1E293B); // Primary text
+  static const Color textGrey = Color(0xFF64748B); // Secondary text
+  static const Color bgSurface = Color(0xFFF8FAFC); // Page background
+  static const Color successGreen = Color(0xFF16A34A);
+  static const Color successGreenBg = Color(0xFFDCFCE7);
+  static const Color indBlue = Color(0xFF1D4ED8); // For IND license plate badge
+
   List<dynamic> vehicles = [];
-  List<dynamic> pendingTransfers = [];
   bool isLoading = true;
 
   @override
@@ -29,30 +42,25 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
 
   Future<void> loadVehicles() async {
     try {
-      String userId = "";
-
       final user = await ApiService.getStoredUser();
       final storedUserId = user?["user_id"]?.toString();
 
       if (storedUserId == null || storedUserId.isEmpty) {
         setState(() {
           vehicles = [];
-          pendingTransfers = [];
           isLoading = false;
         });
         return;
       }
 
       final fetchedVehicles = await ApiService.getMyVehicles(storedUserId);
-      final fetchedPending = await ApiService.getPendingTransfers(storedUserId);
 
       setState(() {
         vehicles = fetchedVehicles;
-        pendingTransfers = fetchedPending;
         isLoading = false;
       });
     } catch (e) {
-      print("Error loading vehicles: $e");
+      debugPrint("Error loading vehicles: $e");
       setState(() {
         isLoading = false;
       });
@@ -62,166 +70,164 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF6F8FA,
-      ), // Modern super-app light silver base
+      backgroundColor: bgSurface,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
         scrolledUnderElevation: 1,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Color(0XFF184B8C),
-            size: 22,
+        surfaceTintColor: Colors.transparent,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8.0),
+          child: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: textDark,
+              size: 20,
+            ),
+            onPressed: () {
+              if (widget.isFromBottomNav && widget.onBackPressed != null) {
+                widget.onBackPressed!();
+              } else {
+                Get.back();
+              }
+            },
           ),
-          onPressed: () {
-            if (widget.isFromBottomNav && widget.onBackPressed != null) {
-              widget.onBackPressed!();
-            } else {
-              Get.back();
-            }
-          },
         ),
         title: const Text(
-          "My Garage",
+          "My Vehicles",
           style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1E293B),
-            letterSpacing: 0.3,
+            fontSize: 16,
+            fontWeight: FontWeight.w700, // Reduced from w800
+            color: textDark,
+            letterSpacing: 0.2,
           ),
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: Colors.grey.shade200, height: 1),
+          preferredSize: const Size.fromHeight(1.5),
+          child: Container(
+            color: const Color(0xFFF1F5F9),
+            height: 1.5,
+          ), // Standardized border color
         ),
       ),
 
-      /// 🔹 Sleek Professional Floating Action Add Button
       floatingActionButton: isLoading
           ? null
           : FloatingActionButton.extended(
               onPressed: () async {
-                await Get.to(() => const AddVehicleScreen(fromMyVehicles: true));
+                await Get.to(
+                  () => const AddVehicleScreen(fromMyVehicles: true),
+                );
                 loadVehicles();
               },
-              backgroundColor: const Color(0XFF184B8C),
+              backgroundColor: brandBlue,
               elevation: 4,
-              icon: const Icon(
-                Icons.add_circle_outline_rounded,
-                color: Colors.white,
-              ),
+              icon: const Icon(Icons.add_rounded, color: Colors.white),
               label: const Text(
-                "New Vehicle",
+                "Add Vehicle",
                 style: TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600, // Reduced from w700
+                  fontSize: 14,
                 ),
               ),
             ),
       body: isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(
-                    height: 40,
-                    width: 40,
-                    child: CircularProgressIndicator(
-                      color: Color(0XFF184b8c),
-                      strokeWidth: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    "Syncing Your Garage...",
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            )
+          ? _buildLoadingSkeleton() // Replaced CircularProgressIndicator with Premium Skeleton
           : vehicles.isEmpty
           ? _emptyStateView()
           : SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              // Added bottom padding (100) to prevent FAB overlap
+              padding: const EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: 100,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (pendingTransfers.isNotEmpty) ...[
-                    ...pendingTransfers.map((p) => _pendingTransferCard(context, p)),
-                    const SizedBox(height: 16),
-                  ],
-
-                  /// 🔹 Ad Banner Carousel
+                  /// Ad Banner Carousel
                   const DynamicAdCarousel(pageName: 'My Vehicles'),
-                  const SizedBox(height: 20),
+
+                  const SizedBox(height: 32),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        "Registered Fleet",
+                      const Text(
+                        "Registered Vehicles",
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.blueGrey.shade900,
+                          fontWeight: FontWeight.w700, // Reduced from w800
+                          color: textDark,
+                          letterSpacing: -0.2,
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
+                          horizontal: 12,
+                          vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
+                          color: brandBlueLight,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           "${vehicles.length} Total",
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            color: Color(0XFF184b8c),
+                            fontWeight: FontWeight.w700, // Reduced from w800
+                            fontSize: 12,
+                            color: brandBlue,
                           ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
+
                   ListView.builder(
-                    physics:
-                        const NeverScrollableScrollPhysics(), // Managed seamlessly inside SCV above
+                    physics: const NeverScrollableScrollPhysics(),
                     shrinkWrap: true,
                     itemCount: vehicles.length,
                     itemBuilder: (context, index) {
                       final vehicle = vehicles[index];
-                      return InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () async {
-                          final result = await Get.to(
-                            () => VehicleDetailPage(vehicle: vehicle),
-                          );
-                          if (result == true) {
-                            await loadVehicles();
-                            Get.snackbar(
-                              "Vehicle Updated",
-                              "Vehicle updated successfully",
-                              backgroundColor: Colors.green.shade600,
-                              colorText: Colors.white,
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () async {
+                            final result = await Get.to(
+                              () => VehicleDetailPage(vehicle: vehicle),
                             );
-                          } else if (result == "deleted") {
-                            await loadVehicles();
-                          }
-                        },
-                        child: _vehicleCard(context, vehicle),
+                            if (result == true) {
+                              await loadVehicles();
+                              Get.snackbar(
+                                "Vehicle Updated",
+                                "Vehicle records have been successfully saved.",
+                                backgroundColor: successGreen,
+                                colorText: Colors.white,
+                              );
+                            } else if (result == "deleted") {
+                              await loadVehicles();
+                            }
+                          },
+                          child: _vehicleCard(context, vehicle),
+                        ),
                       );
                     },
+                  ),
+                  const SizedBox(height: 12),
+                  const ScreenSlogan(
+                    "Everything about your vehicles, right here.",
+                    color: brandBlue,
+                    icon: Icons.auto_awesome_rounded,
+                    imagePath: 'assets/myvehicleslogan.png',
+                    normalImageWidth: 105,
+                    compactImageWidth: 92,
+                    textMaxLines: 2,
                   ),
                 ],
               ),
@@ -229,7 +235,442 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
     );
   }
 
-  /// 🔹 Ad Banner Carousel
+  /// Premium Skeleton Loader (Replaces standard generic spinner)
+  Widget _buildLoadingSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _PulsingSkeleton(
+            width: double.infinity,
+            height: 160,
+            borderRadius: 20,
+          ),
+          const SizedBox(height: 32),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const _PulsingSkeleton(width: 160, height: 24, borderRadius: 6),
+              const _PulsingSkeleton(width: 60, height: 24, borderRadius: 12),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: ListView.separated(
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 3,
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (_, __) => const _PulsingSkeleton(
+                width: double.infinity,
+                height: 120,
+                borderRadius: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Empty Premium State Handling
+  Widget _emptyStateView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 15,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30),
+                child: Image.asset(
+                  'assets/carsvg.png',
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              "No Vehicles Registered",
+              style: TextStyle(
+                fontSize: 20, // Tuned for balance
+                fontWeight: FontWeight.w700, // Reduced from w800
+                color: textDark,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              "Your account is clear. Securely register your vehicles to start generating safety parameters and transfer requests.",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: textGrey,
+                fontSize: 14.5,
+                height: 1.4,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const ScreenSlogan(
+              "Everything about your vehicles, right here.",
+              color: brandBlue,
+              icon: Icons.auto_awesome_rounded,
+              imagePath: 'assets/myvehicleslogan.png',
+              normalImageWidth: 105,
+              compactImageWidth: 92,
+              textMaxLines: 2,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getVehicleImagePath(String type) {
+    if (type.contains('bike') || type.contains('two')) {
+      return 'assets/bikesvg.png';
+    } else if (type.contains('scooter')) {
+      return 'assets/scootersvg.png';
+    } else if (type.contains('commercial')) {
+      return 'assets/commercialsvg.png';
+    } else {
+      return 'assets/carsvg.png';
+    }
+  }
+
+  Widget _vehicleCard(BuildContext context, dynamic vehicle) {
+    String fullName =
+        "${vehicle['owner_first_name']} ${vehicle['owner_last_name']}";
+    String vehicleType =
+        vehicle['vehicle_type']?.toString().toLowerCase() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        // Adopted minimal flat-card elevation UI (Removed borders, kept clean soft shadow)
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// Dynamic Vector-Like Icon Placeholder (Replaces static car photo)
+          Container(
+            height: 72,
+            width: 72,
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Transform.scale(
+                scaleY: 1.2,
+                child: Image.asset(
+                  _getVehicleImagePath(vehicleType),
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          /// Core Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _miniLicensePlateView(vehicle['registration_number']),
+
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    const Icon(Icons.person_rounded, size: 14, color: textGrey),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        fullName,
+                        style: const TextStyle(
+                          fontSize: 15, // Bumped up for legibility
+                          fontWeight: FontWeight.w700, // Reduced from w800
+                          color: textDark,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.phone_iphone_rounded,
+                      size: 14,
+                      color: textGrey,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      vehicle['registered_mobile'] ?? 'Not Specified',
+                      style: const TextStyle(
+                        color: textGrey,
+                        fontSize: 14, // Bumped up
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                Row(
+                  children: [
+                    _chip(vehicle['vehicle_type'] ?? 'Unknown Type'),
+                    const SizedBox(width: 8),
+                    _statusChip('verified'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          /// Action Icon trigger (Enlarged hit target padding)
+          InkWell(
+            onTap: () => _vehicleActions(context, vehicle),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(
+                12,
+              ), // Enlarged hit target from (4, 8) to 12
+              child: const Icon(Icons.more_vert_rounded, color: textGrey),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Visually Spaces Registration Number (DL8CAA1111 -> DL 8C AA 1111)
+  String _formatLicensePlate(String? regNumber) {
+    if (regNumber == null || regNumber.isEmpty) return 'NO-REG-NUM';
+    String clean = regNumber.replaceAll(RegExp(r'\s+'), '').toUpperCase();
+
+    // Pattern Matcher for standard Indian Plates: XX 00 XX 0000
+    RegExp exp = RegExp(r'^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{4})$');
+    if (exp.hasMatch(clean)) {
+      final match = exp.firstMatch(clean)!;
+      return "${match.group(1)} ${match.group(2)} ${match.group(3)} ${match.group(4)}";
+    }
+    return clean; // Fallback to whatever user entered if non-standard
+  }
+
+  Widget _miniLicensePlateView(String? regNumber) {
+    final formattedReg = _formatLicensePlate(regNumber);
+
+    return Container(
+      constraints: const BoxConstraints(
+        maxWidth: 180,
+      ), // Allowed a bit more width for spacing
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.015),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+            decoration: const BoxDecoration(
+              color: indBlue,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(4),
+                bottomLeft: Radius.circular(4),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: const Text(
+              "IND",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 8.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Text(
+                formattedReg,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700, // Reduced from w800
+                  fontSize: 14, // Bumped up for legibility
+                  color: textDark,
+                  letterSpacing:
+                      1.0, // Tweaked letter spacing since we added physical spaces
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9), // Same standard palette
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.commute_rounded, size: 12, color: textGrey),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700, // Reduced from w800
+              color: textGrey,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusChip(String status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: successGreenBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_rounded, size: 12, color: successGreen),
+          const SizedBox(width: 4),
+          const Text(
+            "Verified Active",
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700, // Reduced from w800
+              color: successGreen,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _vehicleActions(BuildContext context, dynamic vehicle) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (_) => CupertinoActionSheet(
+        title: Text(
+          _formatLicensePlate(vehicle['registration_number']),
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
+        message: const Text(
+          "Choose an action to manage this specific vehicle entry.",
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        ),
+        actions: [
+          CupertinoActionSheetAction(
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.edit_document,
+                  color: brandBlue, // Standardized to our brand
+                  size: 20,
+                ),
+                SizedBox(width: 10),
+                Text(
+                  "Update Registration Data",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    color: brandBlue, // Standardized to our brand
+                  ),
+                ),
+              ],
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+              final updated = await Get.to(
+                () => AddVehicleScreen(edit: vehicle, fromMyVehicles: true),
+              );
+              if (updated == true) {
+                await loadVehicles();
+                Get.snackbar(
+                  "Information Updated",
+                  "Vehicle database sync completed successfully.",
+                  backgroundColor: successGreen,
+                  colorText: Colors.white,
+                );
+              }
+            },
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          child: const Text(
+            "Cancel",
+            style: TextStyle(fontWeight: FontWeight.w600, color: textDark),
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+    );
+  }
+
+  /// Original hard-coded banner method perfectly retained, with slightly gentler font weights.
   Widget _buildAdBanner() {
     final List<Map<String, dynamic>> ads = [
       {
@@ -247,7 +688,7 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
         "cta": "Explore",
       },
       {
-        "title": "Refer & Earn 50 PM Coins",
+        "title": "Refer & Earn PM Coins",
         "desc": "Invite friends to ParkingMudde",
         "gradient": [const Color(0xFFFF512F), const Color(0xFFDD2476)],
         "icon": Icons.card_giftcard_rounded,
@@ -298,7 +739,7 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                     Get.snackbar(
                       "Coming Soon",
                       "${ad['title']} will be available soon!",
-                      backgroundColor: Colors.black87,
+                      backgroundColor: textDark,
                       colorText: Colors.white,
                       snackPosition: SnackPosition.BOTTOM,
                     );
@@ -319,7 +760,7 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 14,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w700, // Adjusted weight
                                 color: Colors.white,
                                 letterSpacing: 0.2,
                               ),
@@ -337,11 +778,16 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
                             ),
                             const SizedBox(height: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                ),
                               ),
                               child: Text(
                                 ad["cta"] as String,
@@ -378,501 +824,53 @@ class _MyVehiclesScreenState extends State<MyVehiclesScreen> {
       ),
     );
   }
+}
 
-  /// 🔹 Empty Premium State Handling
-  Widget _emptyStateView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.directions_car_filled_outlined,
-                size: 70,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              "Garage is Empty",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: Colors.blueGrey.shade900,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              "You haven't added any vehicles to your secure portfolio yet. Tap the + Add button to securely bind a vehicle.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.blueGrey.shade500,
-                fontSize: 14,
-                height: 1.4,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+// ─── MINIMAL ANIMATED SKELETON HELPER ───
+class _PulsingSkeleton extends StatefulWidget {
+  final double width;
+  final double height;
+  final double borderRadius;
+
+  const _PulsingSkeleton({
+    required this.width,
+    required this.height,
+    this.borderRadius = 16,
+  });
+
+  @override
+  State<_PulsingSkeleton> createState() => _PulsingSkeletonState();
+}
+
+class _PulsingSkeletonState extends State<_PulsingSkeleton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
   }
 
-  /// 🔹 The Highly Enhanced Card Identity
-  Widget _pendingTransferCard(BuildContext context, dynamic transfer) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.orange.shade200, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.swap_horiz_rounded, color: Colors.orange),
-              const SizedBox(width: 8),
-              Text(
-                "Incoming Transfer Request",
-                style: TextStyle(
-                  color: Colors.orange.shade800,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "${transfer['brand_name']} ${transfer['model_name']}",
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-          ),
-          const SizedBox(height: 4),
-          _miniLicensePlateView(transfer['registration_number'] ?? ''),
-          const SizedBox(height: 8),
-          Text(
-            "From: ${transfer['sender_name']} (${transfer['sender_mobile']})",
-            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _respondToTransfer(transfer['id'], 'decline'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text("Decline"),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => _respondToTransfer(transfer['id'], 'accept'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text("Accept", style: TextStyle(color: Colors.white)),
-                ),
-              ),
-            ],
-          )
-        ],
-      ),
-    );
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
-  Future<void> _respondToTransfer(String transferId, String action) async {
-    setState(() => isLoading = true);
-    final res = await ApiService.respondToTransfer(transferId: transferId, action: action);
-    if (res['success'] == true) {
-      Get.snackbar(
-        action == 'accept' ? "Transfer Accepted" : "Transfer Declined",
-        res['message'] ?? "",
-        backgroundColor: action == 'accept' ? Colors.green.shade600 : Colors.orange.shade600,
-        colorText: Colors.white,
-      );
-      await loadVehicles();
-    } else {
-      Get.snackbar("Error", res['message'] ?? "Action failed");
-      setState(() => isLoading = false);
-    }
-  }
-
-  Widget _vehicleCard(BuildContext context, dynamic vehicle) {
-    String fullName =
-        "${vehicle['owner_first_name']} ${vehicle['owner_last_name']}";
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100, width: 2),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start, // Top align properly
-        children: [
-          /// Safe Modern Network-Ready Image Block with subtle soft shadows
-          Container(
-            height: 70,
-            width: 70,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 4,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.asset(
-                "assets/car.jpeg",
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: Colors.blueGrey.shade50,
-                  child: const Icon(
-                    Icons.car_crash_rounded,
-                    color: Colors.grey,
-                    size: 30,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          /// Core Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                /// HSRP Miniature Plate directly mimicking SuperApp theme
-                _miniLicensePlateView(
-                  vehicle['registration_number'] ?? 'NO-REG-NUM',
-                ),
-
-                const SizedBox(height: 8),
-
-                Row(
-                  children: [
-                    Icon(Icons.person, size: 13, color: Colors.grey.shade400),
-                    const SizedBox(width: 4),
-                    Text(
-                      fullName,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.blueGrey.shade700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 4),
-
-                Row(
-                  children: [
-                    Icon(
-                      Icons.phone_iphone_rounded,
-                      size: 12,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      vehicle['registered_mobile'] ?? 'N/A',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                Row(
-                  children: [
-                    _chip(vehicle['vehicle_type'] ?? 'Unknown'),
-                    const SizedBox(width: 8),
-                    _statusChip(
-                      vehicle['transfer_status'] == 'pending' ? 'transfer_pending' : 'verified',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          /// Unified Clean Action Icon trigger
-          InkWell(
-            onTap: () => _vehicleActions(context, vehicle),
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              child: const Icon(Icons.more_vert, color: Colors.blueGrey),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Minified replication of IND license-plate standard for highly accurate visuals.
-  Widget _miniLicensePlateView(String regNumber) {
-    return Container(
-      height: 26,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.shade400, width: 1.5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.only(
-              top: 4,
-              bottom: 2,
-              left: 3,
-              right: 3,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade800,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(2),
-                bottomLeft: Radius.circular(2),
-              ),
-            ),
-            child: const Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  "IND",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 5,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              regNumber.toUpperCase(),
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
-                color: Colors.black87,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.indigo.withOpacity(0.1)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.commute, size: 10, color: Colors.indigo.shade600),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              color: Colors.indigo.shade800,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statusChip(String status) {
-    bool isTransferPending = status == 'transfer_pending';
-    bool verified = status == 'verified';
-
-    Color bgColor = isTransferPending
-        ? Colors.orange.shade50
-        : (verified ? Colors.green.shade50 : Colors.red.shade50);
-    Color borderColor = isTransferPending
-        ? Colors.orange.withValues(alpha: 0.2)
-        : (verified ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2));
-    Color iconColor = isTransferPending
-        ? Colors.orange.shade700
-        : (verified ? Colors.green.shade600 : Colors.red.shade600);
-    IconData iconData = isTransferPending
-        ? Icons.sync_rounded
-        : (verified ? Icons.check_circle_rounded : Icons.info);
-    String label = isTransferPending
-        ? "Transfer Pending"
-        : (verified ? "Verified" : "Pending");
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor),
-      ),
-      child: Row(
-        children: [
-          Icon(iconData, size: 10, color: iconColor),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              color: iconColor,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _vehicleActions(BuildContext context, dynamic vehicle) {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (_) => CupertinoActionSheet(
-        title: Text(
-          vehicle['registration_number'] ?? 'Vehicle Access',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-        message: const Text(
-          "Select operation parameters for the listed vehicle entity.",
-        ),
-        actions: vehicle['transfer_status'] == 'pending'
-            ? [
-                CupertinoActionSheetAction(
-                  isDestructiveAction: true,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.cancel, color: CupertinoColors.destructiveRed),
-                      SizedBox(width: 8),
-                      Text("Cancel Transfer"),
-                    ],
-                  ),
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    // Mock cancel API logic
-                    Get.snackbar(
-                      "Transfer Cancelled",
-                      "The transfer request has been revoked.",
-                      backgroundColor: Colors.orange.shade700,
-                      colorText: Colors.white,
-                    );
-                    await loadVehicles();
-                  },
-                ),
-              ]
-            : [
-                CupertinoActionSheetAction(
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.edit_note, color: CupertinoColors.activeBlue),
-                      SizedBox(width: 8),
-                      Text("Modify / Edit Info"),
-                    ],
-                  ),
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    final updated = await Get.to(() => AddVehicleScreen(edit: vehicle, fromMyVehicles: true));
-                    if (updated == true) {
-                      await loadVehicles();
-                      Get.snackbar(
-                        "Vehicle Updated",
-                        "Vehicle updated successfully",
-                        backgroundColor: Colors.green.shade600,
-                        colorText: Colors.white,
-                      );
-                    }
-                  },
-                ),
-                CupertinoActionSheetAction(
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.swap_horiz_rounded,
-                        color: CupertinoColors.activeBlue,
-                      ),
-                      SizedBox(width: 8),
-                      Text("Transfer Ownership"),
-                    ],
-                  ),
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    final updated = await Get.to(() => TransferVehicleScreen(vehicle: vehicle));
-                    if (updated == true) {
-                      await loadVehicles();
-                    }
-                  },
-                ),
-              ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          child: const Text("Abort Operation"),
-          onPressed: () => Navigator.pop(context),
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.4, end: 0.9).animate(_controller),
+      child: Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0),
+          borderRadius: BorderRadius.circular(widget.borderRadius),
         ),
       ),
     );

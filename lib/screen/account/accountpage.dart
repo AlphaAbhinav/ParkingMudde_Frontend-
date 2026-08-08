@@ -85,7 +85,14 @@ class _AccountpageState extends State<Accountpage> {
 
     if (!mounted) return;
     setState(() {
-      walletCoins = int.tryParse(wallet["balance"]?.toString() ?? "0") ?? 0;
+      final pmCoins =
+          int.tryParse(wallet["pm_coins_balance"]?.toString() ?? "0") ?? 0;
+      final coinsback =
+          int.tryParse(wallet["coinsback_balance"]?.toString() ?? "0") ?? 0;
+      final legacyBalance =
+          int.tryParse(wallet["balance"]?.toString() ?? "0") ?? 0;
+      walletCoins =
+          (pmCoins + coinsback) > 0 ? pmCoins + coinsback : legacyBalance;
       vehicleCount = vehicles.length;
       bookingCount = bookings.length;
       alertsRaisedByCount =
@@ -936,12 +943,12 @@ class _AccountpageState extends State<Accountpage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      onPressed: () {
+                      onPressed: () async {
                         // 1. Exact Wipe Match
                         Navigator.pop(context);
-                        SharedPreferences.getInstance().then(
-                          (prefs) => prefs.clear(),
-                        );
+                        await ApiService.logoutCurrentUser();
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.clear();
 
                         // 2. SnackBar Exactly retrieved limit mapping boundary bounds space limit
                         Get.snackbar(
@@ -1074,6 +1081,7 @@ class _AccountpageState extends State<Accountpage> {
                           return;
                         }
 
+                        await ApiService.logoutCurrentUser();
                         await prefs.clear();
 
                         Get.snackbar(
@@ -1339,3 +1347,5 @@ class _AccountpageState extends State<Accountpage> {
     );
   }
 }
+
+
