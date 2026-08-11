@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:parkingmudde/screen/auth/loginpage.dart';
 
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
+import 'package:parkingmudde/services/app_update_gate.dart';
 import 'package:parkingmudde/services/api_service.dart';
 
 class Splashpage extends StatefulWidget {
@@ -61,6 +62,8 @@ class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
     final prefs = await SharedPreferences.getInstance();
     await ApiService.clearRestoredSessionIfNeeded();
     if (!mounted) return;
+    final canContinue = await AppUpdateGate.ensureAllowedToContinue(context);
+    if (!mounted || !canContinue) return;
     final userId = prefs.getString("user_id");
 
     if (userId != null && userId.isNotEmpty) {

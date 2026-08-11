@@ -31,7 +31,6 @@ class Otppage extends StatefulWidget {
 
 class _OtppageState extends State<Otppage> {
   String enteredOtp = "";
-  String? displayedTestOtp;
   bool isLoading = false;
   bool isResending = false;
   final TextEditingController otpController = TextEditingController();
@@ -42,7 +41,10 @@ class _OtppageState extends State<Otppage> {
   @override
   void initState() {
     super.initState();
-    displayedTestOtp = widget.testOtp;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showOtpToast(widget.testOtp);
+    });
   }
 
   @override
@@ -72,6 +74,32 @@ class _OtppageState extends State<Otppage> {
       ],
       icon: const Icon(Icons.info_outline_rounded, color: Color(0xFF167C80)),
       duration: const Duration(seconds: 4),
+    );
+  }
+
+  void _showOtpToast(String? otp) {
+    if (otp == null || otp.trim().isEmpty) {
+      _showAuthToast(
+        title: "Code sent",
+        message: "A 6-digit code has been sent to your mobile.",
+      );
+      return;
+    }
+
+    if (Get.isSnackbarOpen) {
+      Get.closeCurrentSnackbar();
+    }
+
+    Get.snackbar(
+      "OTP sent",
+      "Your OTP is ${otp.trim()}",
+      backgroundColor: brandBlue,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.TOP,
+      margin: const EdgeInsets.all(15),
+      borderRadius: 12,
+      icon: const Icon(Icons.password_rounded, color: Colors.white),
+      duration: const Duration(seconds: 12),
     );
   }
 
@@ -205,31 +233,6 @@ class _OtppageState extends State<Otppage> {
                     ),
                   ),
 
-                  if (displayedTestOtp != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange.shade200),
-                      ),
-                      child: Text(
-                        "TEST OTP: $displayedTestOtp",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.orange.shade800,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                          letterSpacing: 2.0,
-                        ),
-                      ),
-                    ),
-                  ],
-
                   const SizedBox(height: 12),
 
                   Text.rich(
@@ -341,27 +344,10 @@ class _OtppageState extends State<Otppage> {
                                 if (result["success"] == true) {
                                   final newOtp = result["otp"]?.toString();
                                   setState(() {
-                                    displayedTestOtp = newOtp;
                                     enteredOtp = "";
                                   });
                                   otpController.clear();
-
-                                  if (Get.isSnackbarOpen) {
-                                    Get.closeCurrentSnackbar();
-                                  }
-
-                                  // --- REVISED: Professional popup using the brand color ---
-                                  Get.snackbar(
-                                    "Code Sent",
-                                    "A new 6-digit code has been successfully sent to your mobile.",
-                                    backgroundColor:
-                                        brandBlue, // Uses your brand blue instead of harsh black
-                                    colorText: Colors.white,
-                                    snackPosition: SnackPosition.TOP,
-                                    margin: const EdgeInsets.all(15),
-                                    duration: const Duration(seconds: 4),
-                                    borderRadius: 12,
-                                  );
+                                  _showOtpToast(newOtp);
                                 } else {
                                   _showAuthToast(
                                     title: result["title"]?.toString() ?? "Hold on",

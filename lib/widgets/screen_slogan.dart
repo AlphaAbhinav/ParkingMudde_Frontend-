@@ -11,6 +11,9 @@ class ScreenSlogan extends StatelessWidget {
   final double? compactImageWidth;
   final double imageHeightRatio;
   final int textMaxLines;
+  final double? minHeight;
+  final double? normalFontSize;
+  final double? compactFontSize;
 
   const ScreenSlogan(
     this.text, {
@@ -24,6 +27,9 @@ class ScreenSlogan extends StatelessWidget {
     this.compactImageWidth,
     this.imageHeightRatio = 0.92,
     this.textMaxLines = 3,
+    this.minHeight,
+    this.normalFontSize,
+    this.compactFontSize,
   });
 
   @override
@@ -52,7 +58,8 @@ class ScreenSlogan extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: color,
-            fontSize: compact ? 19.5 : 21,
+            fontSize:
+                compact ? (compactFontSize ?? 19.5) : (normalFontSize ?? 21),
             fontWeight: FontWeight.w500,
             height: 1.35,
             letterSpacing: 0,
@@ -60,7 +67,9 @@ class ScreenSlogan extends StatelessWidget {
         );
 
         return ConstrainedBox(
-          constraints: BoxConstraints(minHeight: compact ? 210 : 240),
+          constraints: BoxConstraints(
+            minHeight: minHeight ?? (compact ? 210 : 240),
+          ),
           child: Padding(
             padding: padding,
             child: Row(

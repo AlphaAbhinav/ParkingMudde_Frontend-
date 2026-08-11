@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class ApiService {
   static const MethodChannel _installStateChannel = MethodChannel(
@@ -207,6 +208,36 @@ class ApiService {
 
     await prefs.setBool(_installMarkerPref, true);
     return false;
+  }
+
+  static Future<Map<String, dynamic>> getInstalledAppInfo() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final packageBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
+      if (packageInfo.version.isNotEmpty || packageBuild > 0) {
+        return {"version": packageInfo.version, "build": packageBuild};
+      }
+    } catch (e) {
+      print("Package app version check failed: $e");
+    }
+
+    try {
+      final info = await _installStateChannel.invokeMapMethod(
+        "getAppVersion",
+      );
+      return {
+        "version": info?["version"]?.toString() ?? "",
+        "build": int.tryParse(info?["build"]?.toString() ?? "") ?? 0,
+      };
+    } on MissingPluginException {
+      return {
+        "version": dotenv.env["APP_VERSION"] ?? "",
+        "build": int.tryParse(dotenv.env["APP_BUILD"] ?? "") ?? 0,
+      };
+    } catch (e) {
+      print("Installed app version check failed: $e");
+      return {"version": "", "build": 0};
+    }
   }
 
   static Future<void> syncCurrentFcmToken() async {
@@ -712,14 +743,14 @@ class ApiService {
         return int.tryParse(value?.toString() ?? "") ?? 0;
       }
 
-      int displayCount(String key, {String? fallbackKey}) {
-        return readCount(key, fallbackKey: fallbackKey) * 10;
+      int displayCount(String key, {String? fallbackKey, int multiplier = 10}) {
+        return readCount(key, fallbackKey: fallbackKey) * multiplier;
       }
 
       return {
         "users": displayCount("users"),
         "vehicles": displayCount("vehicles"),
-        "vehicles_reported": displayCount("vehicles_reported"),
+        "vehicles_reported": displayCount("vehicles_reported", multiplier: 2),
         "vehicles_helped": displayCount(
           "vehicles_helped",
           fallbackKey: "helps_done",

@@ -406,9 +406,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       child: Container(
         padding: EdgeInsets.fromLTRB(
           24,
-          16,
+          10,
           24,
-          MediaQuery.of(context).viewInsets.bottom > 0 ? 16 : 32,
+          MediaQuery.of(context).viewInsets.bottom > 0 ? 10 : 18,
         ),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -435,7 +435,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     child: OutlinedButton(
                       onPressed: _handlePrevStep,
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -461,7 +461,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryBlue,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -502,14 +502,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             const ScreenSlogan(
               "Welcome! We've saved you a spot.",
               color: primaryBlue,
               icon: Icons.favorite_rounded,
               imagePath: 'assets/loginslogan.png',
-              normalImageWidth: 140,
-              compactImageWidth: 118,
+              padding: EdgeInsets.zero,
+              normalImageWidth: 92,
+              compactImageWidth: 78,
+              minHeight: 92,
+              normalFontSize: 15.5,
+              compactFontSize: 14,
               textMaxLines: 2,
             ),
           ],
@@ -576,7 +580,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildStep1() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 80),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 50),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -633,7 +637,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildStep2() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 80),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 50),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -695,7 +699,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildStep3() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 80),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 50),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

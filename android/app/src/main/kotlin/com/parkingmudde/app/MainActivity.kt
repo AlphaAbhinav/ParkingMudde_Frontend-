@@ -33,6 +33,21 @@ class MainActivity: FlutterActivity() {
                         "is_fresh_package_install" to (packageInfo.firstInstallTime == packageInfo.lastUpdateTime)
                     )
                 )
+            } else if (call.method == "getAppVersion") {
+                val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    packageInfo.longVersionCode
+                } else {
+                    @Suppress("DEPRECATION")
+                    val legacyVersionCode = packageInfo.versionCode.toLong()
+                    legacyVersionCode
+                }
+                result.success(
+                    mapOf(
+                        "version" to (packageInfo.versionName ?: ""),
+                        "build" to versionCode
+                    )
+                )
             } else {
                 result.notImplemented()
             }
