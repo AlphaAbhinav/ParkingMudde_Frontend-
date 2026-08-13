@@ -51,11 +51,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDZVnyKavt6yjdokZhmrAgE7_C6G9U9EfA',
-    appId: '1:806232833396:android:e7dea7e1fb691ddde60021',
-    messagingSenderId: '806232833396',
-    projectId: 'parking-mudde-f14b2',
-    storageBucket: 'parking-mudde-f14b2.firebasestorage.app',
+    apiKey: 'AIzaSyBRjCDZmT9XSiGchsWEPCq7zBwTv6-jMZU',
+    appId: '1:1015389396822:android:3f5a845ab860f399f140f7',
+    messagingSenderId: '1015389396822',
+    projectId: 'parking-mudde-adea7',
+    storageBucket: 'parking-mudde-adea7.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
