@@ -76,9 +76,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   bool get _isEmergencyFlow => widget.typev == "emergency";
   bool get _requiresSinglePhoto => _isHelpFlow || _isEmergencyFlow;
   String get _aiConfidenceLevel => AiConfidenceBadge.confidenceLevelForFlow(
-        flow: widget.typev,
-        group: widget.selectedIssueConfidenceGroup,
-      );
+    flow: widget.typev,
+    group: widget.selectedIssueConfidenceGroup,
+  );
   String get _issueTitle {
     if (widget.selectedIssueTitle?.trim().isNotEmpty == true) {
       return widget.selectedIssueTitle!.trim();
@@ -122,9 +122,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     }
 
     final XFile? file = await Navigator.of(context).push<XFile>(
-      MaterialPageRoute(
-        builder: (_) => const EvidenceCameraCaptureScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const EvidenceCameraCaptureScreen()),
     );
 
     if (file == null) return;
@@ -457,6 +455,16 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
           issueTitle: _issueTitle,
         ),
       );
+    } else if (_isHelpFlow && result["ai_rejected"] == true) {
+      Get.to(
+        () => ThankYouReportScreen(
+          typecv: "help",
+          aiScore: result["ai_score"] ?? 0,
+          aiVerdict: "WRONG_REPORT",
+          aiConfidenceLevel: _aiConfidenceLevel,
+          issueTitle: _issueTitle,
+        ),
+      );
     } else if (result["insufficient_coins"] == true) {
       // 402 — show rich dialog
       _showInsufficientCoinsDialog(result["message"] ?? "Not enough PM Coins.");
@@ -515,7 +523,8 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                     final wallet = context.read<WalletProvider>();
                     final toppedUp = await Get.to<bool>(
                       () => WalletScreen(
-                        totalCoins: wallet.pmCoinsBalance + wallet.coinsbackBalance,
+                        totalCoins:
+                            wallet.pmCoinsBalance + wallet.coinsbackBalance,
                         returnOnSuccessfulTopUp: true,
                       ),
                     );
@@ -852,10 +861,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                AiConfidenceBadge(
-                  level: _aiConfidenceLevel,
-                  compact: true,
-                ),
+                AiConfidenceBadge(level: _aiConfidenceLevel, compact: true),
               ],
             ),
           ),
@@ -1307,5 +1313,3 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     );
   }
 }
-
-

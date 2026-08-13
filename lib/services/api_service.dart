@@ -18,7 +18,8 @@ class ApiService {
   static final String baseUrl =
       dotenv.env['BACKEND_URL'] ?? "http://localhost:8000";
   static final String aiModelUrl =
-      dotenv.env['AI_MODEL_URL'] ?? "https://wrongparkingdetection-6r7o.onrender.com";
+      dotenv.env['AI_MODEL_URL'] ??
+      "https://wrongparkingdetection-6r7o.onrender.com";
   static const Set<String> _wrongParkingAiReasonCodes = {
     "BLOCKING_CAR_EXIT",
     "BLOCKING_ENTRANCE_EXIT",
@@ -289,9 +290,7 @@ class ApiService {
     }
 
     try {
-      final info = await _installStateChannel.invokeMapMethod(
-        "getAppVersion",
-      );
+      final info = await _installStateChannel.invokeMapMethod("getAppVersion");
       return {
         "version": info?["version"]?.toString() ?? "",
         "build": int.tryParse(info?["build"]?.toString() ?? "") ?? 0,
@@ -1392,7 +1391,9 @@ class ApiService {
     return getUnreadNotificationCount(userId);
   }
 
-  static Future<Map<String, dynamic>> markNotificationsRead(String userId) async {
+  static Future<Map<String, dynamic>> markNotificationsRead(
+    String userId,
+  ) async {
     if (!_isBackendUserId(userId)) {
       return {"success": false, "message": "Invalid user id"};
     }
@@ -1404,7 +1405,10 @@ class ApiService {
       if (response.statusCode == 200) return jsonDecode(response.body);
       return {
         "success": false,
-        "message": _messageFromResponse(response, "Failed to mark notifications read"),
+        "message": _messageFromResponse(
+          response,
+          "Failed to mark notifications read",
+        ),
       };
     } catch (e) {
       print("Mark Notifications Read Exception: $e");
@@ -1545,6 +1549,17 @@ class ApiService {
           response,
           "Failed to submit help activity",
         ),
+        "ai_rejected": response.statusCode == 422,
+        "ai_score": response.statusCode == 422
+            ? int.tryParse(
+                    RegExp(
+                          r'AI score:\s*(\d+)',
+                          caseSensitive: false,
+                        ).firstMatch(response.body)?.group(1) ??
+                        '',
+                  ) ??
+                  0
+            : null,
       };
     } catch (e) {
       return {"success": false, "message": "Network error"};
@@ -1745,11 +1760,7 @@ class ApiService {
     } catch (e) {
       print("Fetch Coin Offer Exception: $e");
     }
-    return {
-      "discount_percent": 0,
-      "tag": "Launch Offer",
-      "is_active": false,
-    };
+    return {"discount_percent": 0, "tag": "Launch Offer", "is_active": false};
   }
 
   // ================= WALLET PACKAGE CATALOG =================

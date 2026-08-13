@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'providers/wallet_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:parkingmudde/services/alert_sound_player.dart';
 import 'package:parkingmudde/services/firebase_api.dart';
 import 'package:parkingmudde/services/visitor_sound_player.dart';
@@ -15,6 +16,7 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   runApp(
     ChangeNotifierProvider(

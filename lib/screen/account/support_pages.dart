@@ -16,7 +16,7 @@ class HelpSupportPage extends StatelessWidget {
     return _InfoShell(
       title: "Help & Support",
       children: [
-        const _InfoTile(title: "Phone", body: "+91 98765 43210"),
+        const _InfoTile(title: "Phone", body: "+91 93154 75711"),
         const _InfoTile(title: "Email", body: "support@parkingmudde.com"),
         const _InfoTile(
           title: "Hours",
@@ -24,7 +24,7 @@ class HelpSupportPage extends StatelessWidget {
         ),
         const _InfoTile(
           title: "Address",
-          body: "Parking Mudde Support Desk, New Delhi, India",
+          body: "Unit no. 604, 6th Floor, Tower B,\nBhutani Alphathum, Sec-90, Noida — 201305",
         ),
         const SizedBox(height: 16),
         const Text(

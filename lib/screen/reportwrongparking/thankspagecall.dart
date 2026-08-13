@@ -71,7 +71,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   bool get isHelp => widget.typecv == "help";
   bool get isEmergency => widget.typecv == "emergency";
   bool get isReport => !isHelp && !isEmergency;
-  bool get isRejected => isReport && widget.aiScore < 45;
+  bool get isRejected => widget.aiScore < 45;
   String get _displayConfidenceLevel => widget.aiConfidenceLevel ??
       AiConfidenceBadge.confidenceLevelForFlow(
         flow: widget.typecv?.toString(),
@@ -101,14 +101,19 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   }
 
   String get _statusTitle {
+    if (isRejected) return "Report Rejected";
     if (isHelp) return "Thanks for helping!";
     if (isEmergency && _isUnregisteredAfterPlate) return "Emergency Help Needed";
     if (isEmergency) return "Emergency Alert Sent!";
-    if (isRejected) return "Report Rejected";
     return !_plateAttached ? "Almost Done!" : "Report Submitted!";
   }
 
   String get _statusMessage {
+    if (isRejected) {
+      return isHelp
+          ? "The helping report was checked by AI, but the photo did not show enough proof. No coins were added or removed."
+          : "Your report was evaluated by AI and rejected due to insufficient evidence. No coins were charged.";
+    }
     if (isEmergency && _isUnregisteredAfterPlate) {
       return "This user is not a part of the Parking Mudde family. Please contact the nearest hospital to help.";
     }
@@ -123,9 +128,6 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
         return "Thanks for helping. Though this vehicle is not a part of the Parking Mudde family, we appreciate your efforts. Keep helping.";
       }
       return "Thank you for helping, car owner has been notified, and as for your efforts you have been awarded PM coins.";
-    }
-    if (isRejected) {
-      return "Your report was evaluated by AI and rejected due to insufficient evidence. No coins were charged.";
     }
     return !_plateAttached
         ? "Your report has been successfully evaluated by AI! Please identify the offending vehicle to notify the owner."
@@ -148,9 +150,13 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     }
   }
 
-  void _resetToHome({bool startReport = false}) {
+  void _resetToHome({bool startReport = false, bool startHelp = false}) {
     final Widget destination =
-        startReport ? const IssueSelectionScreen(typev: "report") : const Dash();
+        startHelp
+            ? const IssueSelectionScreen(typev: "help")
+            : startReport
+            ? const IssueSelectionScreen(typev: "report")
+            : const Dash();
 
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => destination),
@@ -434,7 +440,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
               const SizedBox(height: 24),
 
               // ── Report Economy Card (only for report flow) ──
-              if (isReport) _buildEconomyCard(),
+              if (isReport || isRejected) _buildEconomyCard(),
 
               // ── Timeline (only for report flow) ──
               if (isReport && !isRejected && _plateAttached) ...[
@@ -501,14 +507,16 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                         ),
                 const SizedBox(height: 12),
               ],
-              if (!isHelp) ...[
-                if (isRejected)
-                  _actionButton(
-                    label: "Try Again",
-                    icon: Icons.refresh_rounded,
-                    enabled: true,
-                    onTap: () async => _resetToHome(startReport: true),
+              if (isRejected) ...[
+                _actionButton(
+                  label: "Try Again",
+                  icon: Icons.refresh_rounded,
+                  enabled: true,
+                  onTap: () async => _resetToHome(
+                    startHelp: isHelp,
+                    startReport: isReport,
                   ),
+                ),
                 const SizedBox(height: 16),
               ],
 
@@ -556,7 +564,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                   color: Color(0xFF184B8C), size: 18),
               const SizedBox(width: 8),
               Text(
-                "Report Economy",
+                isHelp ? "Helping Report Review" : "Report Economy",
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 14,

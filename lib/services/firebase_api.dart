@@ -1,5 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
+import 'package:parkingmudde/firebase_options.dart';
 import 'package:parkingmudde/screen/alerts/fullscreen_alert.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/services/alert_state.dart';
@@ -48,7 +50,8 @@ class FirebaseApi {
         "type": type,
         "status": status,
       }, isHelping: false);
-    } else if (type == 'HELP_ALERT' && status == 'IN_PROGRESS') {
+    } else if ((type == 'HELP_ALERT' || type == 'HELP_VEHICLE') &&
+        (status == null || status.isEmpty || status == 'IN_PROGRESS')) {
       await _openTrackedAlert({
         "id": message.data['notification_id'],
         "report_id": message.data['report_id'],
@@ -108,15 +111,21 @@ class FirebaseApi {
   }
 
   Future<void> initNotifications() async {
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
     // Request permissions from user
     await _firebaseMessaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
-    await PushNotificationService.initializeLocalNotifications();
+    await PushNotificationService.initializeLocalNotifications(
+      onUrgentAlertOpened: (data) => _openTrackedAlert(
+        data,
+        isHelping: const {
+          'HELP_ALERT',
+          'HELP_VEHICLE',
+        }.contains(data['type']?.toString().toUpperCase()),
+      ),
+    );
     await ApiService.clearRestoredSessionIfNeeded();
 
     // Fetch FCM token for this device
@@ -165,6 +174,7 @@ class FirebaseApi {
 
 // Top level function for handling background messages (required by Firebase)
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print("Handling a background message: ${message.messageId}");
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await PushNotificationService.showUrgentAlert(message);
 }

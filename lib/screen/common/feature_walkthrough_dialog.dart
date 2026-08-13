@@ -29,100 +29,100 @@ class _FeatureWalkthroughDialogState extends State<FeatureWalkthroughDialog>
   final List<_GuideFeature> _features = const [
     _GuideFeature(
       icon: Icons.garage_rounded,
-      title: "Garage Vault",
-      desc: "Store every vehicle document in one secure digital vault.",
+      title: "My Vehicles",
+      desc: "Keep your vehicle details and documents in one place.",
       points: [
-        "Upload your Aadhaar, driving licence, and RC certificate.",
-        "Get notified automatically before any document expires.",
-        "Your phone number stays hidden from other members.",
+        "Add your vehicle number, RC, licence, and other documents.",
+        "The app reminds you before a saved document expires.",
+        "Other users cannot see your phone number.",
       ],
       color: Color(0xFF1E3A8A), // Very Deep Trust Blue
     ),
     _GuideFeature(
       icon: Icons.camera_alt_rounded,
       title: "Report Issues",
-      desc: "Report parking and traffic violations with photo proof.",
+      desc: "Report a wrongly parked vehicle using a clear photo.",
       points: [
-        "Choose an incident type and snap a quick photo.",
-        "Our AI verifies every photo before it's submitted.",
-        "Help keep your neighbourhood's streets clear and orderly.",
+        "Choose the problem and take a clear photo.",
+        "The app checks the photo before sending the report.",
+        "Only send a report when you have correct proof.",
       ],
       color: Color(0xFFF59E0B), // Vibrant Warning Gold/Yellow
     ),
     _GuideFeature(
       icon: Icons.volunteer_activism_rounded,
-      title: "Silent Ping",
-      desc: "Send a quiet, anonymous nudge instead of a confrontation.",
+      title: "Help a Vehicle",
+      desc: "Tell an owner about a problem without sharing your identity.",
       points: [
-        "Alert a driver who left their headlights on.",
-        "Every message reaches them without revealing your identity.",
-        "Build trust points each time you help someone out.",
+        "You can report lights left on or another vehicle problem.",
+        "The owner gets an alert, but your identity stays private.",
+        "You can earn coins for a valid helping report.",
       ],
       color: Color(0xFF0284C7), // Bright Ocean Blue
     ),
     _GuideFeature(
       icon: Icons.sos_rounded,
-      title: "Urgent Escalation",
-      desc: "Send an emergency alert the moment you need help.",
+      title: "Emergency Alert",
+      desc: "Send an urgent alert when someone needs immediate help.",
       points: [
-        "Broadcast a priority alert to nearby members instantly.",
-        "Share your exact location automatically with the alert.",
-        "Emergency alerts bypass your usual notification settings.",
+        "Take a clear photo and explain the emergency.",
+        "The vehicle owner and saved emergency contacts may be alerted.",
+        "Call emergency services directly if there is immediate danger.",
       ],
       color: Color(0xFFD97706), // Emergency Rich Amber
     ),
     _GuideFeature(
       icon: Icons.local_parking_rounded,
-      title: "Mapping Grid",
-      desc: "Find open parking spots on a live map near you.",
+      title: "Nearby Parking",
+      desc: "Find parking places near your current location.",
       points: [
-        "Tap any spot to see live pricing and availability.",
-        "Compare rates across nearby locations before you park.",
-        "Revisit your past parking sessions anytime.",
+        "Tap a parking place to see its details.",
+        "Check the price and available spaces before going there.",
+        "You can also see your previous bookings.",
       ],
       color: Color(0xFF2563EB), // Signature Core Brand Blue
     ),
     _GuideFeature(
       icon: Icons.account_balance_wallet_rounded,
-      title: "Yield Tokens",
-      desc: "Earn credits for helping the community, then spend them.",
+      title: "Wallet and Coins",
+      desc: "Earn coins for useful actions and use them inside the app.",
       points: [
-        "Complete simple tasks to earn tokens automatically.",
-        "Use tokens to unlock premium alerts and features.",
-        "Every transaction is logged in your account history.",
+        "Valid reports and helpful actions can give you coins.",
+        "Use your coins for coupons and available app services.",
+        "Your wallet shows every coin earned and spent.",
       ],
       color: Color(0xFFEAB308), // Signature Core Yellow
     ),
     _GuideFeature(
       icon: Icons.description_rounded,
-      title: "Root Ledger",
-      desc: "Manage documents and access for every vehicle you own.",
+      title: "Document Reminders",
+      desc: "Save important dates for each of your vehicles.",
       points: [
-        "Track renewal dates for each vehicle in one place.",
-        "Verify ownership credentials across all your vehicles.",
-        "See who has access to each garage entry.",
+        "Add insurance and pollution-certificate expiry dates.",
+        "Check all saved vehicle details from My Vehicles.",
+        "Update the information whenever it changes.",
       ],
       color: Color(0xFF0F172A), // Almost Black/Navy Contrast Accent
     ),
     _GuideFeature(
       icon: Icons.security_rounded,
-      title: "Anonymous Logic",
-      desc: "Every call and message stays private, always.",
+      title: "Your Privacy",
+      desc: "The app protects your personal contact details.",
       points: [
-        "Calls route through an anonymous number automatically.",
-        "Your activity log never leaves your device.",
-        "No one can look up your real identity.",
+        "Other users do not receive your personal phone number.",
+        "Use in-app alerts instead of arguing with a vehicle owner.",
+        "Never share OTPs, passwords, or private details with anyone.",
       ],
       color: Color(0xFF3B82F6), // Software Azure Blue
     ),
     _GuideFeature(
       icon: Icons.storefront_rounded,
-      title: "The Store Hub",
-      desc: "Turn your tokens into real rewards from local partners.",
+      title: "Coupon Store",
+      desc: "Use your coins to unlock available discount coupons.",
       points: [
-        "Browse rotating coupons from partner merchants nearby.",
-        "Redeem vendor discounts in just one tap.",
-        "See your savings history at a glance.",
+        "Read the coupon details before buying it.",
+        "After purchase, scratch the card to reveal the coupon code.",
+        "Check the description and expiry details before using it.",
       ],
       color: Color(0xFF4F46E5), // Indigo Accent Blue
     ),
