@@ -641,13 +641,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 originalNumber: originalEc1,
                 isVerified: isEc1Verified,
                 sentOtp: ec1SentOtp,
-                onSendOtp: () => _sendOtp(
+                onSendOtp: () => _sendContactOtp(
                   emergencyOneCtrl.text,
-                  (otp) => setState(() => ec1SentOtp = otp),
+                  (otp) => setState(() {
+                    emergencyOneOtpCtrl.clear();
+                    ec1SentOtp = otp;
+                  }),
                 ),
-                onVerifyOtp: () {
-                  if (emergencyOneOtpCtrl.text.trim() == ec1SentOtp &&
-                      ec1SentOtp.isNotEmpty) {
+                onVerifyOtp: () async {
+                  final verified = await _verifyContactOtp(
+                    emergencyOneCtrl.text,
+                    emergencyOneOtpCtrl.text,
+                  );
+                  if (verified) {
                     setState(() {
                       isEc1Verified = true;
                       ec1SentOtp = "";
@@ -656,13 +662,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       "Success",
                       "Emergency Contact I verified",
                       backgroundColor: Colors.green.shade700,
-                      colorText: Colors.white,
-                    );
-                  } else {
-                    Get.snackbar(
-                      "Error",
-                      "Invalid OTP",
-                      backgroundColor: Colors.red.shade700,
                       colorText: Colors.white,
                     );
                   }
@@ -680,13 +679,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 originalNumber: originalEc2,
                 isVerified: isEc2Verified,
                 sentOtp: ec2SentOtp,
-                onSendOtp: () => _sendOtp(
+                onSendOtp: () => _sendContactOtp(
                   emergencyTwoCtrl.text,
-                  (otp) => setState(() => ec2SentOtp = otp),
+                  (otp) => setState(() {
+                    emergencyTwoOtpCtrl.clear();
+                    ec2SentOtp = otp;
+                  }),
                 ),
-                onVerifyOtp: () {
-                  if (emergencyTwoOtpCtrl.text.trim() == ec2SentOtp &&
-                      ec2SentOtp.isNotEmpty) {
+                onVerifyOtp: () async {
+                  final verified = await _verifyContactOtp(
+                    emergencyTwoCtrl.text,
+                    emergencyTwoOtpCtrl.text,
+                  );
+                  if (verified) {
                     setState(() {
                       isEc2Verified = true;
                       ec2SentOtp = "";
@@ -695,13 +700,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       "Success",
                       "Emergency Contact II verified",
                       backgroundColor: Colors.green.shade700,
-                      colorText: Colors.white,
-                    );
-                  } else {
-                    Get.snackbar(
-                      "Error",
-                      "Invalid OTP",
-                      backgroundColor: Colors.red.shade700,
                       colorText: Colors.white,
                     );
                   }
@@ -820,6 +818,88 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  Future<void> _sendContactOtp(
+    String mobile,
+    Function(String) onOtpSent,
+  ) async {
+    final cleanMobile = mobile.replaceAll(RegExp(r'[^0-9]'), '');
+    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(cleanMobile)) {
+      Get.snackbar(
+        "Error",
+        "Please enter a valid 10-digit mobile number.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    Get.dialog(
+      const Center(child: CircularProgressIndicator()),
+      barrierDismissible: false,
+    );
+    final res = await ApiService.sendContactOtp(cleanMobile);
+    if (Get.isDialogOpen == true) Get.back();
+
+    if (res["success"] == true) {
+      Get.snackbar(
+        "OTP Sent",
+        "OTP sent to $cleanMobile. Ask this contact for the OTP shown in their app.",
+        backgroundColor: Colors.green.shade800,
+        colorText: Colors.white,
+      );
+      onOtpSent("sent");
+    } else {
+      Get.snackbar(
+        "Error",
+        res["message"] ?? "Failed to send OTP",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<bool> _verifyContactOtp(String mobile, String otp) async {
+    final cleanMobile = mobile.replaceAll(RegExp(r'[^0-9]'), '');
+    final cleanOtp = otp.trim();
+
+    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(cleanMobile)) {
+      Get.snackbar(
+        "Error",
+        "Please enter a valid 10-digit mobile number.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    if (!RegExp(r'^[0-9]{6}$').hasMatch(cleanOtp)) {
+      Get.snackbar(
+        "Error",
+        "Please enter the 6-digit OTP.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    Get.dialog(
+      const Center(child: CircularProgressIndicator()),
+      barrierDismissible: false,
+    );
+    final res = await ApiService.verifyContactOtp(cleanMobile, cleanOtp);
+    if (Get.isDialogOpen == true) Get.back();
+
+    if (res["success"] == true) return true;
+
+    Get.snackbar(
+      "Error",
+      res["message"] ?? "Invalid OTP",
+      backgroundColor: Colors.red.shade700,
+      colorText: Colors.white,
+    );
+    return false;
+  }
+
   Widget _buildContactFieldWithOtp({
     required TextEditingController controller,
     required TextEditingController otpController,
@@ -869,6 +949,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   hint: "OTP",
                   icon: Icons.lock_outline,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
@@ -899,6 +983,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
             ],
           ),
+          if (sentOtp.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onSendOtp,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text("Resend OTP"),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0XFF184B8C),
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
         ] else if (isChanged && isVerified) ...[
           const Padding(
             padding: EdgeInsets.only(top: 8.0),

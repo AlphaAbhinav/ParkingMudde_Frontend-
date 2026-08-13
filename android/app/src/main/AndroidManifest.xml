@@ -45,6 +45,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="parking_mudde_alerts" />
         
         <!-- Google Maps API Key -->
         <meta-data android:name="com.google.android.geo.API_KEY"

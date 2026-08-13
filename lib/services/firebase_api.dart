@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:parkingmudde/screen/alerts/fullscreen_alert.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/services/alert_state.dart';
+import 'package:parkingmudde/services/push_notification_service.dart';
 import 'package:parkingmudde/services/visitor_sound_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,13 +36,15 @@ class FirebaseApi {
 
     final type = message.data['type']?.toString().toUpperCase();
     final status = message.data['status']?.toString().toUpperCase();
+    final description =
+        message.notification?.body ?? message.data['body']?.toString();
 
     if (type == 'VEHICLE_REPORTED_AGAINST_YOU' && status == 'SUBMITTED') {
       await _openTrackedAlert({
         "id": message.data['notification_id'],
         "report_id": message.data['report_id'],
         "vehicle_number": message.data['vehicle_number'],
-        "description": message.notification?.body,
+        "description": description,
         "type": type,
         "status": status,
       }, isHelping: false);
@@ -50,7 +53,7 @@ class FirebaseApi {
         "id": message.data['notification_id'],
         "report_id": message.data['report_id'],
         "vehicle_number": message.data['vehicle_number'],
-        "description": message.notification?.body,
+        "description": description,
         "type": type,
         "status": status,
       }, isHelping: true);
@@ -59,7 +62,7 @@ class FirebaseApi {
         "id": message.data['notification_id'] ?? message.data['id'],
         "report_id": message.data['report_id'],
         "vehicle_number": message.data['vehicle_number'],
-        "description": message.notification?.body,
+        "description": description,
         "type": type,
         "status": status,
       }, isHelping: false);
@@ -67,6 +70,19 @@ class FirebaseApi {
       await VisitorSoundPlayer.instance.playOnce();
       await _markVisitorApprovalSoundPlayed(message);
     }
+  }
+
+  Future<bool> _isContactOtpNotification(RemoteMessage message) async {
+    if (!await _hasLoggedInUser()) return false;
+
+    final type = message.data['type']?.toString().toUpperCase();
+    return type == 'CONTACT_OTP';
+  }
+
+  Future<bool> _showContactOtpNotification(RemoteMessage message) async {
+    if (!await _isContactOtpNotification(message)) return false;
+    await PushNotificationService.showContactOtp(message);
+    return true;
   }
 
   Future<void> _openTrackedAlert(
@@ -100,7 +116,7 @@ class FirebaseApi {
       badge: true,
       sound: true,
     );
-
+    await PushNotificationService.initializeLocalNotifications();
     await ApiService.clearRestoredSessionIfNeeded();
 
     // Fetch FCM token for this device
@@ -121,18 +137,26 @@ class FirebaseApi {
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       print('Received foreground FCM message: ${message.data}');
+      if (await _showContactOtpNotification(message)) return;
       await _showOwnerReportAlert(message);
     });
 
     // Handle background / terminated messages (optional but good for debugging)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) async {
       print('App opened from FCM message: ${message.data}');
+      if (message.data['type']?.toString().toUpperCase() == 'CONTACT_OTP') {
+        return;
+      }
       await _showOwnerReportAlert(message);
     });
 
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
       Future.delayed(const Duration(milliseconds: 500), () async {
+        if (initialMessage.data['type']?.toString().toUpperCase() ==
+            'CONTACT_OTP') {
+          return;
+        }
         await _showOwnerReportAlert(initialMessage);
       });
     }

@@ -9,7 +9,7 @@ class AddVehicleBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 220,
+      height: 250,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Column(
@@ -39,7 +39,7 @@ class AddVehicleBottomSheet extends StatelessWidget {
 
             const SizedBox(height: 12),
             const Text(
-              "You can add your vehicle details now or do it later when registering incidents.",
+              "Add your vehicle now, Else you will stuck adding it when you are in a parking situation.",
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color(0xFF6B7280),

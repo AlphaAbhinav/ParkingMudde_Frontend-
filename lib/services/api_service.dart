@@ -1004,6 +1004,51 @@ class ApiService {
     }
   }
 
+  // ================= SEND CONTACT OTP =================
+  static Future<Map<String, dynamic>> sendContactOtp(String mobile) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/auth/send-contact-otp"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"mobile_number": mobile}),
+      );
+
+      print("Send Contact OTP Status: ${response.statusCode}");
+      print("Send Contact OTP Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return _authFailureFromResponse(response, "Failed to send OTP");
+    } catch (e) {
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
+  // ================= VERIFY CONTACT OTP =================
+  static Future<Map<String, dynamic>> verifyContactOtp(
+    String mobile,
+    String otp,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/auth/verify-contact-otp"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"mobile_number": mobile, "otp_code": otp}),
+      );
+
+      print("Verify Contact OTP Status: ${response.statusCode}");
+      print("Verify Contact OTP Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return _authFailureFromResponse(response, "Invalid OTP");
+    } catch (e) {
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
   // ================= VERIFY OTP =================
   static Future<Map<String, dynamic>> verifyOtp(
     String mobile,

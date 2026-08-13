@@ -134,15 +134,17 @@ class _WalletScreenState extends State<WalletScreen> {
     final value = row['value']?.toString() ?? '';
     final description = row['description']?.toString() ?? '';
     final coinsDelta = int.tryParse(row['coins_delta']?.toString() ?? '0') ?? 0;
-    final serverPrice = row['price_label']?.toString();
-    final originalPrice = row['original_price_label']?.toString();
+    final serverPrice = _normalizeRupeeLabel(row['price_label']?.toString());
+    final originalPrice = _normalizeRupeeLabel(
+      row['original_price_label']?.toString(),
+    );
     final offerDiscountPercent =
         int.tryParse(row['offer_discount_percent']?.toString() ?? '0') ?? 0;
     final offerTag = row['offer_tag']?.toString();
     final price = category == 'coin_package' && coinsDelta > 0
         ? (serverPrice != null && serverPrice.isNotEmpty
               ? serverPrice
-              : 'Rs${_formatInr(coinsDelta * coinValueInr)}')
+              : _formatRupees(coinsDelta * coinValueInr))
         : null;
 
     return _WalletPackage(
@@ -156,6 +158,7 @@ class _WalletScreenState extends State<WalletScreen> {
       originalPrice,
       offerDiscountPercent,
       offerTag,
+      coinsDelta,
     );
   }
 
@@ -164,6 +167,17 @@ class _WalletScreenState extends State<WalletScreen> {
     return fixed
         .replaceFirst(RegExp(r'\.0+$'), '')
         .replaceFirst(RegExp(r'(\.\d*[1-9])0+$'), r'$1');
+  }
+
+  String _formatRupees(num value) => '₹  ${_formatInr(value)}';
+
+  String? _normalizeRupeeLabel(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed.replaceFirst(
+      RegExp(r'^(?:Rs\.?|INR|₹)\s*', caseSensitive: false),
+      '₹  ',
+    );
   }
 
   IconData _iconForPackage(String id, String category) {
@@ -695,7 +709,7 @@ class _WalletScreenState extends State<WalletScreen> {
     final balanceText = totalValue ?? "--";
     final valueText = totalValue == null
         ? "Loading wallet"
-        : "Rs${_formatInr((int.tryParse(totalValue) ?? 0) * _coinValueInr)} INR";
+        : _formatRupees((int.tryParse(totalValue) ?? 0) * _coinValueInr);
 
     return Container(
       width: double.infinity,
@@ -741,71 +755,78 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                "Total Balance",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                balanceText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 44,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  valueText,
-                  style: const TextStyle(
+          SizedBox(
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.account_balance_wallet_rounded,
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                    size: 28,
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Earn coins by helping others and parking\nresponsibly",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
-                  height: 1.4,
+                const SizedBox(height: 12),
+                const Text(
+                  "Total Balance",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  balanceText,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 44,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  width: double.infinity,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    valueText,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "Earn coins by helping others and parking\nresponsibly",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1209,21 +1230,21 @@ class _WalletScreenState extends State<WalletScreen> {
         const SizedBox(height: 12),
         if (_packagesLoading)
           SizedBox(
-            height: 210,
+            height: 250,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               itemCount: 3,
               separatorBuilder: (_, __) => const SizedBox(width: 16),
               itemBuilder: (_, __) =>
-                  const _PulsingSkeleton(width: 180, height: 210),
+                  const _PulsingSkeleton(width: 180, height: 250),
             ),
           )
         else if (packages.isEmpty)
           _buildEmptyPackageState()
         else
           SizedBox(
-            height: 210,
+            height: 250,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
@@ -1245,7 +1266,7 @@ class _WalletScreenState extends State<WalletScreen> {
 
     return Container(
       width: 180,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -1327,7 +1348,30 @@ class _WalletScreenState extends State<WalletScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 16),
+          if (package.category == 'coin_package' && package.coinsDelta > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: earnGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: earnGreen.withOpacity(0.18)),
+              ),
+              child: Text(
+                "Get ${package.coinsDelta} PM Coins",
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: earnGreen,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             height: 38,
@@ -2393,6 +2437,7 @@ class _WalletPackage {
   final String? originalPrice;
   final int offerDiscountPercent;
   final String? offerTag;
+  final int coinsDelta;
 
   const _WalletPackage(
     this.id,
@@ -2405,6 +2450,7 @@ class _WalletPackage {
     this.originalPrice,
     this.offerDiscountPercent = 0,
     this.offerTag,
+    this.coinsDelta = 0,
   ]);
 }
 

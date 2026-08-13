@@ -66,6 +66,7 @@ dependencies:
   confetti: ^0.8.0
   firebase_core: ^4.11.0
   firebase_messaging: ^16.4.0
+  flutter_local_notifications: ^19.5.0
   video_player: ^2.11.1
   shimmer: ^3.0.0
   package_info_plus: ^9.0.1

@@ -25,6 +25,7 @@ class _NotificationpageState extends State<Notificationpage> {
     "Coupons",
     "Visitors",
     "Packages",
+    "OTP",
     "Updates",
     "Tickets",
   ];
@@ -98,6 +99,7 @@ class _NotificationpageState extends State<Notificationpage> {
       if (selectedFilter == "Coupons") return type == "COUPON_PURCHASED";
       if (selectedFilter == "Visitors") return type == "VISITOR_PASS";
       if (selectedFilter == "Packages") return type == "WALLET_PACKAGE";
+      if (selectedFilter == "OTP") return type == "CONTACT_OTP";
       if (selectedFilter == "Updates") return type == "APP_UPDATE";
       if (selectedFilter == "Tickets") return type == "SUPPORT_TICKET";
       return true;
@@ -690,6 +692,7 @@ class _NotificationpageState extends State<Notificationpage> {
                         type == "COUPON_PURCHASED" ||
                         type == "WALLET_PACKAGE" ||
                         type == "VISITOR_PASS" ||
+                        type == "CONTACT_OTP" ||
                         type == "APP_UPDATE" ||
                         type == "SUPPORT_TICKET")
                       Text(
@@ -1063,6 +1066,7 @@ class _NotificationpageState extends State<Notificationpage> {
     if (type == "COUPON_PURCHASED") return "New Coupon Secured";
     if (type == "WALLET_PACKAGE") return "Balance Credited";
     if (type == "VISITOR_PASS") return "Entry Registered";
+    if (type == "CONTACT_OTP") return "Emergency Contact OTP";
     if (type == "APP_UPDATE") return "Service Patch Noted";
     if (type == "SUPPORT_TICKET") return "Support Response";
     if (type == "HELPED_VEHICLE") return "User Commended";
@@ -1160,6 +1164,8 @@ class _NotificationpageState extends State<Notificationpage> {
         return const Color(0xFF2563EB);
       case "VISITOR_PASS":
         return const Color(0xFF0F766E);
+      case "CONTACT_OTP":
+        return const Color(0xFF7C3AED);
       case "APP_UPDATE":
         return const Color(0xFF64748B);
       case "SUPPORT_TICKET":
@@ -1186,6 +1192,8 @@ class _NotificationpageState extends State<Notificationpage> {
         return Icons.account_balance_wallet_rounded;
       case "VISITOR_PASS":
         return Icons.assignment_ind_rounded;
+      case "CONTACT_OTP":
+        return Icons.password_rounded;
       case "APP_UPDATE":
         return Icons.system_security_update_rounded;
       case "SUPPORT_TICKET":
