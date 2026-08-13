@@ -30,6 +30,7 @@ import 'package:parkingmudde/screen/wallet/walletpage.dart';
 import 'package:parkingmudde/screen/common/feature_walkthrough_dialog.dart';
 import 'package:parkingmudde/screen/alerts/fullscreen_alert.dart';
 import 'package:parkingmudde/services/alert_state.dart';
+import 'package:parkingmudde/widgets/notification_badge.dart';
 
 // Original App Features Restored via Imports
 import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
@@ -93,6 +94,7 @@ class _HomepageState extends State<Homepage> {
   // Parking alerts counts
   int _alertsRaisedByYou = 0;
   int _alertsAgainstYou = 0;
+  int _unreadNotificationCount = 0;
 
   late Razorpay _razorpay;
   String? _pendingRazorpayOrderId;
@@ -629,6 +631,7 @@ class _HomepageState extends State<Homepage> {
     _loadCommunityStories();
     _loadCommunityImpactStats();
     _loadCoinOffer();
+    _loadUnreadNotificationCount();
 
     Future.delayed(const Duration(milliseconds: 900), () {
       if (mounted) _showFirstRunGuideIfNeeded();
@@ -673,11 +676,17 @@ class _HomepageState extends State<Homepage> {
     }
   }
 
+  Future<void> _loadUnreadNotificationCount() async {
+    final count = await ApiService.getUnreadNotificationCountForCurrentUser();
+    if (mounted) {
+      setState(() => _unreadNotificationCount = count);
+    }
+  }
+
   Future<void> _loadUser() async {
     final storedUser = await ApiService.getStoredUser();
     if (mounted) {
       setState(() => user = storedUser);
-      await _showAddVehiclePromptIfNeeded(storedUser?["user_id"]?.toString());
     }
 
     final freshUser = await ApiService.refreshCurrentUser();
@@ -706,6 +715,8 @@ class _HomepageState extends State<Homepage> {
         final fetchedReels = await ApiService.getReels();
         final fetchedFaqs = await ApiService.getFaqs();
         final fetchedCommunityStories = await ApiService.getCommunityStories();
+        final unreadNotificationCount =
+            await ApiService.getUnreadNotificationCount(userId);
         if (mounted) {
           setState(() {
             _topUsers =
@@ -716,6 +727,7 @@ class _HomepageState extends State<Homepage> {
             _reels = List.from(fetchedReels)..shuffle();
             _faqs = fetchedFaqs;
             _communityStories = fetchedCommunityStories;
+            _unreadNotificationCount = unreadNotificationCount;
             final counts = alerts["counts"];
             if (counts != null) {
               _alertsRaisedByYou = counts["raised_by_you"] ?? 0;
@@ -733,6 +745,7 @@ class _HomepageState extends State<Homepage> {
   }) async {
     if (_hasCheckedVehiclePrompt && !bypassCheck) return;
     if (userId == null || userId.isEmpty || !mounted) return;
+    if (!RegExp(r'^\d+$').hasMatch(userId)) return;
 
     if (_isTutorialShowing || _isFirstRunGuideShowing) return;
 
@@ -743,8 +756,8 @@ class _HomepageState extends State<Homepage> {
     }
 
     _hasCheckedVehiclePrompt = true;
-    final vehicles = await ApiService.getMyVehicles(userId);
-    if (!mounted || vehicles.isNotEmpty) return;
+    final vehicles = await ApiService.getMyVehiclesOrNull(userId);
+    if (!mounted || vehicles == null || vehicles.isNotEmpty) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) getBottomSheet(context);
@@ -1675,8 +1688,14 @@ class _HomepageState extends State<Homepage> {
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              onPressed: () => Get.to(() => const Notificationpage()),
-              icon: const Icon(Icons.notifications_none_rounded),
+              onPressed: () async {
+                await Get.to(() => const Notificationpage());
+                await _loadUnreadNotificationCount();
+              },
+              icon: NotificationBadge(
+                count: _unreadNotificationCount,
+                child: const Icon(Icons.notifications_none_rounded),
+              ),
             ),
           ),
         ],

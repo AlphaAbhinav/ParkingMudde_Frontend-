@@ -17,6 +17,73 @@ class ApiService {
   // ðŸ”¥ IMPORTANT: Use localhost for Flutter Web
   static final String baseUrl =
       dotenv.env['BACKEND_URL'] ?? "http://localhost:8000";
+  static final String aiModelUrl =
+      dotenv.env['AI_MODEL_URL'] ?? "https://wrongparkingdetection-6r7o.onrender.com";
+  static const Set<String> _wrongParkingAiReasonCodes = {
+    "BLOCKING_CAR_EXIT",
+    "BLOCKING_ENTRANCE_EXIT",
+    "FOOTPATH",
+    "PEDESTRIAN_CROSSING",
+    "DOUBLE_PARKED",
+    "NO_PARKING_ZONE",
+    "NO_STOPPING_ZONE",
+    "NEAR_JUNCTION",
+    "NEAR_TRAFFIC_SIGNAL",
+    "BUS_STOP_OR_BUS_LANE",
+    "YELLOW_BOX",
+    "OBSTRUCTING_LANE",
+    "OPPOSITE_PARKED_VEHICLE",
+    "WRONG_CATEGORY_ZONE",
+    "DISABLED_PARKING_MISUSE",
+    "OVERSTAYED_DURATION",
+    "AWAY_FROM_KERB",
+    "DANGER_OBSTRUCTION_INCONVENIENCE",
+    "WRONG_SIDE",
+    "BLOCKING_GATE",
+    "BLOCKING_DRIVEWAY",
+    "TRAFFIC_JAM",
+    "BLOCKING_FIRE_EXIT",
+    "BLOCKING_AMBULANCE",
+    "BLOCKING_SHOP",
+    "BLOCKING_HOME",
+    "RESERVED_SPOT",
+    "HANDICAPPED_SLOT",
+    "EV_CHARGING_SPOT",
+    "PARKED_TOO_CLOSE",
+    "OUTSIDE_MARKING",
+    "ON_RAMP_TURN",
+    "SLOPE_NO_SUPPORT",
+    "SUSPICIOUS",
+    "HEADLIGHTS_ON",
+    "INDICATOR_ON",
+    "DOOR_OPEN",
+    "BOOT_OPEN",
+    "WINDOW_OPEN",
+    "ENGINE_ON",
+    "HANDBRAKE_NOT_ENGAGED",
+    "HAZARD_LIGHT_ON",
+    "ROLLING_RISK",
+    "FLAT_TYRE",
+    "LOW_AIR",
+    "MIRROR_BROKEN",
+    "FUEL_CAP_OPEN",
+    "OIL_LEAK",
+    "SMOKE_FROM_ENGINE",
+    "VISITOR_SLOT",
+    "ALARM_RINGING",
+    "FUEL_LEAKAGE",
+    "UNATTENDED",
+    "VEHICLE_OVERTURNED",
+    "FIRE_SMOKE",
+    "MINOR_ACCIDENT",
+    "SERIOUS_ACCIDENT",
+    "PERSON_UNCONSCIOUS",
+    "MEDICAL_EMERGENCY",
+    "HIT_AND_RUN",
+    "NEED_AMBULANCE",
+    "INSUFFICIENT_EVIDENCE",
+    "AI_REVIEW_REQUIRED",
+  };
 
   static String _messageFromResponse(http.Response response, String fallback) {
     try {
@@ -320,23 +387,33 @@ class ApiService {
     required double lat,
     required double lng,
     String? selectedReasonCode,
+    int minimumPhotos = 4,
   }) async {
     try {
-      if (images.length < 4) {
-        return {"success": false, "message": "4 photos required for AI"};
+      if (images.length < minimumPhotos) {
+        return {
+          "success": false,
+          "message": minimumPhotos == 1
+              ? "1 photo required for AI"
+              : "$minimumPhotos photos required for AI",
+        };
       }
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse("$baseUrl/v1/reports/detect-only"),
+        Uri.parse("$aiModelUrl/v1/detect/wrong-parking"),
       );
 
       request.fields['lat'] = lat.toString();
       request.fields['lng'] = lng.toString();
-      if (selectedReasonCode != null && selectedReasonCode.isNotEmpty) {
+      request.fields['latitude'] = lat.toString();
+      request.fields['longitude'] = lng.toString();
+      if (selectedReasonCode != null &&
+          _wrongParkingAiReasonCodes.contains(selectedReasonCode)) {
         request.fields['selected_reason_code'] = selectedReasonCode;
       }
 
-      for (int i = 0; i < 4; i++) {
+      final uploadCount = images.length < 4 ? images.length : 4;
+      for (int i = 0; i < uploadCount; i++) {
         request.files.add(
           http.MultipartFile.fromBytes(
             'photos',
@@ -361,7 +438,10 @@ class ApiService {
       } else {
         return {
           "success": false,
-          "message": "AI model returned ${response.statusCode}",
+          "message": _messageFromResponse(
+            response,
+            "AI model returned ${response.statusCode}",
+          ),
         };
       }
     } catch (e) {
@@ -1114,7 +1194,12 @@ class ApiService {
   }
 
   // ================= GET MY VEHICLES =================
-  static Future<List<dynamic>> getMyVehicles(String userId) async {
+  static Future<List<dynamic>?> getMyVehiclesOrNull(String userId) async {
+    if (!_isBackendUserId(userId)) {
+      print("Get Vehicles skipped: invalid backend user id $userId");
+      return null;
+    }
+
     try {
       final response = await http
           .get(Uri.parse("$baseUrl/v1/vehicle/my-vehicles/$userId"))
@@ -1127,12 +1212,16 @@ class ApiService {
         final data = jsonDecode(response.body);
         return data['vehicles'] ?? [];
       } else {
-        return [];
+        return null;
       }
     } catch (e) {
       print("Get Vehicles Exception: $e");
-      return [];
+      return null;
     }
+  }
+
+  static Future<List<dynamic>> getMyVehicles(String userId) async {
+    return await getMyVehiclesOrNull(userId) ?? [];
   }
 
   // ================= LOOKUP VEHICLE BY NUMBER =================
@@ -1230,6 +1319,59 @@ class ApiService {
     final userId = user?["user_id"]?.toString();
     if (userId == null || userId.isEmpty) return [];
     return getNotifications(userId);
+  }
+
+  static Future<int> getUnreadNotificationCount(String userId) async {
+    if (!_isBackendUserId(userId)) return 0;
+
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/notifications/user/$userId/unread-count"),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final count = data["unread_count"];
+        if (count is int) return count;
+        return int.tryParse(count?.toString() ?? "") ?? 0;
+      }
+    } catch (e) {
+      print("Unread Notifications Exception: $e");
+    }
+    return 0;
+  }
+
+  static Future<int> getUnreadNotificationCountForCurrentUser() async {
+    final user = await getStoredUser();
+    final userId = user?["user_id"]?.toString();
+    if (userId == null || userId.isEmpty) return 0;
+    return getUnreadNotificationCount(userId);
+  }
+
+  static Future<Map<String, dynamic>> markNotificationsRead(String userId) async {
+    if (!_isBackendUserId(userId)) {
+      return {"success": false, "message": "Invalid user id"};
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/notifications/user/$userId/mark-read"),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Failed to mark notifications read"),
+      };
+    } catch (e) {
+      print("Mark Notifications Read Exception: $e");
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
+  static Future<void> markNotificationsReadForCurrentUser() async {
+    final user = await getStoredUser();
+    final userId = user?["user_id"]?.toString();
+    if (userId == null || userId.isEmpty) return;
+    await markNotificationsRead(userId);
   }
 
   // ================= DELETE IN-APP NOTIFICATIONS =================

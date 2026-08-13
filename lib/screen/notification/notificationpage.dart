@@ -70,6 +70,7 @@ class _NotificationpageState extends State<Notificationpage> {
       return;
     }
 
+    await ApiService.markNotificationsRead(storedUserId);
     final result = await ApiService.getNotifications(storedUserId);
     if (mounted) {
       setState(() {

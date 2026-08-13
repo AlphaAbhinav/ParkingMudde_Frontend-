@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:parkingmudde/screen/account/accountpage.dart';
 import 'package:parkingmudde/screen/homepage/homepage.dart';
@@ -9,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/emergency/emergencyalertpage.dart';
 import 'package:parkingmudde/services/api_service.dart';
+import 'package:parkingmudde/widgets/notification_badge.dart';
 
 class Dash extends StatefulWidget {
   final bool fromRegistration;
@@ -32,11 +34,31 @@ class _DashState extends State<Dash> {
   @override
   void initState() {
     super.initState();
+    _loadUnreadNotificationCount();
+    _unreadCountTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      _loadUnreadNotificationCount();
+    });
   }
 
   int selectedIndex = 0;
+  int _unreadNotificationCount = 0;
+  Timer? _unreadCountTimer;
 
   final PageController pageController = PageController();
+
+  @override
+  void dispose() {
+    _unreadCountTimer?.cancel();
+    pageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUnreadNotificationCount() async {
+    final count = await ApiService.getUnreadNotificationCountForCurrentUser();
+    if (mounted) {
+      setState(() => _unreadNotificationCount = count);
+    }
+  }
 
   void onPageChanged(int index) {
     setState(() {
@@ -236,7 +258,9 @@ class _DashState extends State<Dash> {
       return;
     }
     if (selectedItem == 3) {
-      Get.to(() => const AlertsScreen());
+      Get.to(() => const AlertsScreen())?.then((_) {
+        _loadUnreadNotificationCount();
+      });
       return;
     }
     pageController.jumpToPage(selectedItem);
@@ -310,6 +334,7 @@ class _DashState extends State<Dash> {
                   icon: Icons.warning_rounded,
                   label: 'Alerts',
                   index: 3,
+                  badgeCount: _unreadNotificationCount,
                 ),
                 _buildTabItem(
                   icon: Icons.person_outline_rounded,
@@ -328,6 +353,7 @@ class _DashState extends State<Dash> {
     required IconData icon,
     required String label,
     required int index,
+    int badgeCount = 0,
   }) {
     bool isSelected = selectedIndex == index;
     return InkWell(
@@ -338,7 +364,14 @@ class _DashState extends State<Dash> {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: isSelected ? primaryBlue : subTextGrey, size: 24),
+          NotificationBadge(
+            count: badgeCount,
+            child: Icon(
+              icon,
+              color: isSelected ? primaryBlue : subTextGrey,
+              size: 24,
+            ),
+          ),
           const SizedBox(height: 4),
           Text(
             label,

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:parkingmudde/screen/reportwrongparking/thankspagecall.dart';
+import 'package:parkingmudde/screen/common/evidence_camera_capture.dart';
 import 'package:parkingmudde/widgets/ai_confidence_badge.dart';
 import 'package:parkingmudde/screen/wallet/walletpage.dart';
 import 'package:parkingmudde/services/api_service.dart';
@@ -45,7 +46,10 @@ class ReportProofScreen extends StatefulWidget {
 }
 
 class _ReportProofScreenState extends State<ReportProofScreen> {
-  final ImagePicker _picker = ImagePicker();
+  static const int _minimumHelpEmergencyAiScore = 45;
+  static const String _lowAiScoreMessage =
+      "Try again. AI score was too low to conclude a valid report. Please click on Try Again to try again.";
+
   final TextEditingController situationController = TextEditingController();
 
   List<XFile> images = [];
@@ -117,11 +121,10 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       return;
     }
 
-    final XFile? file = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 60, // Compressed for AI Model
-      maxWidth: 1024,
-      maxHeight: 1024,
+    final XFile? file = await Navigator.of(context).push<XFile>(
+      MaterialPageRoute(
+        builder: (_) => const EvidenceCameraCaptureScreen(),
+      ),
     );
 
     if (file == null) return;
@@ -147,7 +150,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       return;
     }
 
-    final XFile? file = await _picker.pickVideo(source: ImageSource.camera);
+    final XFile? file = await Navigator.of(context).push<XFile>(
+      MaterialPageRoute(
+        builder: (_) => const EvidenceCameraCaptureScreen(captureVideo: true),
+      ),
+    );
 
     if (file == null) return;
 
@@ -200,6 +207,43 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       textConfirm: "OK",
       onConfirm: () => Get.back(),
     );
+  }
+
+  int _readAiScore(Map<String, dynamic> result) {
+    final rawScore = result["score"];
+    if (rawScore is int) return rawScore;
+    if (rawScore is num) return rawScore.round();
+    return int.tryParse(rawScore?.toString() ?? "") ?? 0;
+  }
+
+  Future<bool> _passesSinglePhotoAiGate(double lat, double lng) async {
+    final aiResult = await ApiService.getAIVerdict(
+      images: images,
+      lat: lat,
+      lng: lng,
+      selectedReasonCode: widget.selectedIssueCode,
+      minimumPhotos: 1,
+    );
+
+    if (!mounted) return false;
+
+    if (aiResult["success"] != true) {
+      setState(() => isLoading = false);
+      showSnack(
+        aiResult["message"]?.toString() ??
+            "AI evaluation failed. Please click on Try Again to try again.",
+      );
+      return false;
+    }
+
+    final aiScore = _readAiScore(aiResult);
+    if (aiScore < _minimumHelpEmergencyAiScore) {
+      setState(() => isLoading = false);
+      showSnack(_lowAiScoreMessage);
+      return false;
+    }
+
+    return true;
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
@@ -315,6 +359,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
     final double reportLat = position.latitude;
     final double reportLng = position.longitude;
+
+    if (_requiresSinglePhoto &&
+        !await _passesSinglePhotoAiGate(reportLat, reportLng)) {
+      return;
+    }
 
     final storedUser = await ApiService.getStoredUser();
     final currentUserId = storedUser?["user_id"]?.toString();
