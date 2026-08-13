@@ -39,7 +39,6 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
   final List<String> fuelOptions = ["Petrol", "Diesel", "CNG", "Electric"];
 
   // Controllers
-  final vehNumController = TextEditingController();
   final descriptionController = TextEditingController();
   final kmDrivenController = TextEditingController();
   final pollutionExpiryController = TextEditingController();
@@ -130,8 +129,6 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
         ? vehicleTypeIndex
         : selectedVehicleType;
     selectedFuel = fuelIndex >= 0 ? fuelIndex : selectedFuel;
-    vehNumController.text = vehicle["vehicle_number"]?.toString() ?? "";
-
     final initialBrand =
         vehicle["brand_name"]?.toString() ??
         vehicle["owner_first_name"]?.toString() ??
@@ -177,7 +174,6 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
 
   @override
   void dispose() {
-    vehNumController.dispose();
     descriptionController.dispose();
     kmDrivenController.dispose();
     pollutionExpiryController.dispose();
@@ -213,8 +209,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
         ? customModelController.text.trim()
         : selectedModel.trim();
 
-    if (vehNumController.text.trim().isEmpty ||
-        finalBrand.isEmpty ||
+    if (finalBrand.isEmpty ||
         finalModel.isEmpty ||
         yearController.text.trim().isEmpty ||
         regController.text.trim().isEmpty ||
@@ -335,7 +330,6 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
               registrationNumber: regController.text.trim(),
               registeredMobile: registeredMobile,
               ownerRole: selectedRole == 0 ? "Owner" : "Driver",
-              vehicleNumber: vehNumController.text.trim(),
               purchaseYear: yearController.text.trim(),
               description: descriptionController.text.trim(),
               kmDriven: kmDrivenController.text.trim(),
@@ -354,7 +348,6 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
               registrationNumber: regController.text.trim(),
               registeredMobile: registeredMobile,
               ownerRole: selectedRole == 0 ? "Owner" : "Driver",
-              vehicleNumber: vehNumController.text.trim(),
               purchaseYear: yearController.text.trim(),
               description: descriptionController.text.trim(),
               kmDriven: kmDrivenController.text.trim(),
@@ -474,14 +467,6 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
                       // Role Dual-Toggle Center
                       Center(child: _buildRoleSelector()),
                       const SizedBox(height: 32),
-
-                      _buildPremiumFieldLabel("Vehicle Name", isRequired: true),
-                      _buildFigmaTextInput(
-                        vehNumController,
-                        "e.g. Daily Commuter",
-                        inputFormatters: [LengthLimitingTextInputFormatter(16)],
-                      ),
-                      const SizedBox(height: 24),
 
                       _buildPremiumFieldLabel("Vehicle Type", isRequired: true),
                       Row(
@@ -618,15 +603,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
                         "Year of Purchase",
                         isRequired: true,
                       ),
-                      _buildFigmaTextInput(
-                        yearController,
-                        "YYYY",
-                        inputType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(4),
-                        ],
-                      ),
+                      _buildYearDropdown(),
                       const SizedBox(height: 24),
 
                       _buildPremiumFieldLabel("KM Driven", isRequired: false),
@@ -987,6 +964,307 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
             fontSize: 14,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
           ),
+        ),
+      ),
+    );
+  }
+
+  List<int> get _purchaseYears {
+    final currentYear = DateTime.now().year;
+    return List<int>.generate(currentYear - 1989, (index) => 1990 + index);
+  }
+
+  int get _selectedPurchaseYear {
+    final typedYear = int.tryParse(yearController.text.trim());
+    if (typedYear != null && _purchaseYears.contains(typedYear)) {
+      return typedYear;
+    }
+    return _purchaseYears.contains(2020) ? 2020 : DateTime.now().year;
+  }
+
+  Future<void> _selectPurchaseYear() async {
+    final years = _purchaseYears;
+    var tempSelectedYear = _selectedPurchaseYear;
+    final initialIndex = years.indexOf(tempSelectedYear);
+    final scrollController = FixedExtentScrollController(
+      initialItem: initialIndex,
+    );
+
+    final pickedYear = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Container(
+                margin: const EdgeInsets.all(14),
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.14),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.calendar_month_rounded,
+                            color: primaryBlue,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Year of Purchase",
+                                style: TextStyle(
+                                  color: textDark,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                "Required vehicle detail",
+                                style: TextStyle(
+                                  color: textGrey,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text(
+                            "Cancel",
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      height: 236,
+                      decoration: BoxDecoration(
+                        color: fieldFill,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: fieldBorder),
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            height: 54,
+                            margin: const EdgeInsets.symmetric(horizontal: 18),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: primaryBlue.withOpacity(0.18),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryBlue.withOpacity(0.08),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ListWheelScrollView.useDelegate(
+                            controller: scrollController,
+                            itemExtent: 54,
+                            diameterRatio: 1.28,
+                            squeeze: 0.92,
+                            physics: const FixedExtentScrollPhysics(),
+                            onSelectedItemChanged: (index) {
+                              setSheetState(() {
+                                tempSelectedYear = years[index];
+                              });
+                            },
+                            childDelegate: ListWheelChildBuilderDelegate(
+                              childCount: years.length,
+                              builder: (context, index) {
+                                final year = years[index];
+                                final isSelected = year == tempSelectedYear;
+                                return Center(
+                                  child: AnimatedDefaultTextStyle(
+                                    duration: const Duration(milliseconds: 150),
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? primaryBlue
+                                          : Colors.blueGrey.shade400,
+                                      fontSize: isSelected ? 24 : 17,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w900
+                                          : FontWeight.w700,
+                                      letterSpacing: 0,
+                                    ),
+                                    child: Text(year.toString()),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: () =>
+                            Navigator.pop(context, tempSelectedYear),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryBlue,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          "Done",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (pickedYear == null) return;
+    setState(() => yearController.text = pickedYear.toString());
+  }
+
+  Widget _buildYearDropdown() {
+    final hasYear = yearController.text.trim().isNotEmpty;
+    return InkWell(
+      onTap: _selectPurchaseYear,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: hasYear ? primaryBlue : fieldBorder),
+          boxShadow: hasYear
+              ? [
+                  BoxShadow(
+                    color: primaryBlue.withOpacity(0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.event_available_rounded,
+                color: primaryBlue,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasYear ? yearController.text.trim() : "Select year",
+                    style: TextStyle(
+                      color: hasYear ? textDark : const Color(0xFF94A3B8),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    "Required vehicle detail",
+                    style: TextStyle(
+                      color: textGrey,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: fieldFill,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Row(
+                children: [
+                  Text(
+                    "Year",
+                    style: TextStyle(
+                      color: textGrey,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: textGrey,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
