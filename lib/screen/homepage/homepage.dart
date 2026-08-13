@@ -2557,9 +2557,254 @@ class _HomepageState extends State<Homepage> {
         const SizedBox(height: 24),
         _buildFaqPreview(),
         const SizedBox(height: 24),
+        _buildCantFindAnswerCard(),
+        const SizedBox(height: 24),
         _buildCommunityStoriesInline(),
       ],
     );
+  }
+
+  Widget _buildCantFindAnswerCard() {
+    return InkWell(
+      onTap: _openHomeSupportForm,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: primaryBlue.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: primaryBlue.withOpacity(0.28), width: 1.2),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.support_agent_rounded,
+                color: primaryBlue,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Can't find your answer?",
+                    style: TextStyle(
+                      color: textBlack,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    "Connect with us and we will help you out.",
+                    style: TextStyle(
+                      color: Colors.blueGrey,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: primaryBlue,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openHomeSupportForm() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString("user_id");
+    final name =
+        user?["full_name"]?.toString() ??
+        prefs.getString("full_name") ??
+        prefs.getString("name") ??
+        "User";
+    final mobile =
+        user?["mobile_number"]?.toString() ??
+        prefs.getString("mobile_number") ??
+        "";
+
+    if (userId == null || userId.isEmpty) {
+      Get.snackbar(
+        "Login Required",
+        "Please login to submit a support request.",
+        backgroundColor: primaryBlue,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    final questionController = TextEditingController();
+    bool isSubmitting = false;
+
+    await Get.bottomSheet(
+      StatefulBuilder(
+        builder: (context, setSheetState) {
+          return SafeArea(
+            child: Container(
+              padding: EdgeInsets.fromLTRB(
+                24,
+                18,
+                24,
+                24 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Connect with us",
+                    style: TextStyle(
+                      color: textBlack,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    mobile.isEmpty
+                        ? "Share your question and our team will respond."
+                        : "We'll contact you at $mobile",
+                    style: TextStyle(
+                      color: Colors.blueGrey.shade600,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: questionController,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      hintText: "Type your question here...",
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: primaryBlue,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryBlue,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              final question = questionController.text.trim();
+                              if (question.isEmpty) return;
+
+                              setSheetState(() => isSubmitting = true);
+                              final success =
+                                  await ApiService.submitSupportTicket(
+                                    userId,
+                                    name,
+                                    mobile,
+                                    question,
+                                  );
+                              setSheetState(() => isSubmitting = false);
+
+                              if (success) {
+                                Get.back();
+                                Get.snackbar(
+                                  "Success",
+                                  "Your question was submitted. We will contact you soon!",
+                                  backgroundColor: Colors.green.shade600,
+                                  colorText: Colors.white,
+                                );
+                              } else {
+                                Get.snackbar(
+                                  "Error",
+                                  "Failed to submit request.",
+                                  backgroundColor: Colors.red.shade700,
+                                  colorText: Colors.white,
+                                );
+                              }
+                            },
+                      child: isSubmitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              "Submit Request",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      isScrollControlled: true,
+    );
+    questionController.dispose();
   }
 
   Widget _buildSuggestSocietyOutlineCard() {
@@ -3292,7 +3537,7 @@ class _HomepageState extends State<Homepage> {
                         const SizedBox(width: 14),
                         Expanded(
                           child: Text(
-                            u["full_name"] ?? "User",
+                            u["username"] ?? u["full_name"] ?? "User",
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
@@ -3366,8 +3611,9 @@ class _HomepageState extends State<Homepage> {
                     ),
                     child: Text(
                       _myProgress != null &&
-                              _myProgress!['current_rank'] != null
-                          ? "#${_myProgress!['current_rank']}"
+                              (_myProgress!['current_rank'] != null ||
+                                  _myProgress!['rank'] != null)
+                          ? "#${_myProgress!['current_rank'] ?? _myProgress!['rank']}"
                           : "-",
                       style: const TextStyle(
                         fontWeight: FontWeight.w900,

@@ -17,6 +17,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   List<dynamic> parkingWarriors = [];
   List<dynamic> cityChampions = [];
   Map<String, dynamic>? currentUser;
+  Map<String, dynamic>? myProgress;
 
   @override
   void initState() {
@@ -28,10 +29,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     setState(() => isLoading = true);
     final user = await ApiService.getStoredUser();
     final data = await ApiService.getLeaderboard();
+    final userId = user?["user_id"]?.toString();
+    final progress = userId == null || userId.isEmpty
+        ? null
+        : await ApiService.getMyGamificationProgress(userId);
 
     if (mounted) {
       setState(() {
         currentUser = user;
+        myProgress = progress;
         weeklyHeroes = data["weekly_heroes"] ?? [];
         parkingWarriors = data["parking_warriors"] ?? [];
         cityChampions = data["city_champions"] ?? [];
@@ -46,6 +52,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     if (score >= 150) return "Street Guardian 🚦";
     if (score >= 50) return "Society Hero 🏢";
     return "Parking Protector 🛡️";
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? "") ?? 0;
   }
 
   @override
@@ -232,9 +244,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Widget _buildStickyUserBanner() {
-    int myScore = currentUser?["score"] ?? 0;
-    String currentTitle = _getGamificationTitle(myScore);
-    int myRank = currentUser?["rank"] ?? 0;
+    final myScore = _asInt(
+      myProgress?["score"] ??
+          myProgress?["total_score"] ??
+          currentUser?["score"],
+    );
+    final currentTitle = myProgress?["current_title"]?.toString() ??
+        _getGamificationTitle(myScore);
+    final myRank = _asInt(
+      myProgress?["current_rank"] ?? myProgress?["rank"] ?? currentUser?["rank"],
+    );
 
     return InkWell(
       onTap: () => Get.to(() => const BadgesScreen()),
