@@ -4,11 +4,12 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 const generalChannel = AndroidNotificationChannel(
-  'parking_mudde_alerts',
+  'parking_mudde_alerts_v2',
   'Parking Mudde Alerts',
   description: 'Parking Mudde report, help, emergency, wallet, and app alerts.',
   importance: Importance.max,
   playSound: true,
+  sound: RawResourceAndroidNotificationSound('parking_mudde_alert'),
   enableVibration: true,
 );
 

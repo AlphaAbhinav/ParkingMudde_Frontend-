@@ -237,7 +237,19 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     final aiScore = _readAiScore(aiResult);
     if (aiScore < _minimumHelpEmergencyAiScore) {
       setState(() => isLoading = false);
-      showSnack(_lowAiScoreMessage);
+      if (_isHelpFlow) {
+        Get.to(
+          () => ThankYouReportScreen(
+            typecv: "help",
+            aiScore: aiScore,
+            aiVerdict: "WRONG_REPORT",
+            aiConfidenceLevel: _aiConfidenceLevel,
+            issueTitle: _issueTitle,
+          ),
+        );
+      } else {
+        showSnack(_lowAiScoreMessage);
+      }
       return false;
     }
 
