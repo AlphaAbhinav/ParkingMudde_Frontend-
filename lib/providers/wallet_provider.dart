@@ -10,9 +10,16 @@ class WalletProvider extends ChangeNotifier {
   int coinsbackBalance = 0;
   int coinsbackEarned = 0;
   int coinsbackSpent = 0;
+  double totalBalanceInr = 0;
+  String? totalBalanceLabel;
 
   List transactions = [];
   List subscriptions = [];
+
+  int _readInt(dynamic value) => int.tryParse(value?.toString() ?? "0") ?? 0;
+
+  double _readDouble(dynamic value) =>
+      double.tryParse(value?.toString() ?? "0") ?? 0;
 
   Future<void> fetchWallet() async {
     final prefs = await SharedPreferences.getInstance();
@@ -31,13 +38,15 @@ class WalletProvider extends ChangeNotifier {
         return;
       }
 
-      pmCoinsBalance = response["pm_coins_balance"] ?? 0;
-      pmCoinsEarned = response["pm_coins_earned"] ?? 0;
-      pmCoinsSpent = response["pm_coins_spent"] ?? 0;
+      pmCoinsBalance = _readInt(response["pm_coins_balance"]);
+      pmCoinsEarned = _readInt(response["pm_coins_earned"]);
+      pmCoinsSpent = _readInt(response["pm_coins_spent"]);
 
-      coinsbackBalance = response["coinsback_balance"] ?? 0;
-      coinsbackEarned = response["coinsback_earned"] ?? 0;
-      coinsbackSpent = response["coinsback_spent"] ?? 0;
+      coinsbackBalance = _readInt(response["coinsback_balance"]);
+      coinsbackEarned = _readInt(response["coinsback_earned"]);
+      coinsbackSpent = _readInt(response["coinsback_spent"]);
+      totalBalanceInr = _readDouble(response["total_balance_inr"]);
+      totalBalanceLabel = response["total_balance_label"]?.toString();
 
       transactions = response["transactions"] ?? [];
       subscriptions = response["subscriptions"] ?? [];

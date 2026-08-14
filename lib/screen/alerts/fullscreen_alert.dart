@@ -39,6 +39,10 @@ class _FullScreenAlertState extends State<FullScreenAlert>
       _alertType == "VEHICLE_REPORTED_AGAINST_YOU" ||
       (!widget.isHelping && !_isEmergencyAlert);
 
+  bool get _shouldPlayAlertSound =>
+      widget.notificationData["suppress_alert_sound"]?.toString().toLowerCase() !=
+      "true";
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +55,11 @@ class _FullScreenAlertState extends State<FullScreenAlert>
       curve: Curves.elasticOut,
     );
     _controller.forward();
-    unawaited(_playAlertSound());
+    if (_shouldPlayAlertSound) {
+      unawaited(_playAlertSound());
+    } else {
+      unawaited(AlertSoundPlayer.instance.stop());
+    }
   }
 
   @override

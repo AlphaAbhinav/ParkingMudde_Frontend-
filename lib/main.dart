@@ -16,6 +16,7 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+  await _initializeFirebase();
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   runApp(
@@ -30,15 +31,20 @@ Future<void> main() async {
 
 Future<void> _initializeStartupServices() async {
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await _initializeFirebase();
     await FirebaseApi().initNotifications();
     await AlertSoundPlayer.instance.prime();
     await VisitorSoundPlayer.instance.prime();
   } catch (error) {
     debugPrint('Startup services failed: $error');
   }
+}
+
+Future<void> _initializeFirebase() async {
+  if (Firebase.apps.isNotEmpty) return;
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 }
 
 class MyApp extends StatelessWidget {

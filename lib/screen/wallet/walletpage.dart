@@ -166,18 +166,25 @@ class _WalletScreenState extends State<WalletScreen> {
     final fixed = value.toStringAsFixed(2);
     return fixed
         .replaceFirst(RegExp(r'\.0+$'), '')
-        .replaceFirst(RegExp(r'(\.\d*[1-9])0+$'), r'$1');
+        .replaceFirstMapped(
+          RegExp(r'(\.\d*[1-9])0+$'),
+          (match) => match.group(1)!,
+        );
   }
 
-  String _formatRupees(num value) => '₹  ${_formatInr(value)}';
+  String _formatRupees(num value) => '\u20B9 ${_formatInr(value)}';
 
   String? _normalizeRupeeLabel(String? value) {
     final trimmed = value?.trim();
     if (trimmed == null || trimmed.isEmpty) return null;
-    return trimmed.replaceFirst(
-      RegExp(r'^(?:Rs\.?|INR|₹)\s*', caseSensitive: false),
-      '₹  ',
-    );
+    final amount = trimmed
+        .replaceFirst(
+          RegExp('^(?:Rs\\.?|INR|\u20B9)\\s*', caseSensitive: false),
+          '',
+        )
+        .trim();
+    if (amount.isEmpty) return null;
+    return '\u20B9 $amount';
   }
 
   IconData _iconForPackage(String id, String category) {
@@ -445,6 +452,7 @@ class _WalletScreenState extends State<WalletScreen> {
                       children: [
                         _buildPremiumBlueWalletCard(
                           _walletLoading ? null : totalBalance.toString(),
+                          totalValueLabel: walletProvider.totalBalanceLabel,
                         ),
                         const SizedBox(height: 24),
                         Row(
@@ -705,11 +713,18 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  Widget _buildPremiumBlueWalletCard(String? totalValue) {
+  Widget _buildPremiumBlueWalletCard(
+    String? totalValue, {
+    String? totalValueLabel,
+  }) {
     final balanceText = totalValue ?? "--";
+    final normalizedLabel = _normalizeRupeeLabel(totalValueLabel);
+    final fallbackValueText = totalValue == null
+        ? null
+        : _formatRupees((int.tryParse(totalValue) ?? 0) * _coinValueInr);
     final valueText = totalValue == null
         ? "Loading wallet"
-        : _formatRupees((int.tryParse(totalValue) ?? 0) * _coinValueInr);
+        : normalizedLabel ?? fallbackValueText!;
 
     return Container(
       width: double.infinity,

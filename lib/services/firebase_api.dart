@@ -20,8 +20,10 @@ class FirebaseApi {
     return userId != null && userId.isNotEmpty;
   }
 
-  Future<void> _markVisitorApprovalSoundPlayed(RemoteMessage message) async {
-    final visitorId = message.data['visitor_id']?.toString().trim();
+  Future<void> _markVisitorApprovalSoundPlayed(
+    Map<String, dynamic> messageData,
+  ) async {
+    final visitorId = messageData['visitor_id']?.toString().trim();
     if (visitorId == null || visitorId.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
@@ -34,18 +36,28 @@ class FirebaseApi {
   }
 
   Future<void> _showOwnerReportAlert(RemoteMessage message) async {
+    await _showOwnerReportAlertData(
+      Map<String, dynamic>.from(message.data),
+      message.notification?.body,
+    );
+  }
+
+  Future<void> _showOwnerReportAlertData(
+    Map<String, dynamic> messageData,
+    String? notificationBody,
+  ) async {
     if (!await _hasLoggedInUser()) return;
 
-    final type = message.data['type']?.toString().toUpperCase();
-    final status = message.data['status']?.toString().toUpperCase();
-    final description =
-        message.notification?.body ?? message.data['body']?.toString();
+    final type = messageData['type']?.toString().toUpperCase();
+    final status = messageData['status']?.toString().toUpperCase();
+    final description = notificationBody ?? messageData['body']?.toString();
 
     if (type == 'VEHICLE_REPORTED_AGAINST_YOU' && status == 'SUBMITTED') {
       await _openTrackedAlert({
-        "id": message.data['notification_id'],
-        "report_id": message.data['report_id'],
-        "vehicle_number": message.data['vehicle_number'],
+        ...messageData,
+        "id": messageData['notification_id'],
+        "report_id": messageData['report_id'],
+        "vehicle_number": messageData['vehicle_number'],
         "description": description,
         "type": type,
         "status": status,
@@ -53,25 +65,27 @@ class FirebaseApi {
     } else if ((type == 'HELP_ALERT' || type == 'HELP_VEHICLE') &&
         (status == null || status.isEmpty || status == 'IN_PROGRESS')) {
       await _openTrackedAlert({
-        "id": message.data['notification_id'],
-        "report_id": message.data['report_id'],
-        "vehicle_number": message.data['vehicle_number'],
+        ...messageData,
+        "id": messageData['notification_id'],
+        "report_id": messageData['report_id'],
+        "vehicle_number": messageData['vehicle_number'],
         "description": description,
         "type": type,
         "status": status,
       }, isHelping: true);
     } else if (type == 'EMERGENCY_ALERT' && status == 'SUBMITTED') {
       await _openTrackedAlert({
-        "id": message.data['notification_id'] ?? message.data['id'],
-        "report_id": message.data['report_id'],
-        "vehicle_number": message.data['vehicle_number'],
+        ...messageData,
+        "id": messageData['notification_id'] ?? messageData['id'],
+        "report_id": messageData['report_id'],
+        "vehicle_number": messageData['vehicle_number'],
         "description": description,
         "type": type,
         "status": status,
       }, isHelping: false);
     } else if (type == 'VISITOR_PASS' && status == 'APPROVED') {
       await VisitorSoundPlayer.instance.playOnce();
-      await _markVisitorApprovalSoundPlayed(message);
+      await _markVisitorApprovalSoundPlayed(messageData);
     }
   }
 
@@ -156,7 +170,9 @@ class FirebaseApi {
       if (message.data['type']?.toString().toUpperCase() == 'CONTACT_OTP') {
         return;
       }
-      await _showOwnerReportAlert(message);
+      final data = Map<String, dynamic>.from(message.data);
+      data['suppress_alert_sound'] = 'true';
+      await _showOwnerReportAlertData(data, message.notification?.body);
     });
 
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
@@ -166,7 +182,9 @@ class FirebaseApi {
             'CONTACT_OTP') {
           return;
         }
-        await _showOwnerReportAlert(initialMessage);
+        final data = Map<String, dynamic>.from(initialMessage.data);
+        data['suppress_alert_sound'] = 'true';
+        await _showOwnerReportAlertData(data, initialMessage.notification?.body);
       });
     }
   }
@@ -175,6 +193,10 @@ class FirebaseApi {
 // Top level function for handling background messages (required by Firebase)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
   await PushNotificationService.showUrgentAlert(message);
 }

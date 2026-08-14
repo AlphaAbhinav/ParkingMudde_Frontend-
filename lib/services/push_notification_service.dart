@@ -1,36 +1,32 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 const generalChannel = AndroidNotificationChannel(
-  'parking_mudde_alerts_v2',
+  'parking_mudde_alerts',
   'Parking Mudde Alerts',
   description: 'Parking Mudde report, help, emergency, wallet, and app alerts.',
   importance: Importance.max,
   playSound: true,
-  sound: RawResourceAndroidNotificationSound('parking_mudde_alert'),
   enableVibration: true,
 );
 
-const _urgentAlertChannel = AndroidNotificationChannel(
-  'parking_mudde_full_screen_alerts_v3',
-  'Full-screen Parking Alerts',
-  description: 'Urgent parking, helping, and emergency alerts.',
+const _loudPushChannel = AndroidNotificationChannel(
+  parkingMuddeCustomPushChannelId,
+  'Parking Mudde Loop Alert Tone',
+  description: 'All Parking Mudde push notifications with a looping alert tone.',
   importance: Importance.max,
   playSound: true,
-  sound: RawResourceAndroidNotificationSound('parking_mudde_alert'),
+  sound: _customAlertSound,
+  audioAttributesUsage: AudioAttributesUsage.alarm,
   enableVibration: true,
 );
 
-const _otpChannel = AndroidNotificationChannel(
-  'parking_mudde_contact_otp',
-  'Emergency Contact OTP',
-  description: 'OTP notifications for emergency contact verification.',
-  importance: Importance.max,
-  playSound: true,
-  enableVibration: true,
-);
+const generalChannel = _loudPushChannel;
+const _urgentAlertChannel = _loudPushChannel;
+const _otpChannel = _loudPushChannel;
 
 final _notifications = FlutterLocalNotificationsPlugin();
 
@@ -82,11 +78,18 @@ class PushNotificationService {
   }
 
   static void _handleNotificationResponse(NotificationResponse response) {
+    final notificationId = response.id;
+    if (notificationId != null) {
+      unawaited(_notifications.cancel(notificationId));
+    }
+
     final payload = response.payload;
     if (payload == null || payload.isEmpty) return;
     final decoded = jsonDecode(payload);
     if (decoded is Map) {
-      _onUrgentAlertOpened?.call(Map<String, dynamic>.from(decoded));
+      final data = Map<String, dynamic>.from(decoded);
+      data['suppress_alert_sound'] = 'true';
+      _onUrgentAlertOpened?.call(data);
     }
   }
 
@@ -129,9 +132,8 @@ class PushNotificationService {
           visibility: NotificationVisibility.public,
           fullScreenIntent: true,
           playSound: true,
-          sound: const RawResourceAndroidNotificationSound(
-            'parking_mudde_alert',
-          ),
+          sound: _customAlertSound,
+          audioAttributesUsage: AudioAttributesUsage.alarm,
           ongoing: true,
           autoCancel: false,
         ),
