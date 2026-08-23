@@ -1,22 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-const generalChannel = AndroidNotificationChannel(
-  'parking_mudde_alerts',
-  'Parking Mudde Alerts',
-  description: 'Parking Mudde report, help, emergency, wallet, and app alerts.',
-  importance: Importance.max,
-  playSound: true,
-  enableVibration: true,
+const parkingMuddeCustomPushChannelId = 'parking_mudde_loop_alert_tone_v1';
+const _customAlertSound = UriAndroidNotificationSound(
+  'content://com.parkingmudde.app.notification_sound/parking_mudde_loop_alert',
 );
 
 const _loudPushChannel = AndroidNotificationChannel(
   parkingMuddeCustomPushChannelId,
   'Parking Mudde Loop Alert Tone',
-  description: 'All Parking Mudde push notifications with a looping alert tone.',
+  description:
+      'All Parking Mudde push notifications with a looping alert tone.',
   importance: Importance.max,
   playSound: true,
   sound: _customAlertSound,
@@ -103,7 +101,7 @@ class PushNotificationService {
   }
 
   static Future<void> showUrgentAlert(RemoteMessage message) async {
-    if (!_isUrgentAlert(message)) return;
+    if (!Platform.isAndroid || !_isUrgentAlert(message)) return;
     await initializeLocalNotifications(requestPermissions: false);
 
     final data = <String, dynamic>{...message.data};

@@ -49,9 +49,6 @@
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-<<<<<<< HEAD
-            android:value="parking_mudde_alerts_v2" />
-=======
             android:value="parking_mudde_loop_alert_tone_v1" />
 
         <provider
@@ -59,7 +56,6 @@
             android:authorities="${applicationId}.notification_sound"
             android:exported="true"
             android:grantUriPermissions="true" />
->>>>>>> 7b046f90e140dbe5e5948a1f6a5d330c1a174d54
         
         <!-- Google Maps API Key -->
         <meta-data android:name="com.google.android.geo.API_KEY"
