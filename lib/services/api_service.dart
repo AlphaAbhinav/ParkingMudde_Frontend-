@@ -833,10 +833,12 @@ class ApiService {
         "vehicles_helped": displayCount(
           "vehicles_helped",
           fallbackKey: "helps_done",
+          multiplier: 2,
         ),
         "emergencies_solved": displayCount(
           "emergencies_solved",
           fallbackKey: "emergencies_reported",
+          multiplier: 2,
         ),
       };
     } catch (e) {
