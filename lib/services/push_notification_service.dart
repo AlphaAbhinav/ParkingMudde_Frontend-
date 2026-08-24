@@ -86,7 +86,6 @@ class PushNotificationService {
     final decoded = jsonDecode(payload);
     if (decoded is Map) {
       final data = Map<String, dynamic>.from(decoded);
-      data['suppress_alert_sound'] = 'true';
       _onUrgentAlertOpened?.call(data);
     }
   }

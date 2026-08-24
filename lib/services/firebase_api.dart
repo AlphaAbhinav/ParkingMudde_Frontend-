@@ -171,7 +171,6 @@ class FirebaseApi {
         return;
       }
       final data = Map<String, dynamic>.from(message.data);
-      data['suppress_alert_sound'] = 'true';
       await _showOwnerReportAlertData(data, message.notification?.body);
     });
 
@@ -183,8 +182,10 @@ class FirebaseApi {
           return;
         }
         final data = Map<String, dynamic>.from(initialMessage.data);
-        data['suppress_alert_sound'] = 'true';
-        await _showOwnerReportAlertData(data, initialMessage.notification?.body);
+        await _showOwnerReportAlertData(
+          data,
+          initialMessage.notification?.body,
+        );
       });
     }
   }
