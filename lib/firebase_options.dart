@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '806232833396',
     projectId: 'parking-mudde-f14b2',
     storageBucket: 'parking-mudde-f14b2.firebasestorage.app',
-    iosBundleId: 'com.example.parkingmudde',
+    iosBundleId: 'com.divyanshgupta.parkingmudde',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
