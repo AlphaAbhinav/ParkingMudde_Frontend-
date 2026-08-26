@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -309,11 +310,31 @@ class ApiService {
     }
   }
 
+  static Future<String?> _getCurrentFcmToken() async {
+    final messaging = FirebaseMessaging.instance;
+    final isApplePlatform =
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+
+    if (isApplePlatform) {
+      for (var attempt = 0; attempt < 10; attempt++) {
+        final apnsToken = await messaging.getAPNSToken();
+        if (apnsToken != null && apnsToken.isNotEmpty) break;
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+    }
+
+    return messaging.getToken();
+  }
+
   static Future<void> syncCurrentFcmToken() async {
     try {
-      final fcmToken = await FirebaseMessaging.instance.getToken();
+      final fcmToken = await _getCurrentFcmToken();
       if (fcmToken != null && fcmToken.isNotEmpty) {
-        await updateFcmToken(fcmToken);
+        final result = await updateFcmToken(fcmToken);
+        if (result["success"] != true) {
+          debugPrint("FCM token backend sync failed: $result");
+        }
       }
     } catch (e) {
       print("FCM sync failed: $e");

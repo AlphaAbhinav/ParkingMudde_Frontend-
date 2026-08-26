@@ -155,15 +155,19 @@ class FirebaseApi {
       badge: true,
       sound: true,
     );
-    await PushNotificationService.initializeLocalNotifications(
-      onUrgentAlertOpened: (data) => _openTrackedAlert(
-        data,
-        isHelping: const {
-          'HELP_ALERT',
-          'HELP_VEHICLE',
-        }.contains(data['type']?.toString().toUpperCase()),
-      ),
-    );
+    try {
+      await PushNotificationService.initializeLocalNotifications(
+        onUrgentAlertOpened: (data) => _openTrackedAlert(
+          data,
+          isHelping: const {
+            'HELP_ALERT',
+            'HELP_VEHICLE',
+          }.contains(data['type']?.toString().toUpperCase()),
+        ),
+      );
+    } catch (error) {
+      debugPrint('Local notification setup failed: $error');
+    }
     await ApiService.clearRestoredSessionIfNeeded();
 
     // Fetch FCM token for this device

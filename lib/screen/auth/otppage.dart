@@ -8,7 +8,6 @@ import 'package:parkingmudde/screen/auth/onboarding.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/screen/auth/permissionspage.dart';
 import 'package:pinput/pinput.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:parkingmudde/widgets/screen_slogan.dart';
 
 class Otppage extends StatefulWidget {
@@ -142,10 +141,7 @@ class _OtppageState extends State<Otppage> {
 
       // Sync FCM Token
       try {
-        final fcmToken = await FirebaseMessaging.instance.getToken();
-        if (fcmToken != null) {
-          await ApiService.updateFcmToken(fcmToken);
-        }
+        await ApiService.syncCurrentFcmToken();
       } catch (e) {
         print("Error syncing FCM token: $e");
       }
