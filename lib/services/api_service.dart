@@ -221,6 +221,9 @@ class ApiService {
     await saveString("gender", "gender");
     await saveString("date_of_birth", "date_of_birth");
     await saveString("location", "location");
+    await saveString("alternate_number", "alternate_mobile_number");
+    await saveString("emergency_contact_one", "emergency_contact_one");
+    await saveString("emergency_contact_two", "emergency_contact_two");
     await saveString("referral_code", "referral_code");
     await saveString("society_id", "society_id");
     await saveString("resident_id", "resident_id");
@@ -358,6 +361,9 @@ class ApiService {
       "gender": prefs.getString("gender"),
       "date_of_birth": prefs.getString("date_of_birth"),
       "location": prefs.getString("location"),
+      "alternate_mobile_number": prefs.getString("alternate_number"),
+      "emergency_contact_one": prefs.getString("emergency_contact_one"),
+      "emergency_contact_two": prefs.getString("emergency_contact_two"),
       "referral_code": prefs.getString("referral_code"),
       "society_id": prefs.getString("society_id"),
       "resident_id": prefs.getString("resident_id"),
@@ -676,11 +682,11 @@ class ApiService {
         "gender": gender,
         "date_of_birth": dateOfBirth,
         "location": location?.isEmpty == true ? null : location,
-        if (alternateMobileNumber != null && alternateMobileNumber.isNotEmpty)
+        if (alternateMobileNumber != null)
           "alternate_mobile_number": alternateMobileNumber,
-        if (emergencyContactOne != null && emergencyContactOne.isNotEmpty)
+        if (emergencyContactOne != null)
           "emergency_contact_one": emergencyContactOne,
-        if (emergencyContactTwo != null && emergencyContactTwo.isNotEmpty)
+        if (emergencyContactTwo != null)
           "emergency_contact_two": emergencyContactTwo,
         if (societyId != null && societyId.isNotEmpty) "society_id": societyId,
         if (tower != null && tower.isNotEmpty) "tower": tower,
@@ -714,6 +720,45 @@ class ApiService {
       }
     } catch (e) {
       print("Update User Exception: $e");
+      return {"success": false, "message": "Network error"};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateEmergencyContacts({
+    required String userId,
+    String? emergencyContactOne,
+    String? emergencyContactTwo,
+  }) async {
+    try {
+      final requestBody = <String, String>{};
+      if (emergencyContactOne != null) {
+        requestBody["emergency_contact_one"] = emergencyContactOne;
+      }
+      if (emergencyContactTwo != null) {
+        requestBody["emergency_contact_two"] = emergencyContactTwo;
+      }
+
+      final response = await http.put(
+        Uri.parse("$baseUrl/v1/auth/user/$userId"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(requestBody),
+      );
+
+      print("Update Emergency Contacts Status: ${response.statusCode}");
+      print("Update Emergency Contacts Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await saveUserSession(data);
+        return data;
+      }
+      final errorBody = jsonDecode(response.body);
+      return {
+        "success": false,
+        "message": errorBody["detail"] ?? "Emergency contact update failed",
+      };
+    } catch (e) {
+      print("Update Emergency Contacts Exception: $e");
       return {"success": false, "message": "Network error"};
     }
   }

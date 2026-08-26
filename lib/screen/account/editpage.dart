@@ -390,6 +390,59 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  Future<bool> _persistVerifiedEmergencyContacts({
+    required bool contactOneVerifiedNow,
+    required bool contactTwoVerifiedNow,
+  }) async {
+    final userId =
+        _userId ?? (await SharedPreferences.getInstance()).getString("user_id");
+    if (userId == null || userId.isEmpty) {
+      Get.snackbar(
+        "Error",
+        "User not logged in.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    final ec1 = emergencyOneCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final ec2 = emergencyTwoCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final result = await ApiService.updateEmergencyContacts(
+      userId: userId,
+      emergencyContactOne: contactOneVerifiedNow ? ec1 : null,
+      emergencyContactTwo: contactTwoVerifiedNow ? ec2 : null,
+    );
+
+    if (result["success"] != true) {
+      Get.snackbar(
+        "Save Failed",
+        result["message"] ?? "OTP verified, but contact was not saved.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    final savedEc1 = result["emergency_contact_one"]?.toString() ?? originalEc1;
+    final savedEc2 = result["emergency_contact_two"]?.toString() ?? originalEc2;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("emergency_contact_one", savedEc1);
+    await prefs.setString("emergency_contact_two", savedEc2);
+    if (!mounted) return true;
+    setState(() {
+      originalEc1 = savedEc1;
+      originalEc2 = savedEc2;
+      if (contactOneVerifiedNow) {
+        emergencyOneCtrl.text = savedEc1;
+      }
+      if (contactTwoVerifiedNow) {
+        emergencyTwoCtrl.text = savedEc2;
+      }
+    });
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -654,13 +707,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     emergencyOneOtpCtrl.text,
                   );
                   if (verified) {
+                    final saved = await _persistVerifiedEmergencyContacts(
+                      contactOneVerifiedNow: true,
+                      contactTwoVerifiedNow: false,
+                    );
+                    if (!saved) return;
                     setState(() {
                       isEc1Verified = true;
                       ec1SentOtp = "";
                     });
                     Get.snackbar(
                       "Success",
-                      "Emergency Contact I verified",
+                      "Emergency Contact I verified and saved",
                       backgroundColor: Colors.green.shade700,
                       colorText: Colors.white,
                     );
@@ -692,13 +750,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     emergencyTwoOtpCtrl.text,
                   );
                   if (verified) {
+                    final saved = await _persistVerifiedEmergencyContacts(
+                      contactOneVerifiedNow: false,
+                      contactTwoVerifiedNow: true,
+                    );
+                    if (!saved) return;
                     setState(() {
                       isEc2Verified = true;
                       ec2SentOtp = "";
                     });
                     Get.snackbar(
                       "Success",
-                      "Emergency Contact II verified",
+                      "Emergency Contact II verified and saved",
                       backgroundColor: Colors.green.shade700,
                       colorText: Colors.white,
                     );

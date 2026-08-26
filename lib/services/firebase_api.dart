@@ -223,5 +223,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
   }
+  if (message.data['type']?.toString().toUpperCase() == 'CONTACT_OTP') {
+    await PushNotificationService.showContactOtp(message);
+    return;
+  }
   await PushNotificationService.showUrgentAlert(message);
 }
