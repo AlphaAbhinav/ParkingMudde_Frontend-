@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/firebase_options.dart';
 import 'package:parkingmudde/screen/alerts/fullscreen_alert.dart';
@@ -102,6 +103,24 @@ class FirebaseApi {
     return true;
   }
 
+  bool get _isApplePlatform =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
+
+  Future<String?> _getPushToken() async {
+    if (_isApplePlatform) {
+      String? apnsToken;
+      for (var attempt = 0; attempt < 10; attempt++) {
+        apnsToken = await _firebaseMessaging.getAPNSToken();
+        if (apnsToken != null && apnsToken.isNotEmpty) break;
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      debugPrint('APNs Token: ${apnsToken ?? "not ready"}');
+    }
+
+    return _firebaseMessaging.getToken();
+  }
+
   Future<void> _openTrackedAlert(
     Map<String, dynamic> notificationData, {
     required bool isHelping,
@@ -131,6 +150,11 @@ class FirebaseApi {
       badge: true,
       sound: true,
     );
+    await _firebaseMessaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
     await PushNotificationService.initializeLocalNotifications(
       onUrgentAlertOpened: (data) => _openTrackedAlert(
         data,
@@ -143,7 +167,7 @@ class FirebaseApi {
     await ApiService.clearRestoredSessionIfNeeded();
 
     // Fetch FCM token for this device
-    final fcmToken = await _firebaseMessaging.getToken();
+    final fcmToken = await _getPushToken();
     print('FCM Token: $fcmToken');
 
     // Sync token with backend

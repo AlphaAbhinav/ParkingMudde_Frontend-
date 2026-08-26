@@ -9,6 +9,7 @@ const parkingMuddeCustomPushChannelId = 'parking_mudde_loop_alert_tone_v1';
 const _customAlertSound = UriAndroidNotificationSound(
   'content://com.parkingmudde.app.notification_sound/parking_mudde_loop_alert',
 );
+const _iosAlertSound = 'parking_mudde_alert.caf';
 
 const _loudPushChannel = AndroidNotificationChannel(
   parkingMuddeCustomPushChannelId,
@@ -41,7 +42,16 @@ class PushNotificationService {
 
     const settings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestSoundPermission: true,
+        requestBadgePermission: true,
+        defaultPresentAlert: true,
+        defaultPresentSound: true,
+        defaultPresentBadge: true,
+        defaultPresentBanner: true,
+        defaultPresentList: true,
+      ),
     );
     await _notifications.initialize(
       settings,
@@ -58,6 +68,11 @@ class PushNotificationService {
     if (requestPermissions) {
       await android?.requestNotificationsPermission();
       await android?.requestFullScreenIntentPermission();
+      await _notifications
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
     }
 
     _ready = true;
@@ -100,41 +115,62 @@ class PushNotificationService {
   }
 
   static Future<void> showUrgentAlert(RemoteMessage message) async {
-    if (!Platform.isAndroid || !_isUrgentAlert(message)) return;
+    if (!_isUrgentAlert(message) || (!Platform.isAndroid && !Platform.isIOS)) {
+      return;
+    }
     await initializeLocalNotifications(requestPermissions: false);
 
     final data = <String, dynamic>{...message.data};
     data['id'] ??= data['notification_id'];
     data['description'] ??= message.notification?.body ?? data['body'];
     final type = data['type']?.toString().toUpperCase();
+    final title =
+        message.notification?.title ??
+        data['title']?.toString() ??
+        (type == 'EMERGENCY_ALERT'
+            ? 'Emergency Alert'
+            : type == 'HELP_ALERT' || type == 'HELP_VEHICLE'
+            ? 'Someone is helping'
+            : 'Your vehicle was reported');
+    final body =
+        data['description']?.toString() ?? 'Open Parking Mudde for details.';
+
+    final details = Platform.isAndroid
+        ? NotificationDetails(
+            android: AndroidNotificationDetails(
+              _urgentAlertChannel.id,
+              _urgentAlertChannel.name,
+              channelDescription: _urgentAlertChannel.description,
+              importance: Importance.max,
+              priority: Priority.max,
+              category: AndroidNotificationCategory.alarm,
+              visibility: NotificationVisibility.public,
+              fullScreenIntent: true,
+              playSound: true,
+              sound: _customAlertSound,
+              audioAttributesUsage: AudioAttributesUsage.alarm,
+              ongoing: true,
+              autoCancel: false,
+            ),
+          )
+        : const NotificationDetails(
+            iOS: DarwinNotificationDetails(
+              presentAlert: true,
+              presentBadge: true,
+              presentSound: true,
+              presentBanner: true,
+              presentList: true,
+              sound: _iosAlertSound,
+              interruptionLevel: InterruptionLevel.timeSensitive,
+            ),
+          );
 
     await _notifications.show(
       message.messageId?.hashCode ??
           DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
-      message.notification?.title ??
-          (type == 'EMERGENCY_ALERT'
-              ? 'Emergency Alert'
-              : type == 'HELP_ALERT' || type == 'HELP_VEHICLE'
-              ? 'Someone is helping'
-              : 'Your vehicle was reported'),
-      data['description']?.toString() ?? 'Open Parking Mudde for details.',
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _urgentAlertChannel.id,
-          _urgentAlertChannel.name,
-          channelDescription: _urgentAlertChannel.description,
-          importance: Importance.max,
-          priority: Priority.max,
-          category: AndroidNotificationCategory.alarm,
-          visibility: NotificationVisibility.public,
-          fullScreenIntent: true,
-          playSound: true,
-          sound: _customAlertSound,
-          audioAttributesUsage: AudioAttributesUsage.alarm,
-          ongoing: true,
-          autoCancel: false,
-        ),
-      ),
+      title,
+      body,
+      details,
       payload: jsonEncode(data),
     );
   }
