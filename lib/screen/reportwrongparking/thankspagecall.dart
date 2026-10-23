@@ -7,10 +7,10 @@ import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
 import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/widgets/ai_confidence_badge.dart';
+import 'package:parkingmudde/screen/calls/in_app_call_screen.dart';
 
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:parkingmudde/services/razorpay_web_checkout.dart';
 
 class ThankYouReportScreen extends StatefulWidget {
   final dynamic typecv;
@@ -50,7 +50,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   Timer? pollTimer;
   bool sitBackRelax = false;
   bool _plateAttached = false;
-  bool _vehicleRegistered = false; 
+  bool _vehicleRegistered = false;
   int _offenderPenaltyCoins = 0;
   int _coinsCharged = 0;
   bool _smsAlertChecked = false;
@@ -67,12 +67,14 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   Timer? _maskedTimer;
   Timer? _sosTimer;
   bool _hasAddedOnTheWayBonus = false;
+  bool _isStartingCall = false;
 
   bool get isHelp => widget.typecv == "help";
   bool get isEmergency => widget.typecv == "emergency";
   bool get isReport => !isHelp && !isEmergency;
   bool get isRejected => widget.aiScore < 45;
-  String get _displayConfidenceLevel => widget.aiConfidenceLevel ??
+  String get _displayConfidenceLevel =>
+      widget.aiConfidenceLevel ??
       AiConfidenceBadge.confidenceLevelForFlow(
         flow: widget.typecv?.toString(),
         aiScore: widget.aiScore,
@@ -103,7 +105,9 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   String get _statusTitle {
     if (isRejected) return "Report Rejected";
     if (isHelp) return "Thanks for helping!";
-    if (isEmergency && _isUnregisteredAfterPlate) return "Emergency Help Needed";
+    if (isEmergency && _isUnregisteredAfterPlate) {
+      return "Emergency Help Needed";
+    }
     if (isEmergency) return "Emergency Alert Sent!";
     return !_plateAttached ? "Almost Done!" : "Report Submitted!";
   }
@@ -151,18 +155,18 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   }
 
   void _resetToHome({bool startReport = false, bool startHelp = false}) {
-    final Widget destination =
-        startHelp
-            ? const IssueSelectionScreen(typev: "help")
-            : startReport
-            ? const IssueSelectionScreen(typev: "report")
-            : const Dash();
+    final Widget destination = startHelp
+        ? const IssueSelectionScreen(typev: "help")
+        : startReport
+        ? const IssueSelectionScreen(typev: "report")
+        : const Dash();
 
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => destination),
       (_) => false,
     );
   }
+
   void startTimer() {
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (secondsLeft == 0) {
@@ -218,10 +222,12 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     if (widget.reportId == null) return;
     pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       final notifications = await ApiService.getNotificationsForCurrentUser();
-      final onMyWayNotif = notifications.firstWhereOrNull((n) =>
-          n["status"] == "IN_PROGRESS" &&
-          n["type"] == "REPORTED_VEHICLE" &&
-          n["report_id"]?.toString() == widget.reportId);
+      final onMyWayNotif = notifications.firstWhereOrNull(
+        (n) =>
+            n["status"] == "IN_PROGRESS" &&
+            n["type"] == "REPORTED_VEHICLE" &&
+            n["report_id"]?.toString() == widget.reportId,
+      );
 
       if (onMyWayNotif != null && !_hasAddedOnTheWayBonus) {
         _hasAddedOnTheWayBonus = true;
@@ -230,10 +236,11 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
             sitBackRelax = true;
           });
           _extendCallTimers();
-          
+
           Get.defaultDialog(
             title: "Owner on the Way!",
-            middleText: "The vehicle owner has confirmed that they are on their way. We have extended the helpline call timer by 5 minutes.",
+            middleText:
+                "The vehicle owner has confirmed that they are on their way. We have extended the helpline call timer by 5 minutes.",
             textConfirm: "OK",
             confirmTextColor: Colors.white,
             buttonColor: const Color(0xFF184B8C),
@@ -252,8 +259,12 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     _razorpayPaymentId = response.paymentId;
     _razorpaySignature = response.signature;
 
-    Get.snackbar("Success", "Proceed to enter vehicle plate details.",
-      backgroundColor: Colors.green, colorText: Colors.white);
+    Get.snackbar(
+      "Success",
+      "Proceed to enter vehicle plate details.",
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+    );
 
     _openOffenderIdentificationScreen();
   }
@@ -278,22 +289,26 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   }
 
   Future<void> _openOffenderIdentificationScreen() async {
-    final result = await Get.to(() => VehicleNumberInputScreen(
-          reportId: widget.reportId,
-          notificationId: widget.notificationId,
-          isAttachingPlate: true,
-          razorpayOrderId: _razorpayOrderId,
-          razorpayPaymentId: _razorpayPaymentId,
-          razorpaySignature: _razorpaySignature,
-          guardPlateAttach: false,
-        ));
+    final result = await Get.to(
+      () => VehicleNumberInputScreen(
+        reportId: widget.reportId,
+        notificationId: widget.notificationId,
+        isAttachingPlate: true,
+        razorpayOrderId: _razorpayOrderId,
+        razorpayPaymentId: _razorpayPaymentId,
+        razorpaySignature: _razorpaySignature,
+        guardPlateAttach: false,
+      ),
+    );
 
     if (result != null) {
       final data = result is Map
           ? Map<String, dynamic>.from(result)
           : <String, dynamic>{'vehicle_registered': result == true};
-      final penaltyCoins = int.tryParse(data['offender_penalty_coins']?.toString() ?? '0') ?? 0;
-      final coinsCharged = int.tryParse(data['coins_charged']?.toString() ?? '0') ?? 0;
+      final penaltyCoins =
+          int.tryParse(data['offender_penalty_coins']?.toString() ?? '0') ?? 0;
+      final coinsCharged =
+          int.tryParse(data['coins_charged']?.toString() ?? '0') ?? 0;
 
       setState(() {
         _plateAttached = true;
@@ -324,38 +339,64 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     }
   }
 
-  Future<void> _triggerMaskedCall() async {
-    if (widget.reportId != null) {
-      await ApiService.triggerReportAction(
-        reportId: widget.reportId!,
-        action: "ivr_call",
+  Future<void> _triggerInAppCall() async {
+    if (_isStartingCall || widget.reportId == null) return;
+    setState(() => _isStartingCall = true);
+    final result = await ApiService.startInAppCall(widget.reportId!);
+    if (!mounted) return;
+    setState(() => _isStartingCall = false);
+
+    if (result['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result['message']?.toString() ?? 'Unable to start the in-app call.',
+          ),
+        ),
       );
+      return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Masked call request sent. No personal number is shared."),
+
+    await Get.to<bool>(
+      () => InAppCallScreen(
+        callId: result['call_id'].toString(),
+        callToken: result['call_token'].toString(),
+        isCaller: true,
+        otherPartyLabel: 'Vehicle owner',
+        vehicleNumber: result['vehicle_number']?.toString(),
       ),
     );
   }
 
   Future<void> _callHelpline() async {
     if (widget.reportId != null && !isEmergency) {
-      final result = await ApiService.triggerReportAction(
+      await ApiService.triggerReportAction(
         reportId: widget.reportId!,
         action: "sos",
       );
-      
+
       // Show confirmation dialog
       if (mounted) {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             title: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green.shade600, size: 28),
+                Icon(
+                  Icons.check_circle,
+                  color: Colors.green.shade600,
+                  size: 28,
+                ),
                 const SizedBox(width: 8),
-                const Expanded(child: Text("SOS Sent!", style: TextStyle(fontWeight: FontWeight.bold))),
+                const Expanded(
+                  child: Text(
+                    "SOS Sent!",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
               ],
             ),
             content: const Text(
@@ -406,11 +447,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                   shape: BoxShape.circle,
                   color: _statusColor.withOpacity(0.1),
                 ),
-                child: Icon(
-                  _statusIcon,
-                  color: _statusColor,
-                  size: 80,
-                ),
+                child: Icon(_statusIcon, color: _statusColor, size: 80),
               ),
               const SizedBox(height: 20),
 
@@ -457,7 +494,9 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                       ? const Center(
                           child: Padding(
                             padding: EdgeInsets.all(12.0),
-                            child: CircularProgressIndicator(color: Color(0xFF184B8C)),
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF184B8C),
+                            ),
                           ),
                         )
                       : _actionButton(
@@ -474,12 +513,22 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                     onTap: () async {},
                   ),
                   const SizedBox(height: 16),
-                  _buildCallTimerButton(
-                    label: "Masked Call",
-                    icon: Icons.phone_callback_rounded,
-                    secondsLeft: _maskedCallSeconds,
-                    onTap: _triggerMaskedCall,
-                  ),
+                  if (_vehicleRegistered)
+                    _buildCallTimerButton(
+                      label: _isStartingCall
+                          ? "Starting Private Call"
+                          : "In-App Call",
+                      icon: Icons.phone_callback_rounded,
+                      secondsLeft: _maskedCallSeconds,
+                      onTap: _triggerInAppCall,
+                    )
+                  else
+                    _actionButton(
+                      label: "In-App Call Unavailable",
+                      icon: Icons.phone_disabled_rounded,
+                      enabled: false,
+                      onTap: () async {},
+                    ),
                   const SizedBox(height: 12),
                   _buildCallTimerButton(
                     label: "SOS Helpline Call",
@@ -489,22 +538,26 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                   ),
                 ],
               ],
-              if ((isHelp || isEmergency) && !isRejected && !_plateAttached) ...[
+              if ((isHelp || isEmergency) &&
+                  !isRejected &&
+                  !_plateAttached) ...[
                 _isPaymentLoading
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: CircularProgressIndicator(color: Color(0xFF184B8C)),
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF184B8C),
                           ),
-                        )
-                      : _actionButton(
-                          label: isEmergency
-                              ? "Enter Emergency Vehicle Plate"
-                              : "Enter or Scan Number Plate",
-                          icon: Icons.camera_alt,
-                          enabled: true,
-                          onTap: _startIdentificationPayment,
                         ),
+                      )
+                    : _actionButton(
+                        label: isEmergency
+                            ? "Enter Emergency Vehicle Plate"
+                            : "Enter or Scan Number Plate",
+                        icon: Icons.camera_alt,
+                        enabled: true,
+                        onTap: _startIdentificationPayment,
+                      ),
                 const SizedBox(height: 12),
               ],
               if (isRejected) ...[
@@ -512,10 +565,8 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                   label: "Try Again",
                   icon: Icons.refresh_rounded,
                   enabled: true,
-                  onTap: () async => _resetToHome(
-                    startHelp: isHelp,
-                    startReport: isReport,
-                  ),
+                  onTap: () async =>
+                      _resetToHome(startHelp: isHelp, startReport: isReport),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -560,8 +611,11 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.receipt_long_rounded,
-                  color: Color(0xFF184B8C), size: 18),
+              const Icon(
+                Icons.receipt_long_rounded,
+                color: Color(0xFF184B8C),
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text(
                 isHelp ? "Helping Report Review" : "Report Economy",
@@ -627,7 +681,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
                 ),
                 Divider(color: Colors.grey.shade100, height: 20),
               ],
-            ]
+            ],
           ],
 
           _economyRow(
@@ -669,19 +723,23 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.blueGrey.shade400,
-                    fontWeight: FontWeight.w700,
-                  )),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.blueGrey.shade400,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(sublabel,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.blueGrey.shade300,
-                    fontWeight: FontWeight.w500,
-                  )),
+              Text(
+                sublabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.blueGrey.shade300,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
@@ -716,7 +774,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
               _smsAlertChecked,
             ),
             _timelineRow(
-              "Masked call option - Enabled after timer",
+              "Private in-app call - Enabled after timer",
               _maskedCallSeconds <= 0,
             ),
             _timelineRow(
@@ -735,7 +793,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
               false,
               isComingSoon: true,
             ),
-          ]
+          ],
         ],
       ),
     );
@@ -750,13 +808,13 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
             isComingSoon
                 ? Icons.schedule_rounded
                 : done
-                    ? Icons.check_circle_rounded
-                    : Icons.hourglass_bottom_rounded,
+                ? Icons.check_circle_rounded
+                : Icons.hourglass_bottom_rounded,
             color: isComingSoon
                 ? Colors.blueGrey.shade300
                 : done
-                    ? Colors.green
-                    : const Color(0xFF184B8C),
+                ? Colors.green
+                : const Color(0xFF184B8C),
             size: 18,
           ),
           const SizedBox(width: 10),
@@ -787,7 +845,8 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     if (isTimerActive) {
       final int minutes = secondsLeft ~/ 60;
       final int seconds = secondsLeft % 60;
-      final String timeStr = "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+      final String timeStr =
+          "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
       buttonText = "$label in $timeStr";
     }
 
@@ -799,12 +858,19 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
         icon: Icon(icon, color: Colors.white, size: 20),
         label: Text(
           buttonText,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: isTimerActive ? Colors.grey.shade400 : const Color(0xFF184B8C),
+          backgroundColor: isTimerActive
+              ? Colors.grey.shade400
+              : const Color(0xFF184B8C),
           disabledBackgroundColor: Colors.grey.shade400,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           elevation: isTimerActive ? 0 : 3,
         ),
       ),
@@ -827,19 +893,21 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
         label: Text(
           label,
           style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w800),
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor:
-              enabled ? const Color(0xFF184B8C) : Colors.grey.shade300,
+          backgroundColor: enabled
+              ? const Color(0xFF184B8C)
+              : Colors.grey.shade300,
           disabledBackgroundColor: Colors.grey.shade300,
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
+            borderRadius: BorderRadius.circular(14),
+          ),
           elevation: enabled ? 3 : 0,
         ),
       ),
     );
   }
 }
-
-

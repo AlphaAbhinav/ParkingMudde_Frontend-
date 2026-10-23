@@ -2785,4 +2785,159 @@ class ApiService {
     }
     return {"challans": []};
   }
+
+  // ================= PRIVATE IN-APP AUDIO CALLS =================
+  static Map<String, dynamic> _callResult(
+    http.Response response, {
+    required String fallback,
+  }) {
+    try {
+      final decoded = jsonDecode(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {"success": true, ...Map<String, dynamic>.from(decoded)};
+      }
+      if (decoded is Map) {
+        final detail = decoded["detail"];
+        final message = detail is Map
+            ? detail["message"]?.toString()
+            : detail?.toString();
+        return {
+          "success": false,
+          "message": message ?? fallback,
+          if (detail is Map && detail["retry_after_seconds"] != null)
+            "retry_after_seconds": detail["retry_after_seconds"],
+        };
+      }
+    } catch (_) {}
+    return {"success": false, "message": fallback};
+  }
+
+  static Future<Map<String, dynamic>> startInAppCall(String reportId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString("user_id");
+      if (!_isBackendUserId(userId)) {
+        return {"success": false, "message": "Please log in to start a call."};
+      }
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/v1/calls/reports/$reportId"),
+            headers: {"Content-Type": "application/json", "x-user-id": userId!},
+          )
+          .timeout(const Duration(seconds: 15));
+      return _callResult(
+        response,
+        fallback: "Unable to start the private call.",
+      );
+    } catch (e) {
+      return {
+        "success": false,
+        "message": "Network error while starting the call.",
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> getInAppCall(
+    String callId,
+    String callToken,
+  ) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse("$baseUrl/v1/calls/$callId"),
+            headers: {"x-call-token": callToken},
+          )
+          .timeout(const Duration(seconds: 10));
+      return _callResult(response, fallback: "Unable to check call status.");
+    } catch (_) {
+      return {"success": false, "message": "Call connection was interrupted."};
+    }
+  }
+
+  static Future<Map<String, dynamic>> _inAppCallAction(
+    String callId,
+    String callToken,
+    String action, {
+    String? reason,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/v1/calls/$callId/$action"),
+            headers: {
+              "Content-Type": "application/json",
+              "x-call-token": callToken,
+            },
+            body: jsonEncode({if (reason != null) "reason": reason}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return _callResult(response, fallback: "Unable to update the call.");
+    } catch (_) {
+      return {"success": false, "message": "Call connection was interrupted."};
+    }
+  }
+
+  static Future<Map<String, dynamic>> acceptInAppCall(
+    String callId,
+    String callToken,
+  ) => _inAppCallAction(callId, callToken, "accept");
+
+  static Future<Map<String, dynamic>> rejectInAppCall(
+    String callId,
+    String callToken, {
+    String reason = "declined",
+  }) => _inAppCallAction(callId, callToken, "reject", reason: reason);
+
+  static Future<Map<String, dynamic>> endInAppCall(
+    String callId,
+    String callToken, {
+    String reason = "hangup",
+  }) => _inAppCallAction(callId, callToken, "end", reason: reason);
+
+  static Future<bool> sendInAppCallSignal({
+    required String callId,
+    required String callToken,
+    required String type,
+    required Map<String, dynamic> payload,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/v1/calls/$callId/signals"),
+            headers: {
+              "Content-Type": "application/json",
+              "x-call-token": callToken,
+            },
+            body: jsonEncode({"type": type, "payload": payload}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getInAppCallSignals({
+    required String callId,
+    required String callToken,
+    required int after,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        "$baseUrl/v1/calls/$callId/signals",
+      ).replace(queryParameters: {"after": after.toString()});
+      final response = await http
+          .get(uri, headers: {"x-call-token": callToken})
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return [];
+      final decoded = jsonDecode(response.body);
+      final signals = decoded["signals"] as List? ?? const [];
+      return signals
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
 }

@@ -100,7 +100,9 @@ class _NotificationpageState extends State<Notificationpage> {
       if (selectedFilter == "Visitors") return type == "VISITOR_PASS";
       if (selectedFilter == "Packages") return type == "WALLET_PACKAGE";
       if (selectedFilter == "OTP") return type == "CONTACT_OTP";
-      if (selectedFilter == "Updates") return type == "APP_UPDATE";
+      if (selectedFilter == "Updates") {
+        return type == "APP_UPDATE" || type == "ADMIN_BROADCAST";
+      }
       if (selectedFilter == "Tickets") return type == "SUPPORT_TICKET";
       return true;
     }).toList();
@@ -694,6 +696,7 @@ class _NotificationpageState extends State<Notificationpage> {
                         type == "VISITOR_PASS" ||
                         type == "CONTACT_OTP" ||
                         type == "APP_UPDATE" ||
+                        type == "ADMIN_BROADCAST" ||
                         type == "SUPPORT_TICKET")
                       Text(
                         item["description"]?.toString() ??
@@ -1059,6 +1062,9 @@ class _NotificationpageState extends State<Notificationpage> {
 
   String _title(dynamic item) {
     final type = item["type"]?.toString() ?? "";
+    if (type == "ADMIN_BROADCAST") {
+      return item["title"]?.toString() ?? "ParkingMudde update";
+    }
     final status = item["status"]?.toString() ?? "";
     if (type == "VEHICLE_ADDED") return "Vehicle Activated";
     if (type == "VEHICLE_UPDATED") return "Registration Edited";

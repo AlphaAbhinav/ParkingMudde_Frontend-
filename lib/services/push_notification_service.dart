@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 const parkingMuddeCustomPushChannelId = 'parking_mudde_loop_alert_tone_v1';
+const parkingMuddeCallChannelId = 'parking_mudde_calls_v1';
 const _customAlertSound = UriAndroidNotificationSound(
   'content://com.parkingmudde.app.notification_sound/parking_mudde_loop_alert',
 );
@@ -26,6 +27,14 @@ const _loudPushChannel = AndroidNotificationChannel(
 const generalChannel = _loudPushChannel;
 const _urgentAlertChannel = _loudPushChannel;
 const _otpChannel = _loudPushChannel;
+const _callChannel = AndroidNotificationChannel(
+  parkingMuddeCallChannelId,
+  'Incoming calls',
+  description: 'Private in-app call notifications.',
+  importance: Importance.high,
+  playSound: true,
+  enableVibration: true,
+);
 
 final _notifications = FlutterLocalNotificationsPlugin();
 
@@ -65,6 +74,7 @@ class PushNotificationService {
     await android?.createNotificationChannel(generalChannel);
     await android?.createNotificationChannel(_urgentAlertChannel);
     await android?.createNotificationChannel(_otpChannel);
+    await android?.createNotificationChannel(_callChannel);
     if (requestPermissions) {
       await android?.requestNotificationsPermission();
       await android?.requestFullScreenIntentPermission();
@@ -112,6 +122,44 @@ class PushNotificationService {
         ((type == 'HELP_ALERT' || type == 'HELP_VEHICLE') &&
             (status == null || status.isEmpty || status == 'IN_PROGRESS')) ||
         (type == 'EMERGENCY_ALERT' && status == 'SUBMITTED');
+  }
+
+  static Future<void> showIncomingCall(RemoteMessage message) async {
+    if (!Platform.isAndroid) return;
+    final type = message.data['type']?.toString().toUpperCase();
+    final status = message.data['status']?.toString().toUpperCase();
+    if (type != 'IN_APP_CALL' || status != 'RINGING') return;
+
+    await initializeLocalNotifications(requestPermissions: false);
+    final data = <String, dynamic>{...message.data};
+    data['id'] ??= data['notification_id'];
+    data['description'] ??= message.notification?.body ?? data['body'];
+
+    await _notifications.show(
+      message.messageId?.hashCode ??
+          DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
+      message.notification?.title ??
+          data['title']?.toString() ??
+          'Incoming private call',
+      data['description']?.toString() ??
+          'Someone is calling you inside Parking Mudde.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          parkingMuddeCallChannelId,
+          'Incoming calls',
+          channelDescription: 'Private in-app call notifications.',
+          importance: Importance.high,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.call,
+          visibility: NotificationVisibility.private,
+          playSound: true,
+          ongoing: false,
+          autoCancel: true,
+          fullScreenIntent: false,
+        ),
+      ),
+      payload: jsonEncode(data),
+    );
   }
 
   static Future<void> showUrgentAlert(RemoteMessage message) async {

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/firebase_options.dart';
 import 'package:parkingmudde/screen/alerts/fullscreen_alert.dart';
+import 'package:parkingmudde/screen/calls/incoming_call_screen.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/services/alert_state.dart';
 import 'package:parkingmudde/services/push_notification_service.dart';
@@ -14,6 +15,7 @@ class FirebaseApi {
   final _firebaseMessaging = FirebaseMessaging.instance;
   static const String _playedVisitorApprovalIdsKey =
       'visitor_approval_sound_played_ids';
+  static final Set<String> _openCallIds = <String>{};
 
   Future<bool> _hasLoggedInUser() async {
     final prefs = await SharedPreferences.getInstance();
@@ -53,7 +55,26 @@ class FirebaseApi {
     final status = messageData['status']?.toString().toUpperCase();
     final description = notificationBody ?? messageData['body']?.toString();
 
-    if (type == 'VEHICLE_REPORTED_AGAINST_YOU' && status == 'SUBMITTED') {
+    if (type == 'IN_APP_CALL' && status == 'RINGING') {
+      final callId = messageData['call_id']?.toString();
+      final callToken = messageData['call_token']?.toString();
+      if (callId != null &&
+          callId.isNotEmpty &&
+          callToken != null &&
+          callToken.isNotEmpty &&
+          _openCallIds.add(callId)) {
+        try {
+          await Get.to<bool>(
+            () => IncomingCallScreen(
+              callData: Map<String, dynamic>.from(messageData),
+            ),
+          );
+        } finally {
+          _openCallIds.remove(callId);
+        }
+      }
+    } else if (type == 'VEHICLE_REPORTED_AGAINST_YOU' &&
+        status == 'SUBMITTED') {
       await _openTrackedAlert({
         ...messageData,
         "id": messageData['notification_id'],
@@ -157,13 +178,8 @@ class FirebaseApi {
     );
     try {
       await PushNotificationService.initializeLocalNotifications(
-        onUrgentAlertOpened: (data) => _openTrackedAlert(
-          data,
-          isHelping: const {
-            'HELP_ALERT',
-            'HELP_VEHICLE',
-          }.contains(data['type']?.toString().toUpperCase()),
-        ),
+        onUrgentAlertOpened: (data) =>
+            _showOwnerReportAlertData(data, data['body']?.toString()),
       );
     } catch (error) {
       debugPrint('Local notification setup failed: $error');
@@ -172,7 +188,7 @@ class FirebaseApi {
 
     // Fetch FCM token for this device
     final fcmToken = await _getPushToken();
-    print('FCM Token: $fcmToken');
+    debugPrint('FCM Token: $fcmToken');
 
     // Sync token with backend
     if (fcmToken != null) {
@@ -181,20 +197,31 @@ class FirebaseApi {
 
     // Handle token refresh
     FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-      print('FCM Token Refreshed: $newToken');
+      debugPrint('FCM Token Refreshed: $newToken');
       ApiService.updateFcmToken(newToken);
     });
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      print('Received foreground FCM message: ${message.data}');
+      debugPrint('Received foreground FCM message: ${message.data}');
       if (await _showContactOtpNotification(message)) return;
+      final type = message.data['type']?.toString().toUpperCase();
+      final status = message.data['status']?.toString().toUpperCase();
+      if (type == 'IN_APP_CALL' && status == 'RINGING') {
+        // Android does not display FCM notification payloads while the app is
+        // foregrounded, so show an ordinary tappable notification ourselves.
+        // iOS uses Firebase's foreground presentation configured above.
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          await PushNotificationService.showIncomingCall(message);
+        }
+        return;
+      }
       await _showOwnerReportAlert(message);
     });
 
     // Handle background / terminated messages (optional but good for debugging)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) async {
-      print('App opened from FCM message: ${message.data}');
+      debugPrint('App opened from FCM message: ${message.data}');
       if (message.data['type']?.toString().toUpperCase() == 'CONTACT_OTP') {
         return;
       }

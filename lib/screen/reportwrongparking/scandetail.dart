@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart'
     as parkingmudde_scanenter;
 import 'package:parkingmudde/screen/homepage/homepage.dart';
@@ -46,10 +47,6 @@ class ReportProofScreen extends StatefulWidget {
 }
 
 class _ReportProofScreenState extends State<ReportProofScreen> {
-  static const int _minimumHelpEmergencyAiScore = 45;
-  static const String _lowAiScoreMessage =
-      "Try again. AI score was too low to conclude a valid report. Please click on Try Again to try again.";
-
   final TextEditingController situationController = TextEditingController();
 
   List<XFile> images = [];
@@ -207,54 +204,6 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     );
   }
 
-  int _readAiScore(Map<String, dynamic> result) {
-    final rawScore = result["score"];
-    if (rawScore is int) return rawScore;
-    if (rawScore is num) return rawScore.round();
-    return int.tryParse(rawScore?.toString() ?? "") ?? 0;
-  }
-
-  Future<bool> _passesSinglePhotoAiGate(double lat, double lng) async {
-    final aiResult = await ApiService.getAIVerdict(
-      images: images,
-      lat: lat,
-      lng: lng,
-      selectedReasonCode: widget.selectedIssueCode,
-      minimumPhotos: 1,
-    );
-
-    if (!mounted) return false;
-
-    if (aiResult["success"] != true) {
-      setState(() => isLoading = false);
-      showSnack(
-        aiResult["message"]?.toString() ??
-            "AI evaluation failed. Please click on Try Again to try again.",
-      );
-      return false;
-    }
-
-    final aiScore = _readAiScore(aiResult);
-    if (aiScore < _minimumHelpEmergencyAiScore) {
-      setState(() => isLoading = false);
-      if (_isHelpFlow) {
-        Get.to(
-          () => ThankYouReportScreen(
-            typecv: "help",
-            aiScore: aiScore,
-            aiVerdict: "WRONG_REPORT",
-            aiConfidenceLevel: _aiConfidenceLevel,
-            issueTitle: _issueTitle,
-          ),
-        );
-      } else {
-        showSnack(_lowAiScoreMessage);
-      }
-      return false;
-    }
-
-    return true;
-  }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
     _razorpayEventReceived = true;
@@ -370,10 +319,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     final double reportLat = position.latitude;
     final double reportLng = position.longitude;
 
-    if (_requiresSinglePhoto &&
-        !await _passesSinglePhotoAiGate(reportLat, reportLng)) {
-      return;
-    }
+    // The submission endpoint verifies the original photo before accepting the alert.
 
     final storedUser = await ApiService.getStoredUser();
     final currentUserId = storedUser?["user_id"]?.toString();
@@ -433,7 +379,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
     if (result["success"] == true) {
       // Refresh wallet balance using Provider
-      await context.read<WalletProvider>().fetchWallet();
+      unawaited(context.read<WalletProvider>().fetchWallet().catchError((Object error) {
+        debugPrint('Wallet refresh after report failed: $error');
+      }));
 
       final reportId = result["data"] is Map
           ? result["data"]["report_id"]?.toString()
