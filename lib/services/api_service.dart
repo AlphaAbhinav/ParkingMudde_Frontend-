@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,6 +9,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'ios_call_service.dart';
 
 class ApiService {
   static const MethodChannel _installStateChannel = MethodChannel(
@@ -18,6 +20,15 @@ class ApiService {
   // ðŸ”¥ IMPORTANT: Use localhost for Flutter Web
   static final String baseUrl =
       dotenv.env['BACKEND_URL'] ?? "http://localhost:8000";
+  static Future<Map<String, String>> _inboxHeaders() async {
+    final token = (await SharedPreferences.getInstance()).getString(
+      'session_token',
+    );
+    return token == null || token.isEmpty
+        ? {}
+        : {'Authorization': 'Bearer $token'};
+  }
+
   static final String aiModelUrl =
       dotenv.env['AI_MODEL_URL'] ??
       "https://wrongparkingdetection-6r7o.onrender.com";
@@ -200,6 +211,13 @@ class ApiService {
     final userId = _extractBackendUserId(user);
     await prefs.setBool("is_logging_out", false);
 
+    final sessionToken = user["session_token"]?.toString();
+    if (sessionToken != null && sessionToken.isNotEmpty) {
+      await prefs.setString("session_token", sessionToken);
+    } else if (user.containsKey("session_token")) {
+      await prefs.remove("session_token");
+    }
+
     if (userId != null) {
       await prefs.setString("user_id", userId);
     }
@@ -221,7 +239,10 @@ class ApiService {
     await saveString("profile_image", "profile_image");
     await saveString("gender", "gender");
     await saveString("date_of_birth", "date_of_birth");
+    await saveString("driving_license_number", "driving_license_number");
+    await saveString("aadhaar_number", "aadhaar_number");
     await saveString("location", "location");
+    if (user.containsKey("state")) await saveString("state", "state");
     await saveString("alternate_number", "alternate_mobile_number");
     await saveString("emergency_contact_one", "emergency_contact_one");
     await saveString("emergency_contact_two", "emergency_contact_two");
@@ -344,13 +365,18 @@ class ApiService {
   static Future<void> logoutCurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString("user_id");
+    final sessionToken = prefs.getString("session_token");
     await prefs.setBool("is_logging_out", true);
+    await IosCallService.instance.signOut();
 
-    if (_isBackendUserId(userId)) {
+    if (_isBackendUserId(userId) && sessionToken != null) {
       try {
         await http.post(
           Uri.parse("$baseUrl/v1/auth/fcm-token"),
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $sessionToken',
+          },
           body: jsonEncode({"user_id": int.parse(userId!), "fcm_token": null}),
         );
       } catch (e) {
@@ -363,6 +389,7 @@ class ApiService {
     } catch (e) {
       print("FCM local token delete failed: $e");
     }
+    await prefs.remove("session_token");
   }
 
   static Future<Map<String, dynamic>?> getStoredUser() async {
@@ -382,6 +409,7 @@ class ApiService {
       "gender": prefs.getString("gender"),
       "date_of_birth": prefs.getString("date_of_birth"),
       "location": prefs.getString("location"),
+      "state": prefs.getString("state"),
       "alternate_mobile_number": prefs.getString("alternate_number"),
       "emergency_contact_one": prefs.getString("emergency_contact_one"),
       "emergency_contact_two": prefs.getString("emergency_contact_two"),
@@ -498,7 +526,6 @@ class ApiService {
         Uri.parse("$baseUrl/v1/reports/wrong-parking"),
       );
 
-      // ðŸ”´ TEMP USER ID (replace after full auth integration)
       final prefs = await SharedPreferences.getInstance();
       String? userId = prefs.getString("user_id");
       if (!_isBackendUserId(userId)) {
@@ -506,6 +533,14 @@ class ApiService {
       }
 
       request.headers['x-user-id'] = userId ?? "";
+      final sessionToken = prefs.getString('session_token');
+      if (sessionToken == null || sessionToken.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Please log in again to report a vehicle.',
+        };
+      }
+      request.headers['Authorization'] = 'Bearer $sessionToken';
 
       // Use real GPS if provided, otherwise fall back to stored prefs
       final double reportLat = lat ?? prefs.getDouble("latitude") ?? 19.0760;
@@ -524,16 +559,25 @@ class ApiService {
         request.fields['selected_reason_code'] = selectedIssueCode;
       }
 
-      if (aiScore != null) request.fields['ai_score'] = aiScore.toString();
-      if (aiVerdict != null) request.fields['ai_verdict'] = aiVerdict;
-      if (aiReasons != null) request.fields['ai_reasons'] = aiReasons;
+      if (aiScore != null) {
+        request.fields['ai_score'] = aiScore.toString();
+      }
+      if (aiVerdict != null) {
+        request.fields['ai_verdict'] = aiVerdict;
+      }
+      if (aiReasons != null) {
+        request.fields['ai_reasons'] = aiReasons;
+      }
 
-      if (razorpayOrderId != null)
+      if (razorpayOrderId != null) {
         request.fields['razorpay_order_id'] = razorpayOrderId;
-      if (razorpayPaymentId != null)
+      }
+      if (razorpayPaymentId != null) {
         request.fields['razorpay_payment_id'] = razorpayPaymentId;
-      if (razorpaySignature != null)
+      }
+      if (razorpaySignature != null) {
         request.fields['razorpay_signature'] = razorpaySignature;
+      }
 
       if (videoFile != null) {
         request.fields['evidence_mode'] = "VIDEO";
@@ -629,7 +673,7 @@ class ApiService {
       );
 
       print("Login Status: ${response.statusCode}");
-      print("Login Response: ${response.body}");
+      print("Login Status: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -673,7 +717,11 @@ class ApiService {
     required String email,
     String? gender,
     String? dateOfBirth,
+    String? drivingLicenseNumber,
+    String? aadhaarNumber,
     String? location,
+    String? state,
+    bool updateState = false,
     String? alternateMobileNumber,
     String? emergencyContactOne,
     String? emergencyContactTwo,
@@ -702,7 +750,11 @@ class ApiService {
         "email": email,
         "gender": gender,
         "date_of_birth": dateOfBirth,
+        if (drivingLicenseNumber != null)
+          "driving_license_number": drivingLicenseNumber,
+        if (aadhaarNumber != null) "aadhaar_number": aadhaarNumber,
         "location": location?.isEmpty == true ? null : location,
+        if (updateState) "state": state,
         if (alternateMobileNumber != null)
           "alternate_mobile_number": alternateMobileNumber,
         if (emergencyContactOne != null)
@@ -721,7 +773,7 @@ class ApiService {
 
       final response = await http.put(
         Uri.parse("$baseUrl/v1/auth/user/$userId"),
-        headers: {"Content-Type": "application/json"},
+        headers: {"Content-Type": "application/json", ...await _inboxHeaders()},
         body: jsonEncode(body),
       );
 
@@ -923,6 +975,7 @@ class ApiService {
     String? dateOfBirth,
     String? referralCode,
     String? location,
+    String? state,
     String? drivingLicenseNumber,
     String? aadhaarNumber,
     String? societyName,
@@ -958,12 +1011,12 @@ class ApiService {
           "date_of_birth": dateOfBirth?.isEmpty == true ? null : dateOfBirth,
           "referral_code": referralCode?.isEmpty == true ? null : referralCode,
           "location": location?.isEmpty == true ? null : location,
+          if (state != null) "state": state,
           "driving_license_number": drivingLicenseNumber?.isEmpty == true
               ? null
               : drivingLicenseNumber,
-          "aadhaar_number": aadhaarNumber?.isEmpty == true
-              ? null
-              : aadhaarNumber,
+          if (aadhaarNumber != null && aadhaarNumber.isNotEmpty)
+            "aadhaar_number": aadhaarNumber,
           "society_name": societyName?.isEmpty == true ? null : societyName,
           "tower": tower?.isEmpty == true ? null : tower,
           "flat_number": flatNumber?.isEmpty == true ? null : flatNumber,
@@ -974,7 +1027,7 @@ class ApiService {
       );
 
       print("Register Status: ${response.statusCode}");
-      print("Register Response: ${response.body}");
+      print("Register Status: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1134,7 +1187,7 @@ class ApiService {
       );
 
       print("Verify OTP Status: ${response.statusCode}");
-      print("Verify OTP Response: ${response.body}");
+      print("Verify OTP Status: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1168,7 +1221,7 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse("$baseUrl/v1/vehicle/add"),
-        headers: {"Content-Type": "application/json"},
+        headers: {"Content-Type": "application/json", ...await _inboxHeaders()},
         body: jsonEncode({
           "user_id": int.parse(userId),
           "owner_first_name": ownerFirstName,
@@ -1232,7 +1285,7 @@ class ApiService {
     try {
       final response = await http.put(
         Uri.parse("$baseUrl/v1/vehicle/$vehicleId"),
-        headers: {"Content-Type": "application/json"},
+        headers: {"Content-Type": "application/json", ...await _inboxHeaders()},
         body: jsonEncode({
           "user_id": int.parse(userId),
           "owner_first_name": ownerFirstName,
@@ -1347,18 +1400,14 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final decoded = jsonDecode(response.body);
+        final data = decoded is Map<String, dynamic>
+            ? decoded
+            : <String, dynamic>{};
         return {
           "success": true,
           "registered": data["registered"] ?? false,
-          "data": {
-            "vehicle_number": data["vehicle"]["vehicle_number"],
-            "owner_name":
-                data["owner_name"] ?? data["app_user_name"] ?? "Unknown Owner",
-            "city": data["vehicle"]["rto_code"] ?? "Unknown",
-            "mobile_number":
-                data["owner_mobile"] ?? data["app_user_mobile"] ?? "",
-          },
+          "data": data,
         };
       } else if (response.statusCode == 404) {
         return {
@@ -1390,12 +1439,13 @@ class ApiService {
       }
       final body = jsonDecode(response.body);
       return {
+        "success": false,
         "linked": false,
         "message": body["detail"] ?? "Failed to fetch community",
       };
     } catch (e) {
       print("Community Exception: $e");
-      return {"linked": false, "message": "Network error"};
+      return {"success": false, "linked": false, "message": "Network error"};
     }
   }
 
@@ -1409,9 +1459,9 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse("$baseUrl/v1/notifications/user/$userId"),
+        headers: await _inboxHeaders(),
       );
       print("Notifications Status: ${response.statusCode}");
-      print("Notifications Response: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -1439,6 +1489,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse("$baseUrl/v1/notifications/user/$userId/unread-count"),
+        headers: await _inboxHeaders(),
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -1469,6 +1520,7 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse("$baseUrl/v1/notifications/user/$userId/mark-read"),
+        headers: await _inboxHeaders(),
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
       return {
@@ -1501,10 +1553,10 @@ class ApiService {
         Uri.parse(
           "$baseUrl/v1/notifications/user/$userId/notification/$notificationId",
         ),
+        headers: await _inboxHeaders(),
       );
 
       print("Delete Notification Status: ${response.statusCode}");
-      print("Delete Notification Response: ${response.body}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1531,10 +1583,10 @@ class ApiService {
         Uri.parse(
           "$baseUrl/v1/notifications/user/$userId/range/$range?timezone_offset_minutes=${DateTime.now().timeZoneOffset.inMinutes}",
         ),
+        headers: await _inboxHeaders(),
       );
 
       print("Delete Notifications Range Status: ${response.statusCode}");
-      print("Delete Notifications Range Response: ${response.body}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1557,10 +1609,10 @@ class ApiService {
     try {
       final response = await http.delete(
         Uri.parse("$baseUrl/v1/notifications/$userId"),
+        headers: await _inboxHeaders(),
       );
 
       print("Clear Notifications Status: ${response.statusCode}");
-      print("Clear Notifications Response: ${response.body}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1587,6 +1639,17 @@ class ApiService {
         'POST',
         Uri.parse("$baseUrl/v1/notifications/helped-vehicle"),
       );
+
+      final sessionToken = (await SharedPreferences.getInstance()).getString(
+        'session_token',
+      );
+      if (sessionToken == null || sessionToken.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Please log in again to send a help alert.',
+        };
+      }
+      request.headers['Authorization'] = 'Bearer $sessionToken';
 
       request.fields['user_id'] = userId;
       request.fields['vehicle_number'] = vehicleNumber;
@@ -1678,6 +1741,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse("$baseUrl/v1/notifications/alerts/$userId"),
+        headers: await _inboxHeaders(),
       );
 
       if (response.statusCode == 200) {
@@ -1733,7 +1797,11 @@ class ApiService {
         Uri.parse("$baseUrl/v1/documents/user/$userId"),
       );
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded["documents"] is List) {
+          return List<dynamic>.from(decoded["documents"] as List);
+        }
+        if (decoded is List) return decoded;
       }
     } catch (e) {
       print("Get User Documents Exception: $e");
@@ -1749,26 +1817,35 @@ class ApiService {
     required XFile file,
   }) async {
     try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse("$baseUrl/v1/documents/upload"),
+      final bytes = await file.readAsBytes();
+      final extension = file.name.split('.').last.toLowerCase();
+      final contentType = extension == 'png'
+          ? 'image/png'
+          : extension == 'webp'
+          ? 'image/webp'
+          : 'image/jpeg';
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/documents/"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "user_id": int.parse(userId),
+          "document_type": documentType,
+          "document_label": documentLabel,
+          "file_name": file.name,
+          "content_type": contentType,
+          "data_url": "data:$contentType;base64,${base64Encode(bytes)}",
+        }),
       );
-      request.fields['user_id'] = userId;
-      request.fields['document_type'] = documentType;
-      request.fields['document_label'] = documentLabel;
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          await file.readAsBytes(),
-          filename: file.name,
-          contentType: MediaType('image', 'jpeg'),
-        ),
-      );
-      final streamed = await request.send();
-      final response = await http.Response.fromStream(streamed);
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          return {"success": true, ...decoded};
+        }
       }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Document upload failed"),
+      };
     } catch (e) {
       print("Upload Document Exception: $e");
     }
@@ -1791,6 +1868,78 @@ class ApiService {
       print("Delete Document Exception: $e");
     }
     return {"success": false, "message": "Document delete failed"};
+  }
+
+  // ================= SUREPASS DATABASE-FIRST VERIFICATION =================
+  static Future<Map<String, dynamic>> verifyVehicleWithSurepass({
+    required String userId,
+    required String registrationNumber,
+  }) async {
+    return _surepassPost("/v1/surepass/vehicle", {
+      "user_id": int.parse(userId),
+      "registration_number": registrationNumber,
+    });
+  }
+
+  static Future<Map<String, dynamic>> verifyDrivingLicenseWithSurepass({
+    required String userId,
+    required String drivingLicenseNumber,
+    required String dateOfBirth,
+  }) async {
+    return _surepassPost("/v1/surepass/driving-license", {
+      "user_id": int.parse(userId),
+      "driving_license_number": drivingLicenseNumber,
+      "date_of_birth": dateOfBirth,
+    });
+  }
+
+  static Future<Map<String, dynamic>> getAadhaarVerificationState(int userId) {
+    return _surepassPost("/v1/surepass/aadhaar/ovse/state", {
+      "user_id": userId,
+    });
+  }
+
+  static Future<Map<String, dynamic>> startAadhaarVerification(int userId) {
+    return _surepassPost("/v1/surepass/aadhaar/ovse/start", {
+      "user_id": userId,
+    });
+  }
+
+  static Future<Map<String, dynamic>> checkAadhaarVerification(int userId) {
+    return _surepassPost("/v1/surepass/aadhaar/ovse/check", {
+      "user_id": userId,
+    });
+  }
+
+  static Future<Map<String, dynamic>> _surepassPost(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final headers = <String, String>{
+        "Content-Type": "application/json",
+        ...await _inboxHeaders(),
+      };
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl$path"),
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 75));
+      final decoded = jsonDecode(response.body);
+      if (response.statusCode >= 200 &&
+          response.statusCode < 300 &&
+          decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      return {
+        "success": false,
+        "message": _messageFromResponse(response, "Verification failed"),
+      };
+    } catch (e) {
+      return {"success": false, "message": "Verification service unavailable"};
+    }
   }
 
   // ================= COIN CONFIG =================
@@ -1922,10 +2071,23 @@ class ApiService {
     String? razorpaySignature,
   }) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id');
+      final sessionToken = prefs.getString('session_token');
+      if (userId == null || sessionToken == null || sessionToken.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Please log in again to attach a vehicle.',
+        };
+      }
       final response = await http
           .post(
             Uri.parse("$baseUrl/v1/reports/$reportId/attach-plate"),
-            headers: {"Content-Type": "application/json"},
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": userId,
+              "Authorization": "Bearer $sessionToken",
+            },
             body: jsonEncode({
               "vehicle_number": vehicleNumber,
               if (razorpayOrderId != null) "razorpay_order_id": razorpayOrderId,
@@ -2130,6 +2292,17 @@ class ApiService {
         Uri.parse("$baseUrl/v1/notifications/emergency-alert"),
       );
 
+      final sessionToken = (await SharedPreferences.getInstance()).getString(
+        'session_token',
+      );
+      if (sessionToken == null || sessionToken.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Please log in again to send an emergency alert.',
+        };
+      }
+      request.headers['Authorization'] = 'Bearer $sessionToken';
+
       request.fields['user_id'] = userId;
       request.fields['vehicle_number'] = vehicleNumber;
       request.fields['situation'] = situation;
@@ -2203,10 +2376,22 @@ class ApiService {
     required String vehicleNumber,
   }) async {
     try {
+      final sessionToken = (await SharedPreferences.getInstance()).getString(
+        'session_token',
+      );
+      if (sessionToken == null || sessionToken.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Please log in again to attach a vehicle.',
+        };
+      }
       final response = await http
           .post(
             Uri.parse("$baseUrl/v1/notifications/$notificationId/attach-plate"),
-            headers: {"Content-Type": "application/json"},
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer $sessionToken",
+            },
             body: jsonEncode({"vehicle_number": vehicleNumber}),
           )
           .timeout(const Duration(seconds: 15));
@@ -2248,9 +2433,21 @@ class ApiService {
     required String reportId,
   }) async {
     try {
+      final sessionToken = (await SharedPreferences.getInstance()).getString(
+        'session_token',
+      );
+      if (sessionToken == null || sessionToken.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Please log in again to respond to this report.',
+        };
+      }
       final response = await http.post(
         Uri.parse("$baseUrl/v1/reports/$reportId/on-the-way"),
-        headers: {"Content-Type": "application/json"},
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $sessionToken",
+        },
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -2332,6 +2529,105 @@ class ApiService {
       return jsonDecode(response.body);
     } else {
       throw Exception("Failed to load coupons");
+    }
+  }
+
+  static Future<List<String>> getIndianStates() async {
+    final response = await http.get(Uri.parse("$baseUrl/v1/auth/states"));
+    if (response.statusCode != 200) throw Exception("Could not load states");
+    return List<String>.from(jsonDecode(response.body) as List);
+  }
+
+  static Future<String?> getUserState(String userId) async {
+    final response = await http.get(
+      Uri.parse("$baseUrl/v1/auth/user/$userId/state"),
+      headers: await _inboxHeaders(),
+    );
+    if (response.statusCode != 200) throw Exception("Could not load your state");
+    return jsonDecode(response.body)["state"] as String?;
+  }
+
+  static Future<Map<String, dynamic>> saveUserState(String state) async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString("user_id");
+    if (!_isBackendUserId(userId)) {
+      return {"success": false, "message": "Please log in again."};
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse("$baseUrl/v1/auth/user/$userId/state"),
+        headers: {"Content-Type": "application/json", ...await _inboxHeaders()},
+        body: jsonEncode({"state": state}),
+      );
+      if (response.statusCode != 200) {
+        return _authFailureFromResponse(response, "Could not save your state.");
+      }
+      final savedState = jsonDecode(response.body)["state"] as String;
+      if (prefs.getString("user_id") == userId) {
+        await prefs.setString("state", savedState);
+      }
+      return {"success": true, "state": savedState};
+    } catch (_) {
+      return {
+        "success": false,
+        "message": "Could not save your state. Try again.",
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> getSharedCouponFeed(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/v1/coupons/shared/$userId"),
+        headers: await _inboxHeaders(),
+      );
+      if (response.statusCode != 200) {
+        return _authFailureFromResponse(
+          response,
+          "Could not load shared coupons.",
+        );
+      }
+      return {
+        "success": true,
+        ...jsonDecode(response.body) as Map<String, dynamic>,
+      };
+    } catch (_) {
+      return {"success": false, "message": "Could not load shared coupons."};
+    }
+  }
+
+  static Future<Map<String, dynamic>> shareCoupon({
+    required String userId,
+    required String brand,
+    required String title,
+    required String description,
+    required String code,
+    required List<String> states,
+    required bool societyPriority,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/v1/coupons/shared/$userId"),
+        headers: {"Content-Type": "application/json", ...await _inboxHeaders()},
+        body: jsonEncode({
+          "brand": brand,
+          "title": title,
+          "description": description,
+          "code": code,
+          "states": states,
+          "society_priority": societyPriority,
+        }),
+      );
+      if (response.statusCode != 201) {
+        return _authFailureFromResponse(response, "Could not share this coupon.");
+      }
+      return {"success": true};
+    } catch (_) {
+      return {
+        "success": false,
+        "message": "Could not share this coupon. Try again.",
+      };
     }
   }
 
@@ -2481,9 +2777,21 @@ class ApiService {
     String status,
   ) async {
     try {
+      final sessionToken = (await SharedPreferences.getInstance()).getString(
+        'session_token',
+      );
+      if (sessionToken == null || sessionToken.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Please log in again to acknowledge this alert.',
+        };
+      }
       final response = await http.put(
         Uri.parse("$baseUrl/v1/notifications/$notificationId/status"),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $sessionToken',
+        },
         body: jsonEncode({"status": status}),
       );
       if (response.statusCode == 200) {
@@ -2508,13 +2816,24 @@ class ApiService {
       if (!_isBackendUserId(userId)) {
         return {"success": false, "message": "No valid backend user ID"};
       }
+      final sessionToken = prefs.getString('session_token');
+      if (sessionToken == null || sessionToken.isEmpty) {
+        return {
+          "success": false,
+          "message": "Please log in again to enable alerts",
+        };
+      }
 
       final response = await http.post(
         Uri.parse("$baseUrl/v1/auth/fcm-token"),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $sessionToken',
+        },
         body: jsonEncode({"user_id": int.parse(userId!), "fcm_token": token}),
       );
       if (response.statusCode == 200) {
+        unawaited(IosCallService.instance.syncToken());
         return {"success": true};
       }
       return {"success": false};
@@ -2819,10 +3138,21 @@ class ApiService {
       if (!_isBackendUserId(userId)) {
         return {"success": false, "message": "Please log in to start a call."};
       }
+      final sessionToken = prefs.getString('session_token');
+      if (sessionToken == null || sessionToken.isEmpty) {
+        return {
+          "success": false,
+          "message": "Please log in again to start a call.",
+        };
+      }
       final response = await http
           .post(
             Uri.parse("$baseUrl/v1/calls/reports/$reportId"),
-            headers: {"Content-Type": "application/json", "x-user-id": userId!},
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": userId!,
+              "Authorization": "Bearer $sessionToken",
+            },
           )
           .timeout(const Duration(seconds: 15));
       return _callResult(

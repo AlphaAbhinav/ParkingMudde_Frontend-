@@ -5,6 +5,8 @@ import 'package:parkingmudde/screen/auth/loginpage.dart';
 import 'package:parkingmudde/screen/auth/onboarding.dart';
 import 'package:parkingmudde/screen/pageterm/termpage.dart';
 import '../../services/api_service.dart';
+import 'package:parkingmudde/widgets/aadhaar_verification_dialog.dart';
+import 'package:parkingmudde/widgets/user_state_field.dart';
 import 'package:parkingmudde/widgets/screen_slogan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -24,7 +26,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final firstNameCtrl = TextEditingController();
   final lastNameCtrl = TextEditingController();
   final drivingLicenseCtrl = TextEditingController();
-  final aadhaarCtrl = TextEditingController();
+  final dateOfBirthCtrl = TextEditingController();
   final emailCtrl = TextEditingController();
   final mobileCtrl = TextEditingController();
   final passwordCtrl = TextEditingController();
@@ -35,6 +37,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final flatCtrl = TextEditingController();
 
   bool acceptedTerms = false;
+  bool _verifyAadhaarAfterSignup = false;
   bool isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
@@ -47,6 +50,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   List<Map<String, dynamic>> _societiesList = [];
   String? _selectedSociety;
+  String? _state;
 
   @override
   void initState() {
@@ -73,7 +77,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     firstNameCtrl.dispose();
     lastNameCtrl.dispose();
     drivingLicenseCtrl.dispose();
-    aadhaarCtrl.dispose();
+    dateOfBirthCtrl.dispose();
     emailCtrl.dispose();
     mobileCtrl.dispose();
     passwordCtrl.dispose();
@@ -110,9 +114,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
   // --- Step 2 Validations (ID/Referral) ---
   bool _validateStep2() {
     FocusScope.of(context).unfocus();
-    final aadhaar = aadhaarCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (aadhaar.isNotEmpty && aadhaar.length != 12) {
-      return _err("Aadhaar number must be exactly 12 digits.");
+    final dl = drivingLicenseCtrl.text.trim();
+    final dob = dateOfBirthCtrl.text.trim();
+    if (dl.isNotEmpty && !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dob)) {
+      return _err(
+        "Date of birth is required as YYYY-MM-DD to verify the driving licence.",
+      );
     }
     return true; // Mostly optional data
   }
@@ -180,9 +187,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       mobile: mobile,
       email: email,
       password: passwordCtrl.text,
+      state: _state,
       referralCode: referralCtrl.text.trim(),
+      dateOfBirth: dateOfBirthCtrl.text.trim(),
       drivingLicenseNumber: drivingLicenseCtrl.text.trim(),
-      aadhaarNumber: aadhaarCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''),
       societyName: societyCtrl.text.trim(),
       tower: towerCtrl.text.trim(),
       flatNumber: flatCtrl.text.trim(),
@@ -194,9 +202,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
       await ApiService.saveUserSession(result);
       if (!mounted) return;
 
+      final userId = int.tryParse(result["user_id"].toString());
+      if (_verifyAadhaarAfterSignup && userId != null) {
+        await showAadhaarVerification(context, userId);
+      }
+      if (!mounted) return;
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool("is_new_user", true);
       await prefs.setBool("pending_feature_walkthrough", true);
+      if (!mounted) return;
 
       setState(() => isLoading = false);
 
@@ -629,6 +644,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
             controller: emailCtrl,
             keyboardType: TextInputType.emailAddress,
           ),
+          const SizedBox(height: 20),
+          UserStateField(
+            value: _state,
+            enabled: !isLoading,
+            onChanged: (value) => setState(() => _state = value),
+          ),
         ],
       ),
     );
@@ -641,14 +662,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSecureField(
-            label: "Aadhaar number (Optional)",
-            hint: "12-digit number",
-            icon: Icons.badge_outlined,
-            controller: aadhaarCtrl,
-            keyboardType: TextInputType.number,
-            maxLength: 12,
-            isSecureCopy: true,
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text("Verify Aadhaar after signup"),
+            subtitle: const Text("Optional. You can also verify in My Profile."),
+            value: _verifyAadhaarAfterSignup,
+            onChanged: (value) => setState(
+              () => _verifyAadhaarAfterSignup = value ?? false,
+            ),
           ),
           const SizedBox(height: 24),
           _buildSecureField(
@@ -657,6 +678,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
             icon: Icons.contact_mail_outlined,
             controller: drivingLicenseCtrl,
             textCapitalization: TextCapitalization.characters,
+            isSecureCopy: true,
+          ),
+          const SizedBox(height: 16),
+          _buildSecureField(
+            label: "Date of birth for DL verification",
+            hint: "YYYY-MM-DD",
+            icon: Icons.calendar_month_outlined,
+            controller: dateOfBirthCtrl,
+            keyboardType: TextInputType.datetime,
+            maxLength: 10,
             isSecureCopy: true,
           ),
           Align(

@@ -87,12 +87,26 @@ class _FullScreenAlertState extends State<FullScreenAlert>
 
     if (notificationId != null) {
       if (_isReportAlert && reportId != null) {
-        await ApiService.triggerOnTheWay(reportId: reportId.toString());
+        final onTheWay = await ApiService.triggerOnTheWay(reportId: reportId.toString());
+        if (onTheWay['success'] != true) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            Get.snackbar('Unable to respond', onTheWay['message']?.toString() ?? 'Please try again.');
+          }
+          return;
+        }
       }
-      await ApiService.updateNotificationStatus(
+      final status = await ApiService.updateNotificationStatus(
         notificationId.toString(),
         _nextStatus,
       );
+      if (status['success'] != true) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          Get.snackbar('Unable to acknowledge', status['message']?.toString() ?? 'Please try again.');
+        }
+        return;
+      }
     }
 
     if (mounted) {

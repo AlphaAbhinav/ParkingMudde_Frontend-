@@ -13,14 +13,14 @@ import 'package:parkingmudde/widgets/screen_slogan.dart';
 class Otppage extends StatefulWidget {
   final String mobile;
   final String referralCode;
-  final String? testOtp;
+  final String? otpCode;
   final bool requireVehicleOnSuccess;
 
   const Otppage({
     super.key,
     required this.mobile,
     required this.referralCode,
-    this.testOtp,
+    this.otpCode,
     this.requireVehicleOnSuccess = false,
   });
 
@@ -42,7 +42,7 @@ class _OtppageState extends State<Otppage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _showOtpToast(widget.testOtp);
+      _showOtpToast(widget.otpCode);
     });
   }
 
@@ -77,10 +77,11 @@ class _OtppageState extends State<Otppage> {
   }
 
   void _showOtpToast(String? otp) {
-    if (otp == null || otp.trim().isEmpty) {
+    final code = otp?.trim() ?? "";
+    if (code.isEmpty) {
       _showAuthToast(
-        title: "Code sent",
-        message: "A 6-digit code has been sent to your mobile.",
+        title: "Couldn't show the code",
+        message: "Please tap Resend it to generate a new login code.",
       );
       return;
     }
@@ -90,15 +91,15 @@ class _OtppageState extends State<Otppage> {
     }
 
     Get.snackbar(
-      "OTP sent",
-      "Your OTP is ${otp.trim()}",
+      "Your login OTP",
+      code,
       backgroundColor: brandBlue,
       colorText: Colors.white,
       snackPosition: SnackPosition.TOP,
       margin: const EdgeInsets.all(15),
       borderRadius: 12,
       icon: const Icon(Icons.password_rounded, color: Colors.white),
-      duration: const Duration(seconds: 12),
+      duration: const Duration(seconds: 10),
     );
   }
 
@@ -122,7 +123,6 @@ class _OtppageState extends State<Otppage> {
     );
 
     if (!mounted) return;
-    setState(() => isLoading = false);
 
     if (result["success"] == true) {
       final prefs = await SharedPreferences.getInstance();
@@ -130,6 +130,7 @@ class _OtppageState extends State<Otppage> {
         ...result,
         "mobile_number": widget.mobile,
       });
+      if (!mounted) return;
       final isNewAccount =
           result["is_new_user"] == true || widget.requireVehicleOnSuccess;
       if (isNewAccount) {
@@ -164,9 +165,11 @@ class _OtppageState extends State<Otppage> {
         Get.offAll(() => const Dash());
       }
     } else {
+      setState(() => isLoading = false);
       _showAuthToast(
         title: result["title"]?.toString() ?? "Invalid Code",
-        message: result["message"]?.toString() ??
+        message:
+            result["message"]?.toString() ??
             "That code doesn't seem right. Please check and try again.",
       );
     }
@@ -241,7 +244,8 @@ class _OtppageState extends State<Otppage> {
                       ),
                       children: [
                         const TextSpan(
-                          text: "We've just sent a secure 6-digit code to\n",
+                          text:
+                              "Use the 6-digit code shown above to sign in with\n",
                         ),
                         TextSpan(
                           text: "+91 ${widget.mobile}",
@@ -346,8 +350,11 @@ class _OtppageState extends State<Otppage> {
                                   _showOtpToast(newOtp);
                                 } else {
                                   _showAuthToast(
-                                    title: result["title"]?.toString() ?? "Hold on",
-                                    message: result["message"]?.toString() ??
+                                    title:
+                                        result["title"]?.toString() ??
+                                        "Hold on",
+                                    message:
+                                        result["message"]?.toString() ??
                                         "We couldn't resend the code just yet. Please try again.",
                                   );
                                 }

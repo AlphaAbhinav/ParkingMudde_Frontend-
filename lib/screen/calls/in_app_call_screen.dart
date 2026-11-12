@@ -1,9 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:parkingmudde/services/api_service.dart';
+import 'package:parkingmudde/services/call_session.dart';
 
 class InAppCallScreen extends StatefulWidget {
   final String callId;
@@ -26,303 +24,38 @@ class InAppCallScreen extends StatefulWidget {
 }
 
 class _InAppCallScreenState extends State<InAppCallScreen> {
-  RTCPeerConnection? _peerConnection;
-  MediaStream? _localStream;
-  Timer? _pollTimer;
-  Timer? _durationTimer;
-  int _lastSignalId = 0;
-  int _durationSeconds = 0;
-  bool _polling = false;
-  bool _startingPeer = false;
-  bool _offerSent = false;
-  bool _remoteDescriptionSet = false;
-  bool _muted = false;
-  bool _speakerOn = false;
-  bool _ending = false;
-  bool _connected = false;
-  String _status = 'Calling privately…';
-  final List<RTCIceCandidate> _pendingCandidates = [];
-  List<Map<String, dynamic>> _iceServers = [
-    {
-      'urls': ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
-    },
-  ];
+  late final CallSession call;
+  bool closing = false;
 
   @override
   void initState() {
     super.initState();
-    _status = widget.isCaller
-        ? 'Waiting for ${widget.otherPartyLabel.toLowerCase()}…'
-        : 'Connecting securely…';
-    _pollTimer = Timer.periodic(
-      const Duration(milliseconds: 900),
-      (_) => unawaited(_pollOnce()),
-    );
-    unawaited(_pollOnce());
-  }
-
-  void _setStatus(String value) {
-    if (mounted && value != _status) setState(() => _status = value);
-  }
-
-  Future<void> _pollOnce() async {
-    if (_polling || _ending) return;
-    _polling = true;
-    try {
-      final call = await ApiService.getInAppCall(
-        widget.callId,
-        widget.callToken,
-      );
-      if (call['success'] != true) return;
-      final configuredServers = call['ice_servers'];
-      if (configuredServers is List && configuredServers.isNotEmpty) {
-        _iceServers = configuredServers
-            .whereType<Map>()
-            .map((server) => Map<String, dynamic>.from(server))
-            .toList();
-      }
-      final state = call['status']?.toString().toUpperCase();
-      if (const {'REJECTED', 'ENDED', 'MISSED', 'FAILED'}.contains(state)) {
-        await _remoteFinished(state ?? 'ENDED');
-        return;
-      }
-      if (state == 'ACCEPTED') {
-        await _ensurePeerConnection();
-        if (widget.isCaller && !_offerSent) await _sendOffer();
-        await _receiveSignals();
-      }
-    } finally {
-      _polling = false;
-    }
-  }
-
-  Future<void> _ensurePeerConnection() async {
-    if (_peerConnection != null || _startingPeer) return;
-    _startingPeer = true;
-    try {
-      _setStatus('Requesting microphone access…');
-      _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': {
-          'echoCancellation': true,
-          'noiseSuppression': true,
-          'autoGainControl': true,
-        },
-        'video': false,
-      });
-
-      final connection = await createPeerConnection({
-        'iceServers': _iceServers,
-        'sdpSemantics': 'unified-plan',
-      });
-      _peerConnection = connection;
-
-      for (final track in _localStream!.getAudioTracks()) {
-        await connection.addTrack(track, _localStream!);
-      }
-
-      connection.onIceCandidate = (candidate) {
-        if (candidate.candidate == null) return;
-        unawaited(
-          _sendSignalWithRetry('ice', {
-            'candidate': candidate.candidate,
-            'sdpMid': candidate.sdpMid,
-            'sdpMLineIndex': candidate.sdpMLineIndex,
-          }),
-        );
-      };
-      connection.onTrack = (event) {
-        if (event.track.kind == 'audio') {
-          event.track.enabled = true;
-        }
-      };
-      connection.onConnectionState = (state) {
-        if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-          _markConnected();
-        } else if (state ==
-                RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-            state ==
-                RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-          _setStatus('Reconnecting…');
-        }
-      };
-      _setStatus('Connecting securely…');
-    } catch (error) {
-      _setStatus('Microphone access is required for this call');
-      await ApiService.endInAppCall(
-        widget.callId,
-        widget.callToken,
-        reason: 'microphone_unavailable',
-      );
-    } finally {
-      _startingPeer = false;
-    }
-  }
-
-  Future<void> _sendOffer() async {
-    final connection = _peerConnection;
-    if (connection == null || _offerSent) return;
-    final offer = await connection.createOffer({'offerToReceiveAudio': true});
-    await connection.setLocalDescription(offer);
-    _offerSent = await _sendSignalWithRetry('offer', {
-      'sdp': offer.sdp,
-      'type': offer.type,
-    });
-  }
-
-  Future<bool> _sendSignalWithRetry(
-    String type,
-    Map<String, dynamic> payload,
-  ) async {
-    for (var attempt = 0; attempt < 3; attempt++) {
-      final sent = await ApiService.sendInAppCallSignal(
-        callId: widget.callId,
-        callToken: widget.callToken,
-        type: type,
-        payload: payload,
-      );
-      if (sent) return true;
-      await Future<void>.delayed(const Duration(milliseconds: 350));
-    }
-    return false;
-  }
-
-  Future<void> _receiveSignals() async {
-    final connection = _peerConnection;
-    if (connection == null) return;
-    final signals = await ApiService.getInAppCallSignals(
+    call = CallSession.obtain(
       callId: widget.callId,
       callToken: widget.callToken,
-      after: _lastSignalId,
+      isCaller: widget.isCaller,
+      otherPartyLabel: widget.otherPartyLabel,
     );
-    for (final signal in signals) {
-      final id = int.tryParse(signal['id']?.toString() ?? '') ?? 0;
-      if (id > _lastSignalId) _lastSignalId = id;
-      final type = signal['type']?.toString();
-      final rawPayload = signal['payload'];
-      if (rawPayload is! Map) continue;
-      final payload = Map<String, dynamic>.from(rawPayload);
-
-      if (type == 'offer' && !widget.isCaller) {
-        await connection.setRemoteDescription(
-          RTCSessionDescription(payload['sdp']?.toString(), 'offer'),
-        );
-        _remoteDescriptionSet = true;
-        await _flushPendingCandidates();
-        final answer = await connection.createAnswer({
-          'offerToReceiveAudio': true,
-        });
-        await connection.setLocalDescription(answer);
-        await _sendSignalWithRetry('answer', {
-          'sdp': answer.sdp,
-          'type': answer.type,
-        });
-      } else if (type == 'answer' && widget.isCaller) {
-        await connection.setRemoteDescription(
-          RTCSessionDescription(payload['sdp']?.toString(), 'answer'),
-        );
-        _remoteDescriptionSet = true;
-        await _flushPendingCandidates();
-      } else if (type == 'ice') {
-        final candidate = RTCIceCandidate(
-          payload['candidate']?.toString(),
-          payload['sdpMid']?.toString(),
-          int.tryParse(payload['sdpMLineIndex']?.toString() ?? ''),
-        );
-        if (_remoteDescriptionSet) {
-          await connection.addCandidate(candidate);
-        } else {
-          _pendingCandidates.add(candidate);
-        }
-      }
-    }
+    call.addListener(changed);
   }
 
-  Future<void> _flushPendingCandidates() async {
-    final connection = _peerConnection;
-    if (connection == null) return;
-    for (final candidate in List<RTCIceCandidate>.from(_pendingCandidates)) {
-      await connection.addCandidate(candidate);
-    }
-    _pendingCandidates.clear();
-  }
-
-  void _markConnected() {
-    if (_connected) return;
-    _connected = true;
-    _setStatus('Private call connected');
-    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _durationSeconds++);
-    });
-  }
-
-  Future<void> _toggleMute() async {
-    _muted = !_muted;
-    for (final track
-        in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
-      track.enabled = !_muted;
-    }
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _toggleSpeaker() async {
-    _speakerOn = !_speakerOn;
-    if (!kIsWeb) await Helper.setSpeakerphoneOn(_speakerOn);
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _hangUp() async {
-    if (_ending) return;
-    _ending = true;
-    await ApiService.endInAppCall(widget.callId, widget.callToken);
-    await _disposeMedia();
-    if (mounted) Navigator.of(context).pop(true);
-  }
-
-  Future<void> _remoteFinished(String state) async {
-    if (_ending) return;
-    _ending = true;
-    await _disposeMedia();
+  void changed() {
     if (!mounted) return;
-    final message = switch (state) {
-      'REJECTED' => 'The call was declined.',
-      'MISSED' => 'The call was not answered.',
-      _ => 'The call has ended.',
-    };
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-    Navigator.of(context).pop(true);
-  }
-
-  Future<void> _disposeMedia() async {
-    _pollTimer?.cancel();
-    _durationTimer?.cancel();
-    for (final track in _localStream?.getTracks() ?? <MediaStreamTrack>[]) {
-      track.stop();
+    if (call.ending && !closing) {
+      closing = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+          Navigator.of(context).pop(true);
+        }
+      });
     }
-    await _localStream?.dispose();
-    await _peerConnection?.close();
-    await _peerConnection?.dispose();
-    _localStream = null;
-    _peerConnection = null;
-  }
-
-  String get _durationLabel {
-    final minutes = _durationSeconds ~/ 60;
-    final seconds = _durationSeconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    setState(() {});
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
-    _durationTimer?.cancel();
-    for (final track in _localStream?.getTracks() ?? <MediaStreamTrack>[]) {
-      track.stop();
-    }
-    unawaited(_localStream?.dispose() ?? Future<void>.value());
-    unawaited(_peerConnection?.close() ?? Future<void>.value());
-    unawaited(_peerConnection?.dispose() ?? Future<void>.value());
+    call.removeListener(changed);
+    if (!call.nativeManaged && !call.ending) unawaited(call.hangUp());
     super.dispose();
   }
 
@@ -331,7 +64,7 @@ class _InAppCallScreenState extends State<InAppCallScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) unawaited(_hangUp());
+        if (!didPop) unawaited(call.hangUp());
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF081A2E),
@@ -392,7 +125,7 @@ class _InAppCallScreenState extends State<InAppCallScreen> {
                 ],
                 const SizedBox(height: 14),
                 Text(
-                  _connected ? _durationLabel : _status,
+                  call.connected ? call.durationLabel : call.status,
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white70, fontSize: 16),
                 ),
@@ -407,24 +140,26 @@ class _InAppCallScreenState extends State<InAppCallScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _roundControl(
-                      icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                      label: _muted ? 'Unmute' : 'Mute',
-                      active: _muted,
-                      onTap: _toggleMute,
+                      icon: call.muted
+                          ? Icons.mic_off_rounded
+                          : Icons.mic_rounded,
+                      label: call.muted ? 'Unmute' : 'Mute',
+                      active: call.muted,
+                      onTap: call.toggleMute,
                     ),
                     _roundControl(
-                      icon: _speakerOn
+                      icon: call.speakerOn
                           ? Icons.volume_up_rounded
                           : Icons.hearing_rounded,
                       label: 'Speaker',
-                      active: _speakerOn,
-                      onTap: _toggleSpeaker,
+                      active: call.speakerOn,
+                      onTap: call.toggleSpeaker,
                     ),
                     _roundControl(
                       icon: Icons.call_end_rounded,
                       label: 'End',
                       color: const Color(0xFFE24444),
-                      onTap: _hangUp,
+                      onTap: call.hangUp,
                     ),
                   ],
                 ),

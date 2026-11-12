@@ -1,12 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const parkingMuddeCustomPushChannelId = 'parking_mudde_loop_alert_tone_v1';
-const parkingMuddeCallChannelId = 'parking_mudde_calls_v1';
+const parkingMuddeUrgentFullScreenChannelId =
+    'parking_mudde_urgent_full_screen_v12';
+const parkingMuddeCallChannelId = 'parking_mudde_calls_v2';
 const _customAlertSound = UriAndroidNotificationSound(
   'content://com.parkingmudde.app.notification_sound/parking_mudde_loop_alert',
 );
@@ -25,22 +30,73 @@ const _loudPushChannel = AndroidNotificationChannel(
 );
 
 const generalChannel = _loudPushChannel;
-const _urgentAlertChannel = _loudPushChannel;
+const _urgentAlertChannel = AndroidNotificationChannel(
+  parkingMuddeUrgentFullScreenChannelId,
+  'Urgent full-screen vehicle alerts',
+  description:
+      'Report, help, and emergency alerts that wake and cover the lock screen.',
+  importance: Importance.max,
+  playSound: true,
+  sound: _customAlertSound,
+  audioAttributesUsage: AudioAttributesUsage.alarm,
+  enableVibration: true,
+);
 const _otpChannel = _loudPushChannel;
 const _callChannel = AndroidNotificationChannel(
   parkingMuddeCallChannelId,
-  'Incoming calls',
-  description: 'Private in-app call notifications.',
-  importance: Importance.high,
+  'Incoming full-screen calls',
+  description:
+      'Urgent private in-app calls that can appear over the lock screen.',
+  importance: Importance.max,
   playSound: true,
+  sound: _customAlertSound,
+  audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
   enableVibration: true,
 );
 
 final _notifications = FlutterLocalNotificationsPlugin();
 
 class PushNotificationService {
+  static const _overlayChannel = MethodChannel(
+    'com.parkingmudde.app/urgent_overlay',
+  );
+  static const _overlayPermissionRequestedKey =
+      'urgent_overlay_permission_requested';
   static bool _ready = false;
   static Future<void> Function(Map<String, dynamic>)? _onUrgentAlertOpened;
+
+  static Future<void> dismissIncomingCall(Map<String, dynamic> data) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _overlayChannel.invokeMethod<void>('dismissCallOverlay', {
+        'call_id': data['call_id']?.toString(),
+      });
+      final id = int.tryParse(data['notification_id']?.toString() ?? '');
+      if (id != null) await _notifications.cancel(id);
+    } on PlatformException catch (error) {
+      debugPrint('Call alert cleanup failed: ${error.code}');
+    } on MissingPluginException {
+      // No native notification host in widget tests.
+    }
+  }
+
+  static void bindNativeAlertHandler(
+    Future<void> Function(Map<String, dynamic>) onOpened,
+  ) {
+    _onUrgentAlertOpened = onOpened;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    _overlayChannel.setMethodCallHandler((call) async {
+      if (call.method == 'openAlert' && call.arguments is Map) {
+        unawaited(onOpened(Map<String, dynamic>.from(call.arguments as Map)));
+      }
+    });
+  }
+
+  static int _notificationId(RemoteMessage message) =>
+      int.tryParse(message.data['notification_id']?.toString() ?? '') ??
+      (message.messageId ?? message.data['call_id']?.toString() ?? 'alert')
+          .codeUnits
+          .fold<int>(0, (value, unit) => (value * 31 + unit) & 0x7fffffff);
 
   static Future<void> initializeLocalNotifications({
     Future<void> Function(Map<String, dynamic>)? onUrgentAlertOpened,
@@ -52,9 +108,9 @@ class PushNotificationService {
     const settings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       iOS: DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestSoundPermission: true,
-        requestBadgePermission: true,
+        requestAlertPermission: false,
+        requestSoundPermission: false,
+        requestBadgePermission: false,
         defaultPresentAlert: true,
         defaultPresentSound: true,
         defaultPresentBadge: true,
@@ -78,6 +134,7 @@ class PushNotificationService {
     if (requestPermissions) {
       await android?.requestNotificationsPermission();
       await android?.requestFullScreenIntentPermission();
+      await _requestOverlayPermissionOnce();
       await _notifications
           .resolvePlatformSpecificImplementation<
             IOSFlutterLocalNotificationsPlugin
@@ -88,6 +145,16 @@ class PushNotificationService {
     _ready = true;
 
     if (requestPermissions) {
+      if (Platform.isAndroid) {
+        final pending = await _overlayChannel.invokeMapMethod<String, dynamic>(
+          'getPendingAlert',
+        );
+        if (pending != null) {
+          unawaited(
+            _onUrgentAlertOpened?.call(pending) ?? Future<void>.value(),
+          );
+        }
+      }
       final launchDetails = await _notifications
           .getNotificationAppLaunchDetails();
       final response = launchDetails?.notificationResponse;
@@ -97,6 +164,22 @@ class PushNotificationService {
           () => _handleNotificationResponse(response),
         );
       }
+    }
+  }
+
+  static Future<void> _requestOverlayPermissionOnce() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final allowed =
+          await _overlayChannel.invokeMethod<bool>('canDrawOverlays') ?? false;
+      if (allowed) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_overlayPermissionRequestedKey) == true) return;
+      await prefs.setBool(_overlayPermissionRequestedKey, true);
+      await _overlayChannel.invokeMethod<void>('requestOverlayPermission');
+    } catch (_) {
+      // Full-screen notifications continue to work as the fallback.
     }
   }
 
@@ -111,6 +194,9 @@ class PushNotificationService {
     final decoded = jsonDecode(payload);
     if (decoded is Map) {
       final data = Map<String, dynamic>.from(decoded);
+      if (response.actionId == 'answer' || response.actionId == 'decline') {
+        data['call_action'] = response.actionId;
+      }
       _onUrgentAlertOpened?.call(data);
     }
   }
@@ -129,6 +215,10 @@ class PushNotificationService {
     final type = message.data['type']?.toString().toUpperCase();
     final status = message.data['status']?.toString().toUpperCase();
     if (type != 'IN_APP_CALL' || status != 'RINGING') return;
+    final expires = DateTime.tryParse(
+      message.data['expires_at']?.toString() ?? '',
+    );
+    if (expires != null && !expires.isAfter(DateTime.now())) return;
 
     await initializeLocalNotifications(requestPermissions: false);
     final data = <String, dynamic>{...message.data};
@@ -136,8 +226,7 @@ class PushNotificationService {
     data['description'] ??= message.notification?.body ?? data['body'];
 
     await _notifications.show(
-      message.messageId?.hashCode ??
-          DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
+      _notificationId(message),
       message.notification?.title ??
           data['title']?.toString() ??
           'Incoming private call',
@@ -146,16 +235,32 @@ class PushNotificationService {
       const NotificationDetails(
         android: AndroidNotificationDetails(
           parkingMuddeCallChannelId,
-          'Incoming calls',
-          channelDescription: 'Private in-app call notifications.',
-          importance: Importance.high,
-          priority: Priority.high,
+          'Incoming full-screen calls',
+          channelDescription:
+              'Urgent private in-app calls that can appear over the lock screen.',
+          importance: Importance.max,
+          priority: Priority.max,
           category: AndroidNotificationCategory.call,
-          visibility: NotificationVisibility.private,
+          visibility: NotificationVisibility.public,
           playSound: true,
-          ongoing: false,
-          autoCancel: true,
-          fullScreenIntent: false,
+          sound: _customAlertSound,
+          audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
+          ongoing: true,
+          autoCancel: false,
+          fullScreenIntent: true,
+          timeoutAfter: 90000,
+          actions: [
+            AndroidNotificationAction(
+              'answer',
+              'Answer',
+              showsUserInterface: true,
+            ),
+            AndroidNotificationAction(
+              'decline',
+              'Decline',
+              showsUserInterface: true,
+            ),
+          ],
         ),
       ),
       payload: jsonEncode(data),
@@ -166,6 +271,9 @@ class PushNotificationService {
     if (!_isUrgentAlert(message) || (!Platform.isAndroid && !Platform.isIOS)) {
       return;
     }
+    // APNs already presents the visible iOS alert while Flutter is suspended.
+    // Posting a local copy here creates duplicate sounds and notifications.
+    if (Platform.isIOS) return;
     await initializeLocalNotifications(requestPermissions: false);
 
     final data = <String, dynamic>{...message.data};
@@ -199,6 +307,7 @@ class PushNotificationService {
               audioAttributesUsage: AudioAttributesUsage.alarm,
               ongoing: true,
               autoCancel: false,
+              timeoutAfter: 120000,
             ),
           )
         : const NotificationDetails(
@@ -214,8 +323,7 @@ class PushNotificationService {
           );
 
     await _notifications.show(
-      message.messageId?.hashCode ??
-          DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
+      _notificationId(message),
       title,
       body,
       details,

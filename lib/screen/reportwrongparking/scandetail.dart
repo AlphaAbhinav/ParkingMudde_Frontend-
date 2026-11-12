@@ -4,6 +4,7 @@ import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart'
 import 'package:parkingmudde/screen/homepage/homepage.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:parkingmudde/widgets/evidence_review_loader.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:parkingmudde/screen/reportwrongparking/thankspagecall.dart';
@@ -13,7 +14,8 @@ import 'package:parkingmudde/screen/wallet/walletpage.dart';
 import 'package:parkingmudde/services/api_service.dart';
 
 import 'package:razorpay_flutter/razorpay_flutter.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:parkingmudde/services/razorpay_web_checkout.dart';
 import 'package:provider/provider.dart';
 import '../../providers/wallet_provider.dart';
@@ -48,6 +50,9 @@ class ReportProofScreen extends StatefulWidget {
 
 class _ReportProofScreenState extends State<ReportProofScreen> {
   final TextEditingController situationController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  final GlobalKey<ScaffoldMessengerState> _messengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   List<XFile> images = [];
   List<Uint8List> imageBytes = [];
@@ -72,6 +77,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   bool get _isHelpFlow => widget.typev == "help";
   bool get _isEmergencyFlow => widget.typev == "emergency";
   bool get _requiresSinglePhoto => _isHelpFlow || _isEmergencyFlow;
+  bool get _usesFilePicker =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.linux;
   String get _aiConfidenceLevel => AiConfidenceBadge.confidenceLevelForFlow(
     flow: widget.typev,
     group: widget.selectedIssueConfidenceGroup,
@@ -118,19 +128,41 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       return;
     }
 
-    final XFile? file = await Navigator.of(context).push<XFile>(
-      MaterialPageRoute(builder: (_) => const EvidenceCameraCaptureScreen()),
-    );
-
-    if (file == null) return;
-
     try {
-      Uint8List bytes = await file.readAsBytes();
+      List<XFile> selectedFiles = [];
+      if (_usesFilePicker) {
+        final remainingSlots = maxImages - images.length;
+        if (_requiresSinglePhoto || remainingSlots == 1) {
+          final file = await _imagePicker.pickImage(
+            source: ImageSource.gallery,
+          );
+          if (file != null) selectedFiles = [file];
+        } else {
+          selectedFiles = await _imagePicker.pickMultiImage(
+            limit: remainingSlots,
+          );
+        }
+      } else {
+        if (!mounted) return;
+        final file = await Navigator.of(context).push<XFile>(
+          MaterialPageRoute(
+            builder: (_) => const EvidenceCameraCaptureScreen(),
+          ),
+        );
+        if (file != null) selectedFiles = [file];
+      }
+
+      if (selectedFiles.isEmpty) return;
+
+      final selectedBytes = <Uint8List>[];
+      for (final file in selectedFiles) {
+        selectedBytes.add(await file.readAsBytes());
+      }
 
       if (mounted) {
         setState(() {
-          images.add(file);
-          imageBytes.add(bytes);
+          images.addAll(selectedFiles);
+          imageBytes.addAll(selectedBytes);
         });
       }
     } catch (e) {
@@ -145,11 +177,20 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       return;
     }
 
-    final XFile? file = await Navigator.of(context).push<XFile>(
-      MaterialPageRoute(
-        builder: (_) => const EvidenceCameraCaptureScreen(captureVideo: true),
-      ),
-    );
+    XFile? file;
+    try {
+      file = _usesFilePicker
+          ? await _imagePicker.pickVideo(source: ImageSource.gallery)
+          : await Navigator.of(context).push<XFile>(
+              MaterialPageRoute(
+                builder: (_) =>
+                    const EvidenceCameraCaptureScreen(captureVideo: true),
+              ),
+            );
+    } catch (_) {
+      showSnack("Failed to load video. Please try again.");
+      return;
+    }
 
     if (file == null) return;
 
@@ -160,8 +201,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
   // Modernized strictly floating graphical wrapper around existing scaffold context snackbar!
   void showSnack(String msg) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
+    if (!mounted) return;
+    _messengerKey.currentState?.hideCurrentSnackBar();
+    _messengerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text(
           msg,
@@ -203,7 +245,6 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       onConfirm: () => Get.back(),
     );
   }
-
 
   void _handleExternalWallet(ExternalWalletResponse response) {
     _razorpayEventReceived = true;
@@ -271,11 +312,38 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     String? rPaymentId,
     String? rSignature,
   }) async {
+    try {
+      await _performSubmitReport(
+        rOrderId: rOrderId,
+        rPaymentId: rPaymentId,
+        rSignature: rSignature,
+      );
+    } on TimeoutException {
+      if (mounted) {
+        showSnack(
+          'Location permission or lookup timed out. Allow location access and try again.',
+        );
+      }
+    } catch (error, stack) {
+      debugPrint('Report submission failed: $error\n$stack');
+      if (mounted) showSnack('Unable to finish the report. Please try again.');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _performSubmitReport({
+    String? rOrderId,
+    String? rPaymentId,
+    String? rSignature,
+  }) async {
     if (!mounted) return;
     setState(() => isLoading = true);
 
     // ENFORCE LIVE LOCATION
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled().timeout(
+      const Duration(seconds: 30),
+    );
     if (!serviceEnabled) {
       if (mounted) {
         showSnack("Please enable location services to submit a report.");
@@ -284,9 +352,13 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       return;
     }
 
-    LocationPermission permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission().timeout(
+      const Duration(seconds: 30),
+    );
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      permission = await Geolocator.requestPermission().timeout(
+        const Duration(seconds: 30),
+      );
       if (permission == LocationPermission.denied) {
         if (mounted) {
           showSnack("Location permissions are denied.");
@@ -307,7 +379,7 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
     try {
       position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-      );
+      ).timeout(const Duration(seconds: 30));
     } catch (e) {
       if (mounted) {
         showSnack("Failed to get current location. Please try again.");
@@ -379,9 +451,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
     if (result["success"] == true) {
       // Refresh wallet balance using Provider
-      unawaited(context.read<WalletProvider>().fetchWallet().catchError((Object error) {
-        debugPrint('Wallet refresh after report failed: $error');
-      }));
+      unawaited(
+        context.read<WalletProvider>().fetchWallet().catchError((Object error) {
+          debugPrint('Wallet refresh after report failed: $error');
+        }),
+      );
 
       final reportId = result["data"] is Map
           ? result["data"]["report_id"]?.toString()
@@ -397,9 +471,12 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
       final aiVerdictRes = result["data"] is Map
           ? result["data"]["ai_verdict"] ?? "UNDER_REVIEW"
           : "UNDER_REVIEW";
-      final aiReasonsRes = result["data"] is Map
+      final rawAiReasons = result["data"] is Map
           ? result["data"]["ai_reasons"]
           : null;
+      final aiReasonsRes = rawAiReasons is List
+          ? rawAiReasons.join(', ')
+          : rawAiReasons?.toString();
 
       Get.to(
         () => ThankYouReportScreen(
@@ -528,6 +605,13 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FA),
       appBar: AppBar(
@@ -673,7 +757,11 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
                             children: [
                               TextSpan(
                                 text: _requiresSinglePhoto
-                                    ? "Upload 1 real-time photo proof."
+                                    ? _usesFilePicker
+                                          ? "Upload 1 photo from your laptop."
+                                          : "Capture 1 real-time photo proof."
+                                    : _usesFilePicker
+                                    ? "Upload Front, Back, Left and Right photos OR 1 clear video."
                                     : "Capture Front, Back, Left and Right photos OR 1 clear video.",
                                 style: TextStyle(
                                   color: Colors.blueGrey.shade500,
@@ -714,65 +802,12 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
   }
 
   Widget _requestLoadingOverlay() {
-    final isHelp = widget.typev == "help";
-
     return Positioned.fill(
       child: AbsorbPointer(
-        child: Container(
-          color: Colors.black.withOpacity(0.34),
-          child: Center(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 28),
-              padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.18),
-                    blurRadius: 30,
-                    offset: const Offset(0, 14),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    height: 36,
-                    width: 36,
-                    child: CircularProgressIndicator(
-                      color: Color(0XFF184B8C),
-                      strokeWidth: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    isHelp ? "Submitting help request" : "Submitting report",
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFF1E293B),
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    isHelp
-                        ? "Notifying the vehicle owner privately..."
-                        : "Uploading proof and checking the request...",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.blueGrey.shade500,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        child: EvidenceReviewLoader(
+          photos: imageBytes,
+          isVideo: videoFile != null,
+          isHelp: _isHelpFlow,
         ),
       ),
     );
@@ -896,7 +931,9 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
 
   /// Big Touch Action Squares showing what state users are inside of smartly
   Widget _uploadActions() {
-    bool hasMaxPhotos = images.length >= (_requiresSinglePhoto ? 1 : 4);
+    final maxPhotos = _requiresSinglePhoto ? 1 : 4;
+    final hasMaxPhotos = images.length >= maxPhotos;
+    final remainingPhotos = maxPhotos - images.length;
     bool photoModeBlocked = videoFile != null;
     bool videoModeBlocked = images.isNotEmpty || _requiresSinglePhoto;
 
@@ -907,14 +944,20 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
             duration: const Duration(milliseconds: 300),
             opacity: photoModeBlocked ? 0.4 : 1.0,
             child: _uploadButton(
-              icon: Icons.add_a_photo_outlined,
+              icon: _usesFilePicker
+                  ? Icons.upload_file_rounded
+                  : Icons.add_a_photo_outlined,
               title: hasMaxPhotos
                   ? "Limit Reached"
+                  : _usesFilePicker
+                  ? (_requiresSinglePhoto
+                        ? "Upload Photo"
+                        : "Upload $remainingPhotos ${remainingPhotos == 1 ? 'Photo' : 'Photos'}")
                   : (_requiresSinglePhoto
                         ? "Capture Proof"
                         : "Capture ${_reportAngleLabels[images.length]}"),
               subtitle:
-                  "${images.length}/${_requiresSinglePhoto ? 1 : 4} captured",
+                  "${images.length}/${_requiresSinglePhoto ? 1 : 4} ${_usesFilePicker ? 'selected' : 'captured'}",
               colorTint: const Color(0XFF184B8C),
               onTap: pickImage,
             ),
@@ -926,8 +969,12 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
             duration: const Duration(milliseconds: 300),
             opacity: videoModeBlocked ? 0.4 : 1.0,
             child: _uploadButton(
-              icon: Icons.video_call_outlined,
-              title: videoFile != null ? "Video Captured" : "Record Video",
+              icon: _usesFilePicker
+                  ? Icons.video_file_outlined
+                  : Icons.video_call_outlined,
+              title: videoFile != null
+                  ? (_usesFilePicker ? "Video Selected" : "Video Captured")
+                  : (_usesFilePicker ? "Upload Video" : "Record Video"),
               subtitle: videoFile != null ? "Ready to submit" : "1 clear clip",
               colorTint: Colors.green.shade600,
               onTap: pickVideo,
@@ -1223,17 +1270,14 @@ class _ReportProofScreenState extends State<ReportProofScreen> {
               ? Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
+                    const Icon(
+                      Icons.local_police_outlined,
+                      color: Colors.white,
+                      size: 20,
                     ),
                     const SizedBox(width: 12),
                     const Text(
-                      "Processing API Upload...",
+                      "Reviewing evidence…",
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,

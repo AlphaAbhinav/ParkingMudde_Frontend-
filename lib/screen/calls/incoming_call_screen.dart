@@ -4,11 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:parkingmudde/screen/calls/in_app_call_screen.dart';
 import 'package:parkingmudde/services/alert_sound_player.dart';
 import 'package:parkingmudde/services/api_service.dart';
+import 'package:parkingmudde/services/push_notification_service.dart';
 
 class IncomingCallScreen extends StatefulWidget {
   final Map<String, dynamic> callData;
+  final String? initialAction;
 
-  const IncomingCallScreen({super.key, required this.callData});
+  const IncomingCallScreen({
+    super.key,
+    required this.callData,
+    this.initialAction,
+  });
 
   @override
   State<IncomingCallScreen> createState() => _IncomingCallScreenState();
@@ -16,8 +22,12 @@ class IncomingCallScreen extends StatefulWidget {
 
 class _IncomingCallScreenState extends State<IncomingCallScreen> {
   Timer? _statusTimer;
+  Timer? _expiryTimer;
   bool _busy = false;
+  bool _checking = false;
+  bool _closing = false;
   String? _error;
+  late final DateTime _expiresAt;
 
   String get _callId => widget.callData['call_id']?.toString() ?? '';
   String get _callToken => widget.callData['call_token']?.toString() ?? '';
@@ -29,35 +39,92 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(AlertSoundPlayer.instance.play());
+    unawaited(PushNotificationService.dismissIncomingCall(widget.callData));
+    _expiresAt =
+        DateTime.tryParse(widget.callData['expires_at']?.toString() ?? '') ??
+        DateTime.now().add(const Duration(seconds: 90));
+    if (!DateTime.now().isBefore(_expiresAt)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_close()));
+      return;
+    }
+    if (widget.initialAction == 'answer' || widget.initialAction == 'decline') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(widget.initialAction == 'answer' ? _accept() : _decline());
+      });
+    } else {
+      unawaited(AlertSoundPlayer.instance.play());
+    }
+    _expiryTimer = Timer(
+      _expiresAt.difference(DateTime.now()),
+      () => unawaited(_close()),
+    );
     _statusTimer = Timer.periodic(
       const Duration(seconds: 2),
       (_) => unawaited(_checkStillRinging()),
     );
-    unawaited(_checkStillRinging());
+    if (widget.initialAction == null) unawaited(_checkStillRinging());
   }
 
   Future<void> _checkStillRinging() async {
-    if (_busy || _callId.isEmpty || _callToken.isEmpty) return;
-    final result = await ApiService.getInAppCall(_callId, _callToken);
-    if (!mounted || result['success'] != true) return;
-    final status = result['status']?.toString().toUpperCase();
-    if (status != 'RINGING') {
-      await AlertSoundPlayer.instance.stop();
-      if (mounted) Navigator.of(context).pop(true);
+    if (_closing ||
+        _busy ||
+        _checking ||
+        _callId.isEmpty ||
+        _callToken.isEmpty) {
+      return;
+    }
+    if (!DateTime.now().isBefore(_expiresAt)) {
+      await _close();
+      return;
+    }
+    _checking = true;
+    try {
+      final result = await ApiService.getInAppCall(_callId, _callToken);
+      if (!mounted || _closing || _busy || result['success'] != true) return;
+      if (result['status']?.toString().toUpperCase() != 'RINGING') {
+        await _close();
+      }
+    } finally {
+      _checking = false;
+    }
+  }
+
+  Future<void> _close() async {
+    if (_closing || !mounted) return;
+    _closing = true;
+    await AlertSoundPlayer.instance.stop();
+    if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+      Navigator.of(context).pop(true);
     }
   }
 
   Future<void> _accept() async {
     if (_busy) return;
+    _expiryTimer?.cancel();
     setState(() {
       _busy = true;
       _error = null;
     });
     await AlertSoundPlayer.instance.stop();
-    final result = await ApiService.acceptInAppCall(_callId, _callToken);
-    if (!mounted) return;
+    var result = await ApiService.acceptInAppCall(_callId, _callToken);
+    // A repeated Answer delivery must not tear down an accepted call.
     if (result['success'] != true) {
+      final current = await ApiService.getInAppCall(_callId, _callToken);
+      if (current['success'] == true && current['status'] == 'ACCEPTED') {
+        result = current;
+      }
+    }
+    if (!mounted || _closing) return;
+    if (result['success'] != true) {
+      if (!DateTime.now().isBefore(_expiresAt)) {
+        await _close();
+        return;
+      }
+      _expiryTimer = Timer(
+        _expiresAt.difference(DateTime.now()),
+        () => unawaited(_close()),
+      );
       setState(() {
         _busy = false;
         _error =
@@ -82,15 +149,17 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
 
   Future<void> _decline() async {
     if (_busy) return;
+    _expiryTimer?.cancel();
     setState(() => _busy = true);
     await AlertSoundPlayer.instance.stop();
     await ApiService.rejectInAppCall(_callId, _callToken);
-    if (mounted) Navigator.of(context).pop(true);
+    if (mounted && !_closing) Navigator.of(context).pop(true);
   }
 
   @override
   void dispose() {
     _statusTimer?.cancel();
+    _expiryTimer?.cancel();
     unawaited(AlertSoundPlayer.instance.stop());
     super.dispose();
   }

@@ -19,6 +19,8 @@ class ParkingMuddeApplication : FlutterApplication() {
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val customPushChannelId = "parking_mudde_loop_alert_tone_v1"
+        val urgentFullScreenChannelId = "parking_mudde_urgent_full_screen_v12"
+        val callChannelId = "parking_mudde_calls_v2"
 
         listOf(
             "parking_mudde_alerts",
@@ -38,7 +40,9 @@ class ParkingMuddeApplication : FlutterApplication() {
             "parking_mudde_full_screen_alerts_v8",
             "parking_mudde_full_screen_alerts_v9",
             "parking_mudde_full_screen_alerts_v10",
-            "parking_mudde_full_screen_alerts_v11"
+            "parking_mudde_full_screen_alerts_v11",
+            "parking_mudde_urgent_full_screen_v11",
+            "parking_mudde_calls_v1"
         ).forEach { manager.deleteNotificationChannel(it) }
 
         NotificationSoundProvider.prepareSoundFile(this)
@@ -61,5 +65,36 @@ class ParkingMuddeApplication : FlutterApplication() {
         }
 
         manager.createNotificationChannel(loudPushChannel)
+
+        val urgentFullScreenChannel = NotificationChannel(
+            urgentFullScreenChannelId,
+            "Urgent full-screen vehicle alerts",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Report, help, and emergency alerts that wake and cover the lock screen."
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 900, 200, 900, 200, 900)
+            setSound(alertSoundUri, alertAudioAttributes)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setShowBadge(true)
+        }
+        manager.createNotificationChannel(urgentFullScreenChannel)
+
+        val callChannel = NotificationChannel(
+            callChannelId,
+            "Incoming full-screen calls",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Urgent private in-app calls that can appear over the lock screen."
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 650, 180, 650)
+            setSound(alertSoundUri, AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build())
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setShowBadge(true)
+        }
+        manager.createNotificationChannel(callChannel)
     }
 }

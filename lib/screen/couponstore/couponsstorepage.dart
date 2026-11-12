@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'package:get/get.dart';
+import '../auth/user_state_picker.dart';
 import '../../services/api_service.dart';
 import '../../providers/wallet_provider.dart';
 import 'scratch_reveal_dialog.dart';
+import 'shared_coupon_card.dart';
+import 'shared_coupon_form.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:parkingmudde/widgets/screen_slogan.dart';
@@ -18,21 +21,21 @@ class CouponStoreScreen extends StatefulWidget {
   State<CouponStoreScreen> createState() => _CouponStoreScreenState();
 }
 
-class _CouponStoreScreenState extends State<CouponStoreScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
+class _CouponStoreScreenState extends State<CouponStoreScreen> {
   List<CouponModel> coupons = [];
   List<CouponModel> myCoupons = [];
 
   bool isLoading = true;
+  SharedCouponFeed? _sharedFeed;
+  String? _sharedCouponError;
+  String? _userId;
+  int _feedRequest = 0;
   late int currentCoins;
   late ConfettiController _confettiController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     currentCoins = widget.coinsbackBalance;
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 2),
@@ -41,6 +44,56 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
     fetchCoupons();
     fetchMyCoupons();
     fetchWalletBalance();
+    _loadSharedCoupons();
+  }
+
+  Future<void> _loadSharedCoupons() async {
+    final request = ++_feedRequest;
+    final user = await ApiService.getStoredUser();
+    final userId = user?['user_id']?.toString();
+    final result = userId == null
+        ? {'success': false, 'message': 'Log in to see shared coupons.'}
+        : await ApiService.getSharedCouponFeed(userId);
+    if (!mounted || request != _feedRequest) return;
+
+    SharedCouponFeed? feed;
+    String? error;
+    if (result['success'] == true) {
+      try {
+        feed = SharedCouponFeed.fromJson(result);
+      } catch (_) {
+        error = 'Could not load shared coupons.';
+      }
+    } else {
+      error = result['message']?.toString() ?? 'Could not load shared coupons.';
+    }
+
+    setState(() {
+      _userId = userId;
+      _sharedFeed = feed;
+      _sharedCouponError = error;
+    });
+  }
+
+  Future<void> _addCoupon() async {
+    final userId = _userId;
+    if (userId == null) return;
+    final shared = await showShareCouponForm(
+      context,
+      userId: userId,
+      state: _sharedFeed?.state,
+      societyName: _sharedFeed?.societyName,
+    );
+    if (!mounted || shared != true) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Coupon shared')));
+    await _loadSharedCoupons();
+  }
+
+  Future<void> _changeState() async {
+    final state = await showUserStatePicker(context, state: _sharedFeed?.state);
+    if (mounted && state != null) await _loadSharedCoupons();
   }
 
   int _readInt(dynamic value) {
@@ -189,7 +242,9 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
 
       setState(() {
         currentCoins = _readInt(
-          result["balance"] ?? result["total_balance"] ?? currentCoins - coupon.coinCost,
+          result["balance"] ??
+              result["total_balance"] ??
+              currentCoins - coupon.coinCost,
         );
       });
       if (mounted) {
@@ -236,110 +291,196 @@ class _CouponStoreScreenState extends State<CouponStoreScreen>
   @override
   void dispose() {
     _confettiController.dispose();
-    _tabController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Scaffold(
-          backgroundColor: const Color(0xFFF6F8FA),
-          appBar: AppBar(
-            backgroundColor: Colors.white,
-            elevation: 0,
-            centerTitle: false,
-            scrolledUnderElevation: 1,
-            leading: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios_new,
-                color: Color(0XFF184B8C),
-                size: 22,
-              ),
-              onPressed: () => Get.back(),
-            ),
-            title: const Text(
-              "Rewards Store",
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF1E293B),
-                letterSpacing: 0.3,
-              ),
-            ),
-            actions: [
-              /// Integrated Balance indicator directly bridging purchasing capabilities!
-              Container(
-                margin: const EdgeInsets.only(right: 16),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
+    final societyName = _sharedFeed?.societyName;
+    return DefaultTabController(
+      length: societyName == null ? 3 : 4,
+      child: Stack(
+        children: [
+          Scaffold(
+            backgroundColor: const Color(0xFFF6F8FA),
+            appBar: AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              centerTitle: false,
+              scrolledUnderElevation: 1,
+              leading: IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: Color(0XFF184B8C),
+                  size: 22,
                 ),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade100,
-                  borderRadius: BorderRadius.circular(20),
+                onPressed: () => Get.back(),
+              ),
+              title: const Text(
+                "Rewards Store",
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1E293B),
+                  letterSpacing: 0.3,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      "$currentCoins 🪙",
-                      style: TextStyle(
-                        color: Colors.amber.shade900,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13,
-                        letterSpacing: 0.5,
+              ),
+              actions: [
+                IconButton(
+                  tooltip: 'Add Coupon',
+                  onPressed: _userId == null ? null : _addCoupon,
+                  icon: const Icon(
+                    Icons.add_circle_outline_rounded,
+                    color: Color(0xFF184B8C),
+                  ),
+                ),
+
+                /// Integrated Balance indicator directly bridging purchasing capabilities!
+                Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "$currentCoins 🪙",
+                        style: TextStyle(
+                          color: Colors.amber.shade900,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                          letterSpacing: 0.5,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+              ],
+              bottom: TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                labelColor: const Color(0XFF184B8C),
+                unselectedLabelColor: Colors.blueGrey.shade400,
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+                indicatorColor: const Color(0XFF184B8C),
+                indicatorWeight: 3,
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.grey.shade200,
+                tabs: [
+                  const Tab(text: "Explore Store"),
+                  const Tab(text: "My Coupons"),
+                  const Tab(text: 'Shared Coupons'),
+                  if (societyName != null)
+                    const Tab(text: 'My Society Coupons'),
+                ],
               ),
-            ],
-            bottom: TabBar(
-              controller: _tabController,
-              labelColor: const Color(0XFF184B8C),
-              unselectedLabelColor: Colors.blueGrey.shade400,
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-              indicatorColor: const Color(0XFF184B8C),
-              indicatorWeight: 3,
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.grey.shade200,
-              tabs: const [
-                Tab(text: "Explore Store"),
-                Tab(text: "My Coupons"),
+            ),
+            body: TabBarView(
+              physics: const BouncingScrollPhysics(),
+              children: [
+                _storeTab(),
+                _myCouponsTab(),
+                _sharedCouponsTab(),
+                if (societyName != null) _sharedCouponsTab(society: true),
               ],
             ),
           ),
-          body: TabBarView(
-            controller: _tabController,
-            physics: const BouncingScrollPhysics(),
-            children: [_storeTab(), _myCouponsTab()],
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirectionality: BlastDirectionality.explosive,
+              shouldLoop: false,
+              colors: const [
+                Colors.green,
+                Colors.blue,
+                Colors.pink,
+                Colors.orange,
+                Colors.purple,
+              ],
+            ),
           ),
-        ),
-        Align(
-          alignment: Alignment.topCenter,
-          child: ConfettiWidget(
-            confettiController: _confettiController,
-            blastDirectionality: BlastDirectionality.explosive,
-            shouldLoop: false,
-            colors: const [
-              Colors.green,
-              Colors.blue,
-              Colors.pink,
-              Colors.orange,
-              Colors.purple,
+        ],
+      ),
+    );
+  }
+
+  Widget _sharedCouponsTab({bool society = false}) {
+    final feed = _sharedFeed;
+    if (feed == null) {
+      final error = _sharedCouponError;
+      if (error == null)
+        return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(error, textAlign: TextAlign.center),
+              TextButton(
+                onPressed: _loadSharedCoupons,
+                child: const Text('Try again'),
+              ),
             ],
           ),
         ),
-      ],
+      );
+    }
+
+    final items = society ? feed.societyCoupons : feed.regionalCoupons;
+    return RefreshIndicator(
+      onRefresh: _loadSharedCoupons,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        itemCount: items.isEmpty ? 2 : items.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: society
+                  ? Text(
+                      feed.societyName!,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    )
+                  : Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: _changeState,
+                        icon: const Icon(Icons.location_on_outlined),
+                        label: Text(feed.state ?? 'Select your state'),
+                      ),
+                    ),
+            );
+          }
+          if (items.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 28),
+              child: Text(
+                society
+                    ? 'No coupons have been shared in your society yet.'
+                    : 'No shared coupons are available for your area yet.',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+          return SharedCouponCard(coupon: items[index - 1]);
+        },
+      ),
     );
   }
 

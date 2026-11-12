@@ -65,10 +65,10 @@ class _LoginpageState extends State<Loginpage> {
     setState(() => isLoadingEmail = true);
     final result = await ApiService.loginWithPassword(email, password);
     if (!mounted) return;
-    setState(() => isLoadingEmail = false);
 
     if (result["success"] == true) {
       await ApiService.saveUserSession(result);
+      if (!mounted) return;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool("pending_feature_walkthrough", false);
       final hasSeenPermissions = prefs.getBool("has_seen_permissions") ?? false;
@@ -81,9 +81,11 @@ class _LoginpageState extends State<Loginpage> {
         Get.offAll(() => const Dash(), transition: Transition.fadeIn);
       }
     } else {
+      setState(() => isLoadingEmail = false);
       _showAuthToast(
         title: result["title"]?.toString() ?? "Couldn't log you in",
-        message: result["message"]?.toString() ??
+        message:
+            result["message"]?.toString() ??
             "Invalid email or password. Please try again.",
       );
     }
@@ -108,7 +110,7 @@ class _LoginpageState extends State<Loginpage> {
         () => Otppage(
           mobile: mobile,
           referralCode: "",
-          testOtp: result["otp"]?.toString(),
+          otpCode: result["otp"]?.toString(),
           requireVehicleOnSuccess: false,
         ),
         transition: Transition.rightToLeft,
@@ -116,7 +118,8 @@ class _LoginpageState extends State<Loginpage> {
     } else {
       _showAuthToast(
         title: result["title"]?.toString() ?? "Couldn't send OTP",
-        message: result["message"]?.toString() ??
+        message:
+            result["message"]?.toString() ??
             "Could not send OTP. Please try again.",
       );
     }

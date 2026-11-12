@@ -5,12 +5,13 @@ import 'package:parkingmudde/screen/homepage/homepage.dart';
 import 'package:parkingmudde/screen/reportwrongparking/scanenter.dart';
 import 'package:parkingmudde/screen/vehicle/myvehicle.dart';
 import 'package:parkingmudde/screen/parkingAlert/parkingalertpage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get/get.dart';
 import 'package:parkingmudde/screen/reportwrongparking/issue_selection.dart';
 import 'package:parkingmudde/screen/emergency/emergencyalertpage.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/widgets/notification_badge.dart';
+import 'package:parkingmudde/services/firebase_api.dart';
+import 'package:parkingmudde/services/ios_call_service.dart';
 
 class Dash extends StatefulWidget {
   final bool fromRegistration;
@@ -34,6 +35,10 @@ class _DashState extends State<Dash> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FirebaseApi.navigationReady();
+      IosCallService.instance.navigationReady();
+    });
     _loadUnreadNotificationCount();
     _unreadCountTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       _loadUnreadNotificationCount();

@@ -37,6 +37,7 @@ import 'package:parkingmudde/screen/vehicle/addvehicle.dart';
 import 'package:parkingmudde/screen/couponstore/couponsstorepage.dart';
 import 'package:parkingmudde/screen/Referal/referalpage.dart';
 import 'package:parkingmudde/screen/visitormangement/vistormangepage.dart';
+import 'package:parkingmudde/screen/account/society_link.dart';
 import 'package:parkingmudde/screen/account/support_pages.dart';
 
 import '../../services/api_service.dart';
@@ -56,6 +57,7 @@ class Homepage extends StatefulWidget {
 
 class _HomepageState extends State<Homepage> {
   Map<String, dynamic>? user;
+  SocietyLinkStatus? _societyLinkStatus;
   int walletCoins = 247; // Match Figma preview
   bool _hasCheckedVehiclePrompt = false;
   final Set<int> _shownAlertIds = {};
@@ -379,7 +381,7 @@ class _HomepageState extends State<Homepage> {
                       color: Colors.brown.shade500,
                       onTap: () {
                         Get.back();
-                        Get.to(() => const VisitorManagementScreen());
+                        _openGateApprovals();
                       },
                     ),
                     _buildQuickActionCard(
@@ -685,9 +687,9 @@ class _HomepageState extends State<Homepage> {
 
   Future<void> _loadUser() async {
     final storedUser = await ApiService.getStoredUser();
-    if (mounted) {
-      setState(() => user = storedUser);
-    }
+    if (!mounted) return;
+    setState(() => user = storedUser);
+    unawaited(_loadSocietyLinkStatus());
 
     final freshUser = await ApiService.refreshCurrentUser();
     if (mounted && freshUser != null) {
@@ -737,6 +739,29 @@ class _HomepageState extends State<Homepage> {
         }
       }
     }
+  }
+
+  Future<void> _loadSocietyLinkStatus() async {
+    final userId = user?["user_id"]?.toString();
+    if (userId == null || userId.isEmpty) return;
+    final community = await ApiService.getMyCommunity(userId);
+    if (!mounted || community["success"] == false) return;
+    setState(() {
+      _societyLinkStatus = SocietyLinkStatus.fromCommunity(community);
+    });
+  }
+
+  Future<void> _openSocietyLink() async {
+    await showSocietyLinkSheet(
+      context,
+      onSocietyNotListed: _showSuggestSocietyDialog,
+    );
+    if (mounted) await _loadSocietyLinkStatus();
+  }
+
+  Future<void> _openGateApprovals() async {
+    await Get.to(() => const VisitorManagementScreen());
+    if (mounted) await _loadSocietyLinkStatus();
   }
 
   Future<void> _showAddVehiclePromptIfNeeded(
@@ -1507,6 +1532,7 @@ class _HomepageState extends State<Homepage> {
 
   @override
   Widget build(BuildContext context) {
+    final societyStatus = _societyLinkStatus;
     return Scaffold(
       backgroundColor: backgroundLight,
       appBar: _buildPremiumHomeAppBar(),
@@ -1552,6 +1578,11 @@ class _HomepageState extends State<Homepage> {
             ),
             const SizedBox(height: 12),
             _buildEmergencyStrip(),
+            if (societyStatus != null &&
+                societyStatus != SocietyLinkStatus.linked) ...[
+              const SizedBox(height: 16),
+              SocietyLinkCard(status: societyStatus, onTap: _openSocietyLink),
+            ],
             const SizedBox(height: 28),
             _buildSectionTitle("My Assets", "Wallet and garage at a glance"),
             const SizedBox(height: 14),
@@ -2472,7 +2503,7 @@ class _HomepageState extends State<Homepage> {
         Icons.badge_rounded,
         "Visitor Mgmt",
         Colors.brown.shade600,
-        () => Get.to(() => const VisitorManagementScreen()),
+        _openGateApprovals,
       ),
       _MiniTool(
         Icons.local_hospital_rounded,

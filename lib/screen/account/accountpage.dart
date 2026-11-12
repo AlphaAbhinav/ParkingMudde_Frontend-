@@ -1,11 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:parkingmudde/screen/account/editpage.dart';
 import 'package:parkingmudde/screen/account/documentspage.dart';
+import 'package:parkingmudde/screen/account/society_link.dart';
 import 'package:parkingmudde/screen/account/support_pages.dart';
 import 'package:parkingmudde/services/api_service.dart';
 import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
@@ -54,12 +57,12 @@ class _AccountpageState extends State<Accountpage> {
   // --- NATIVE SECURE BACKEND INTEGRATION mapped
   Future<void> _loadUser() async {
     final storedUser = await ApiService.getStoredUser();
-    if (mounted) {
-      setState(() {
-        user = storedUser;
-        isLoadingUser = false;
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      user = storedUser;
+      isLoadingUser = false;
+    });
+    unawaited(_loadCommunityProfile());
     final storedUserId = storedUser?["user_id"]?.toString();
     if (storedUserId != null && storedUserId.isNotEmpty) {
       await _loadProfileCounts(storedUserId);
@@ -79,7 +82,6 @@ class _AccountpageState extends State<Accountpage> {
     final wallet = await ApiService.getWalletBalance(userId);
     final vehicles = await ApiService.getMyVehicles(userId);
     final bookings = await ApiService.getMyBookings(userId);
-    final community = await ApiService.getMyCommunity(userId);
     final alerts = await ApiService.getParkingAlerts(userId);
     final alertCounts = alerts["counts"] is Map ? alerts["counts"] as Map : {};
 
@@ -99,8 +101,23 @@ class _AccountpageState extends State<Accountpage> {
           int.tryParse(alertCounts["raised_by_you"]?.toString() ?? "0") ?? 0;
       alertsAgainstCount =
           int.tryParse(alertCounts["against_you"]?.toString() ?? "0") ?? 0;
-      communityProfile = community;
     });
+  }
+
+  Future<void> _loadCommunityProfile() async {
+    final userId = user?["user_id"]?.toString();
+    if (userId == null || userId.isEmpty) return;
+    final community = await ApiService.getMyCommunity(userId);
+    if (!mounted || community["success"] == false) return;
+    setState(() => communityProfile = community);
+  }
+
+  Future<void> _openSocietyLink() async {
+    await showSocietyLinkSheet(
+      context,
+      onSocietyNotListed: () => _showSuggestSocietyDialog(context),
+    );
+    if (mounted) await _loadCommunityProfile();
   }
 
   @override
@@ -298,32 +315,11 @@ class _AccountpageState extends State<Accountpage> {
   // ──────────────────────────────────────────────────────────
   Widget _buildCommunityParkingCard() {
     final profile = communityProfile;
-    if (profile == null || profile["linked"] != true) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.apartment_rounded, color: primaryBlue),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                "No community parking linked yet. Ask your community admin to add your resident record with this mobile/email.",
-                style: TextStyle(
-                  color: subTextGrey,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
+    if (profile == null) return const SizedBox.shrink();
+
+    final status = SocietyLinkStatus.fromCommunity(profile);
+    if (status != SocietyLinkStatus.linked) {
+      return SocietyLinkCard(status: status, onTap: _openSocietyLink);
     }
 
     final society = Map<String, dynamic>.from(profile["society"] ?? {});

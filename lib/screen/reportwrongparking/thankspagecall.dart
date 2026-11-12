@@ -72,7 +72,8 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   bool get isHelp => widget.typecv == "help";
   bool get isEmergency => widget.typecv == "emergency";
   bool get isReport => !isHelp && !isEmergency;
-  bool get isRejected => widget.aiScore < 45;
+  bool get isRejected =>
+      widget.aiVerdict != 'UNDER_REVIEW' && widget.aiScore < 45;
   String get _displayConfidenceLevel =>
       widget.aiConfidenceLevel ??
       AiConfidenceBadge.confidenceLevelForFlow(
@@ -113,6 +114,9 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
   }
 
   String get _statusMessage {
+    if (widget.aiVerdict == 'UNDER_REVIEW') {
+      return 'Evidence received and awaiting review. Continue by identifying the vehicle.';
+    }
     if (isRejected) {
       return isHelp
           ? "The helping report was checked by AI, but the photo did not show enough proof. No coins were added or removed."
@@ -424,7 +428,7 @@ class _ThankYouReportScreenState extends State<ThankYouReportScreen> {
     pollTimer?.cancel();
     _maskedTimer?.cancel();
     _sosTimer?.cancel();
-    _razorpay.clear();
+    if (!kIsWeb) _razorpay.clear();
     super.dispose();
   }
 

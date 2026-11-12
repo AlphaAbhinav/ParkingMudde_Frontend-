@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:parkingmudde/widgets/aadhaar_verification_dialog.dart';
+import 'package:parkingmudde/widgets/user_state_field.dart';
 
 import '../../services/api_service.dart';
 
@@ -21,6 +23,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
   XFile? _pickedProfileImage;
   String? _storedProfileImage;
   String? _userId;
+  String? _state;
+  bool _stateChanged = false;
   bool isSaving = false;
   final picker = ImagePicker();
 
@@ -31,6 +35,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final phoneCtrl = TextEditingController();
   final addressCtrl = TextEditingController();
   final dobCtrl = TextEditingController();
+  final drivingLicenseCtrl = TextEditingController();
   final alternateNumberCtrl = TextEditingController();
   final altOtpCtrl = TextEditingController();
   final emergencyOneCtrl = TextEditingController();
@@ -86,6 +91,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Future<void> _loadProfile() async {
     final storedUser = await ApiService.getStoredUser();
+    if (!mounted) return;
     String? statusUserId;
     if (storedUser != null) {
       _fillProfileForm(storedUser);
@@ -98,9 +104,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
       statusUserId = user["user_id"]?.toString();
     }
     if (statusUserId != null && statusUserId.isNotEmpty) {
+      _loadUserState(statusUserId);
       await _loadCommunityStatus(statusUserId);
     } else if (mounted) {
       setState(() => _isLoadingCommunityStatus = false);
+    }
+  }
+
+  Future<void> _loadUserState(String userId) async {
+    try {
+      final state = await ApiService.getUserState(userId);
+      if (!mounted || _stateChanged) return;
+      setState(() => _state = state);
+    } catch (_) {
+      // Keep the last saved state when the profile request is unavailable.
     }
   }
 
@@ -118,7 +135,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
       emailCtrl.text = user["email"]?.toString() ?? "";
       phoneCtrl.text = user["mobile_number"]?.toString() ?? "";
       addressCtrl.text = user["location"]?.toString() ?? "";
+      if (!_stateChanged && user.containsKey("state")) {
+        _state = user["state"]?.toString();
+      }
       dobCtrl.text = user["date_of_birth"]?.toString() ?? "";
+      drivingLicenseCtrl.text =
+          user["driving_license_number"]?.toString() ?? "";
       gender = user["gender"]?.toString().isNotEmpty == true
           ? user["gender"].toString()
           : gender;
@@ -269,8 +291,22 @@ class _EditProfilePageState extends State<EditProfilePage> {
       lastDate: DateTime.now(),
     );
     if (picked != null) {
-      dobCtrl.text = "${picked.day}-${picked.month}-${picked.year}";
+      final month = picked.month.toString().padLeft(2, '0');
+      final day = picked.day.toString().padLeft(2, '0');
+      dobCtrl.text = "${picked.year}-$month-$day";
     }
+  }
+
+  Future<void> _openAadhaarVerification() async {
+    final userId =
+        _userId ?? (await SharedPreferences.getInstance()).getString("user_id");
+    if (!mounted) return;
+    final accountId = int.tryParse(userId ?? "");
+    if (accountId == null) {
+      Get.snackbar("Sign in required", "Sign in to verify your Aadhaar.");
+      return;
+    }
+    await showAadhaarVerification(context, accountId);
   }
 
   // ── Generic: Verify OTP Removed ──
@@ -283,6 +319,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
       Get.snackbar(
         "Error",
         "User not logged in.",
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (drivingLicenseCtrl.text.trim().isNotEmpty &&
+        !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dobCtrl.text.trim())) {
+      Get.snackbar(
+        "Date of birth required",
+        "Select a date of birth before verifying the driving licence.",
         backgroundColor: Colors.red.shade700,
         colorText: Colors.white,
       );
@@ -355,7 +402,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       email: emailCtrl.text.trim().toLowerCase(),
       gender: gender,
       dateOfBirth: dobCtrl.text.trim(),
+      drivingLicenseNumber: drivingLicenseCtrl.text.trim(),
       location: addressCtrl.text.trim(),
+      state: _state,
+      updateState: _stateChanged,
       alternateMobileNumber: alternate,
       emergencyContactOne: ec1,
       emergencyContactTwo: ec2,
@@ -370,6 +420,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       await prefs.setString("alternate_number", alternate);
       await prefs.setString("emergency_contact_one", ec1);
       await prefs.setString("emergency_contact_two", ec2);
+      if (!mounted) return;
       Get.snackbar(
         "Profile Updated",
         _pickedProfileImage == null
@@ -625,6 +676,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 icon: Icons.maps_home_work_outlined,
               ),
               const SizedBox(height: 16),
+              UserStateField(
+                value: _state,
+                enabled: !isSaving,
+                onChanged: (value) => setState(() {
+                  _state = value;
+                  _stateChanged = true;
+                }),
+              ),
+              const SizedBox(height: 16),
               _buildFormField(
                 controller: dobCtrl,
                 label: "Recorded Date of Birth",
@@ -632,6 +692,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 icon: Icons.calendar_month_rounded,
                 readOnly: true,
                 onTap: _selectDob,
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _openAadhaarVerification,
+                icon: const Icon(Icons.fingerprint_rounded),
+                label: const Text("Verify Aadhaar"),
+              ),
+              const SizedBox(height: 16),
+              _buildFormField(
+                controller: drivingLicenseCtrl,
+                label: "Driving Licence Number",
+                hint: "Enter your DL number",
+                icon: Icons.badge_rounded,
               ),
 
               const SizedBox(height: 24),
@@ -1438,6 +1511,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     phoneCtrl.dispose();
     addressCtrl.dispose();
     dobCtrl.dispose();
+    drivingLicenseCtrl.dispose();
     alternateNumberCtrl.dispose();
     altOtpCtrl.dispose();
     emergencyOneCtrl.dispose();

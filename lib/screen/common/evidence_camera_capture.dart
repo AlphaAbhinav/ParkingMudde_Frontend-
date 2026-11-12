@@ -5,10 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class EvidenceCameraCaptureScreen extends StatefulWidget {
-  const EvidenceCameraCaptureScreen({
-    super.key,
-    this.captureVideo = false,
-  });
+  const EvidenceCameraCaptureScreen({super.key, this.captureVideo = false});
 
   final bool captureVideo;
 
@@ -83,7 +80,8 @@ class _EvidenceCameraCaptureScreenState
     } catch (_) {
       if (mounted) {
         setState(() {
-          _error = "Rear camera unavailable. Evidence must use the back camera.";
+          _error =
+              "Rear camera unavailable. Evidence must use the back camera.";
           _isInitializing = false;
         });
       }
@@ -98,7 +96,9 @@ class _EvidenceCameraCaptureScreenState
 
     try {
       final nextFlash = !_isFlashOn;
-      await controller.setFlashMode(nextFlash ? FlashMode.torch : FlashMode.off);
+      await controller.setFlashMode(
+        nextFlash ? FlashMode.torch : FlashMode.off,
+      );
       if (mounted) setState(() => _isFlashOn = nextFlash);
     } catch (_) {
       if (mounted) {
@@ -205,14 +205,12 @@ class _EvidenceCameraCaptureScreenState
             ),
             SafeArea(
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Column(
-                  children: [
-                    _buildTopBar(),
-                    const Spacer(),
-                    _buildBottomBar(),
-                  ],
+                  children: [_buildTopBar(), const Spacer(), _buildBottomBar()],
                 ),
               ),
             ),
@@ -353,8 +351,9 @@ class _EvidenceCameraCaptureScreenState
                 height: _isBusy ? 34 : (_isRecording ? 34 : 62),
                 decoration: BoxDecoration(
                   color: _isBusy ? accentBlue : shutterColor,
-                  shape: _isRecording ? BoxShape.rectangle : BoxShape.circle,
-                  borderRadius: BorderRadius.circular(_isRecording ? 8 : 40),
+                  // Animate the radius instead of mixing a circle shape with
+                  // borderRadius, which is invalid in BoxDecoration.
+                  borderRadius: BorderRadius.circular(_isRecording ? 8 : 999),
                 ),
               ),
             ),
@@ -365,10 +364,7 @@ class _EvidenceCameraCaptureScreenState
     );
   }
 
-  Widget _circleButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
+  Widget _circleButton({required IconData icon, required VoidCallback onTap}) {
     return Material(
       color: Colors.black.withOpacity(0.45),
       shape: const CircleBorder(),
