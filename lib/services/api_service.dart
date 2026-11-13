@@ -12,6 +12,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'ios_call_service.dart';
 
 class ApiService {
+  static const _vehicleAlertTimeout = Duration(seconds: 75);
   static const MethodChannel _installStateChannel = MethodChannel(
     "com.parkingmudde.app/install_state",
   );
@@ -27,6 +28,25 @@ class ApiService {
     return token == null || token.isEmpty
         ? {}
         : {'Authorization': 'Bearer $token'};
+  }
+
+  // Routing hint only; the backend verifies the signature and account.
+  static bool hasCurrentSession(String? token) {
+    if (token == null) return false;
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+      final claims = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      return claims is Map &&
+          claims['purpose'] == 'mobile_user_session_v2' &&
+          claims['exp'] is int &&
+          (claims['exp'] as int) >
+              DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    } on FormatException {
+      return false;
+    }
   }
 
   static final String aiModelUrl =
@@ -189,6 +209,7 @@ class ApiService {
         Uri.parse(
           "$baseUrl/v1/auth/user/by-mobile/${Uri.encodeComponent(mobile)}",
         ),
+        headers: await _inboxHeaders(),
       );
       if (response.statusCode != 200) return null;
 
@@ -689,10 +710,10 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse("$baseUrl/v1/auth/user/$userId"),
+        headers: await _inboxHeaders(),
       );
 
       print("User Profile Status: ${response.statusCode}");
-      print("User Profile Response: ${response.body}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -778,7 +799,6 @@ class ApiService {
       );
 
       print("Update User Status: ${response.statusCode}");
-      print("Update User Response: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -813,12 +833,11 @@ class ApiService {
 
       final response = await http.put(
         Uri.parse("$baseUrl/v1/auth/user/$userId"),
-        headers: {"Content-Type": "application/json"},
+        headers: {"Content-Type": "application/json", ...await _inboxHeaders()},
         body: jsonEncode(requestBody),
       );
 
       print("Update Emergency Contacts Status: ${response.statusCode}");
-      print("Update Emergency Contacts Response: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -841,10 +860,10 @@ class ApiService {
     try {
       final response = await http.delete(
         Uri.parse("$baseUrl/v1/auth/user/$userId"),
+        headers: await _inboxHeaders(),
       );
 
       print("Delete Account Status: ${response.statusCode}");
-      print("Delete Account Response: ${response.body}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1113,7 +1132,6 @@ class ApiService {
       );
 
       print("Send OTP Status: ${response.statusCode}");
-      print("Send OTP Response: ${response.body}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -1338,7 +1356,7 @@ class ApiService {
           if (reason != null && reason.isNotEmpty) "reason": reason,
         },
       );
-      final response = await http.delete(uri);
+      final response = await http.delete(uri, headers: await _inboxHeaders());
 
       print("Delete Vehicle Status: ${response.statusCode}");
       print("Delete Vehicle Response: ${response.body}");
@@ -1367,11 +1385,13 @@ class ApiService {
 
     try {
       final response = await http
-          .get(Uri.parse("$baseUrl/v1/vehicle/my-vehicles/$userId"))
+          .get(
+            Uri.parse("$baseUrl/v1/vehicle/my-vehicles/$userId"),
+            headers: await _inboxHeaders(),
+          )
           .timeout(const Duration(seconds: 8));
 
       print("Get Vehicles Status: ${response.statusCode}");
-      print("Get Vehicles Response: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -1396,7 +1416,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse("$baseUrl/v1/vehicle/lookup/$vehicleNumber"),
-        headers: {"Content-Type": "application/json"},
+        headers: {"Content-Type": "application/json", ...await _inboxHeaders()},
       );
 
       if (response.statusCode == 200) {
@@ -1429,10 +1449,10 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse("$baseUrl/v1/auth/user/$userId/community"),
+        headers: await _inboxHeaders(),
       );
 
       print("Community Status: ${response.statusCode}");
-      print("Community Response: ${response.body}");
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -2097,7 +2117,7 @@ class ApiService {
                 "razorpay_signature": razorpaySignature,
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(_vehicleAlertTimeout);
 
       if (response.statusCode == 200) {
         return {"success": true, "data": jsonDecode(response.body)};
@@ -2357,7 +2377,7 @@ class ApiService {
             },
             body: jsonEncode({"vehicle_number": vehicleNumber}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(_vehicleAlertTimeout);
 
       if (response.statusCode == 200) {
         return {"success": true, "data": jsonDecode(response.body)};
@@ -2394,7 +2414,7 @@ class ApiService {
             },
             body: jsonEncode({"vehicle_number": vehicleNumber}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(_vehicleAlertTimeout);
 
       if (response.statusCode == 200) {
         return {"success": true, "data": jsonDecode(response.body)};
@@ -2543,7 +2563,8 @@ class ApiService {
       Uri.parse("$baseUrl/v1/auth/user/$userId/state"),
       headers: await _inboxHeaders(),
     );
-    if (response.statusCode != 200) throw Exception("Could not load your state");
+    if (response.statusCode != 200)
+      throw Exception("Could not load your state");
     return jsonDecode(response.body)["state"] as String?;
   }
 
@@ -2620,7 +2641,10 @@ class ApiService {
         }),
       );
       if (response.statusCode != 201) {
-        return _authFailureFromResponse(response, "Could not share this coupon.");
+        return _authFailureFromResponse(
+          response,
+          "Could not share this coupon.",
+        );
       }
       return {"success": true};
     } catch (_) {
@@ -3094,7 +3118,7 @@ class ApiService {
 
       final response = await http.get(
         Uri.parse("$baseUrl/v1/vehicle/my-challans/$userId"),
-        headers: {"Content-Type": "application/json"},
+        headers: {"Content-Type": "application/json", ...await _inboxHeaders()},
       );
       if (response.statusCode == 200) {
         return jsonDecode(response.body);

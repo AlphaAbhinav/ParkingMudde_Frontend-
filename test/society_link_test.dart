@@ -96,6 +96,40 @@ void main() {
     );
   });
 
+  testWidgets('My Profile opens Aadhaar verification directly', (tester) async {
+    var opened = false;
+    await http.runWithClient(
+      () async {
+        await tester.pumpWidget(const MaterialApp(home: Accountpage()));
+        await tester.pumpAndSettle();
+
+        final aadhaar = find.text('Verify Aadhaar');
+        await tester.ensureVisible(aadhaar);
+        await tester.tap(aadhaar);
+        await tester.pumpAndSettle();
+
+        expect(opened, isTrue);
+        expect(find.text('Aadhaar verification'), findsOneWidget);
+        expect(find.text('Start verification'), findsOneWidget);
+      },
+      () => MockClient((request) async {
+        switch (request.url.path) {
+          case '/v1/auth/user/42':
+            return _json(_profile);
+          case '/v1/surepass/aadhaar/ovse/state':
+            opened = true;
+            expect(jsonDecode(request.body), {'user_id': 42});
+            return _json({
+              'success': true,
+              'verification_status': 'not_started',
+            });
+          default:
+            return _json({'detail': 'Not found'}, 404);
+        }
+      }),
+    );
+  });
+
   testWidgets('My Profile opens the onboarding form when the list is empty', (
     tester,
   ) async {

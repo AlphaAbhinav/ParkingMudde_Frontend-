@@ -46,6 +46,7 @@ void main() {
           await tester.tap(find.text('Verify Aadhaar'));
           await tester.pumpAndSettle();
           expect(actions, ['state']);
+          expect(find.textContaining('Aadhaar app or a QR code'), findsOneWidget);
 
           await tester.tap(find.text('Start verification'));
           await tester.pumpAndSettle();

@@ -474,7 +474,9 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
         data["owner_mobile"]?.toString() ??
         "";
     final cleanMobile = mobile.replaceAll(RegExp(r'[^0-9]'), '');
-    final displayMobile = cleanMobile.length >= 10
+    final displayMobile = RegExp(r'^\d{2}X{8}$').hasMatch(mobile)
+        ? mobile
+        : cleanMobile.length >= 10
         ? "${cleanMobile.substring(0, 2)}${'X' * (cleanMobile.length - 2)}"
         : "Not available";
     final vehicleType = vehicle["vehicle_type"]?.toString() ?? "Vehicle";
@@ -1063,6 +1065,3 @@ class _VehicleEntryOptionsSheetState extends State<_VehicleEntryOptionsSheet> {
     );
   }
 }
-
-
-

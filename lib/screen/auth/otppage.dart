@@ -109,7 +109,7 @@ class _OtppageState extends State<Otppage> {
     if (enteredOtp.length != 6) {
       _showAuthToast(
         title: "A quick check",
-        message: "Please enter the complete 6-digit code we sent you.",
+        message: "Please enter the complete 6-digit code shown on screen.",
       );
       return;
     }
@@ -125,6 +125,9 @@ class _OtppageState extends State<Otppage> {
     if (!mounted) return;
 
     if (result["success"] == true) {
+      if (Get.isSnackbarOpen) {
+        Get.closeCurrentSnackbar();
+      }
       final prefs = await SharedPreferences.getInstance();
       await ApiService.saveUserSession({
         ...result,

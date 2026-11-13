@@ -11,6 +11,7 @@ import 'package:parkingmudde/screen/account/documentspage.dart';
 import 'package:parkingmudde/screen/account/society_link.dart';
 import 'package:parkingmudde/screen/account/support_pages.dart';
 import 'package:parkingmudde/services/api_service.dart';
+import 'package:parkingmudde/widgets/aadhaar_verification_dialog.dart';
 import 'package:parkingmudde/widgets/dynamic_ad_carousel.dart';
 import 'package:parkingmudde/screen/booking/mybookingspage.dart';
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
@@ -110,6 +111,15 @@ class _AccountpageState extends State<Accountpage> {
     final community = await ApiService.getMyCommunity(userId);
     if (!mounted || community["success"] == false) return;
     setState(() => communityProfile = community);
+  }
+
+  Future<void> _openAadhaarVerification() async {
+    final accountId = int.tryParse(user?["user_id"]?.toString() ?? "");
+    if (accountId == null) {
+      Get.snackbar("Sign in required", "Sign in to verify your Aadhaar.");
+      return;
+    }
+    await showAadhaarVerification(context, accountId);
   }
 
   Future<void> _openSocietyLink() async {
@@ -212,6 +222,14 @@ class _AccountpageState extends State<Accountpage> {
                 bgColor: const Color(0xFFF3EBFC),
                 iconColor: const Color(0xFFA14FFB),
                 onTap: () => Get.to(() => const MyBookingsPage()),
+              ),
+              _buildModernNavRowItem(
+                icon: Icons.fingerprint_rounded,
+                title: "Verify Aadhaar",
+                subtitle: "Use the Aadhaar app or a QR code",
+                bgColor: const Color(0xFFEBEEFB),
+                iconColor: const Color(0xFF6678EF),
+                onTap: _openAadhaarVerification,
               ),
               _buildModernNavRowItem(
                 icon: Icons.library_books_rounded,

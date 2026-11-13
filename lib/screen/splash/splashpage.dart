@@ -66,7 +66,9 @@ class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
     if (!mounted || !canContinue) return;
     final userId = prefs.getString("user_id");
 
-    if (userId != null && userId.isNotEmpty) {
+    if (userId != null &&
+        userId.isNotEmpty &&
+        ApiService.hasCurrentSession(prefs.getString("session_token"))) {
       // User is already logged in, go straight to Dash!
       Get.offAll(
         () => const Dash(),

@@ -713,7 +713,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               _sectionLabel("Alternate & Emergency Contacts"),
               const SizedBox(height: 4),
               Text(
-                "All numbers are verified via OTP and stored securely.",
+                "Contacts confirm their number with a code from Parking Mudde.",
                 style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade400),
               ),
               const SizedBox(height: 16),
@@ -728,30 +728,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 originalNumber: originalAltNum,
                 isVerified: isAltVerified,
                 sentOtp: altSentOtp,
-                onSendOtp: () => _sendOtp(
-                  alternateNumberCtrl.text,
-                  (otp) => setState(() => altSentOtp = otp),
-                ),
-                onVerifyOtp: () {
-                  if (altOtpCtrl.text.trim() == altSentOtp &&
-                      altSentOtp.isNotEmpty) {
+                onNumberChanged: () {
+                  isAltVerified = false;
+                  altSentOtp = "";
+                  altOtpCtrl.clear();
+                },
+                onSendOtp: () {
+                  final mobile = alternateNumberCtrl.text;
+                  _sendContactOtp(mobile, (otp) {
+                    if (!mounted || mobile != alternateNumberCtrl.text) return;
+                    setState(() {
+                      altOtpCtrl.clear();
+                      altSentOtp = otp;
+                    });
+                  });
+                },
+                onVerifyOtp: () async {
+                  final mobile = alternateNumberCtrl.text;
+                  final verified = await _verifyContactOtp(
+                    mobile,
+                    altOtpCtrl.text,
+                  );
+                  if (!mounted || mobile != alternateNumberCtrl.text) return;
+                  if (verified) {
                     setState(() {
                       isAltVerified = true;
                       altSentOtp = "";
                     });
-                    Get.snackbar(
-                      "Success",
-                      "Alternate number verified",
-                      backgroundColor: Colors.green.shade700,
-                      colorText: Colors.white,
-                    );
-                  } else {
-                    Get.snackbar(
-                      "Error",
-                      "Invalid OTP",
-                      backgroundColor: Colors.red.shade700,
-                      colorText: Colors.white,
-                    );
                   }
                 },
               ),
@@ -908,52 +911,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   // OTP logic
-  Future<void> _sendOtp(String mobile, Function(String) onOtpReceived) async {
-    final cleanMobile = mobile.replaceAll(RegExp(r'[^0-9]'), '');
-    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(cleanMobile)) {
-      Get.snackbar(
-        "Error",
-        "Please enter a valid 10-digit mobile number.",
-        backgroundColor: Colors.red.shade700,
-        colorText: Colors.white,
-      );
-      return;
-    }
-    Get.dialog(
-      const Center(child: CircularProgressIndicator()),
-      barrierDismissible: false,
-    );
-    final res = await ApiService.sendOtp(cleanMobile);
-    Get.back();
-    if (res["success"] == true) {
-      String otp = res["otp_code"]?.toString() ?? res["otp"]?.toString() ?? "";
-      if (otp.isNotEmpty) {
-        Get.snackbar(
-          "OTP Sent",
-          "Your OTP is: $otp",
-          duration: const Duration(seconds: 10),
-          backgroundColor: Colors.blue.shade800,
-          colorText: Colors.white,
-        );
-      } else {
-        Get.snackbar(
-          "OTP Sent",
-          "OTP sent successfully to $cleanMobile",
-          backgroundColor: Colors.green.shade800,
-          colorText: Colors.white,
-        );
-      }
-      onOtpReceived(otp);
-    } else {
-      Get.snackbar(
-        "Error",
-        res["message"] ?? "Failed to send OTP",
-        backgroundColor: Colors.red.shade700,
-        colorText: Colors.white,
-      );
-    }
-  }
-
   Future<void> _sendContactOtp(
     String mobile,
     Function(String) onOtpSent,
@@ -1047,6 +1004,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     required String sentOtp,
     required VoidCallback onSendOtp,
     required VoidCallback onVerifyOtp,
+    VoidCallback? onNumberChanged,
   }) {
     final cleanText = controller.text.replaceAll(RegExp(r'[^0-9]'), '');
     final bool isChanged = cleanText != originalNumber && cleanText.isNotEmpty;
@@ -1065,14 +1023,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(10),
           ],
-          onChanged: (val) {
-            setState(() {
-              // Reset verification if number changes again
-              if (sentOtp.isNotEmpty || isVerified) {
-                // If we want to strictly reset we can, but since the parent handles `isVerified` it will naturally become unverified because `cleanText != originalNumber`.
-              }
-            });
-          },
+          onChanged: (_) => setState(() => onNumberChanged?.call()),
         ),
         if (needsVerification) ...[
           const SizedBox(height: 8),

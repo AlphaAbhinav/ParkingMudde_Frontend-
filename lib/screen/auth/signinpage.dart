@@ -664,8 +664,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
         children: [
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text("Verify Aadhaar after signup"),
-            subtitle: const Text("Optional. You can also verify in My Profile."),
+            title: const Text("Verify Aadhaar when I create my account"),
+            subtitle: const Text(
+              "Optional. After you create your account, continue with the "
+              "Aadhaar app or a QR code through Surepass.",
+            ),
             value: _verifyAadhaarAfterSignup,
             onChanged: (value) => setState(
               () => _verifyAadhaarAfterSignup = value ?? false,

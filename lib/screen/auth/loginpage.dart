@@ -488,7 +488,7 @@ class _LoginpageState extends State<Loginpage> {
         ),
         const SizedBox(height: 8),
         const Text(
-          "We'll send a 6-digit OTP to securely verify you.",
+          "A 6-digit code will appear on the next screen.",
           style: TextStyle(
             color: subTextGrey,
             fontSize: 12,

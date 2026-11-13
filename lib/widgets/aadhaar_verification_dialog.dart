@@ -91,13 +91,15 @@ class _AadhaarVerificationDialogState
     }.contains(_status);
     final message = switch (_status) {
       'not_started' =>
-        'Complete verification with Surepass, then return here for the result.',
+        'Use the Aadhaar app or a QR code to share your Aadhaar credentials '
+        'with Surepass.',
       'pending' =>
-        'Complete the verification through the Surepass link, then return here and check the result.',
+        'Open Surepass and follow the Aadhaar app or QR code instructions. '
+        'Then return here and tap Check verification.',
       'callback_received' ||
       'result_pending' => 'Surepass is processing your verification.',
       'verified' => 'Your Aadhaar verification is complete.',
-      'expired' => 'Your verification session expired. You can start again.',
+      'expired' => 'Your Aadhaar session expired. Start again to get a new link.',
       'failed' =>
         'Surepass could not verify your Aadhaar. You can start again.',
       'checking' =>
