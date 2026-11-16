@@ -1,5 +1,6 @@
 package com.parkingmudde.app
 
+import android.app.NotificationManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -120,23 +121,17 @@ class MainActivity: FlutterActivity() {
                     result.success(null)
                 }
                 "getPendingAlert" -> result.success(consumeOverlayAlert())
+                "canUseFullScreenIntent" -> {
+                    result.success(
+                        Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
+                            getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == true
+                    )
+                }
                 "canDrawOverlays" -> {
                     result.success(
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
                             Settings.canDrawOverlays(this)
                     )
-                }
-                "requestOverlayPermission" -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                        !Settings.canDrawOverlays(this)
-                    ) {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:$packageName")
-                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        startActivity(intent)
-                    }
-                    result.success(true)
                 }
                 else -> result.notImplemented()
             }

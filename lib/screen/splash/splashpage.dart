@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:parkingmudde/screen/auth/loginpage.dart';
+import 'package:parkingmudde/screen/auth/urgent_alert_permissions.dart';
 
 import 'package:parkingmudde/screen/homepage/mainpage.dart';
 import 'package:parkingmudde/services/app_update_gate.dart';
@@ -64,6 +65,8 @@ class _SplashpageState extends State<Splashpage> with TickerProviderStateMixin {
     if (!mounted) return;
     final canContinue = await AppUpdateGate.ensureAllowedToContinue(context);
     if (!mounted || !canContinue) return;
+    await requestAndroidStartupPermissions(context);
+    if (!mounted) return;
     final userId = prefs.getString("user_id");
 
     if (userId != null &&

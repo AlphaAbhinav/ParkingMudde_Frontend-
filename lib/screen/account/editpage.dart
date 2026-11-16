@@ -68,8 +68,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   String ec1SentOtp = "";
   String ec2SentOtp = "";
 
-  String gender = "Male";
-
   @override
   void initState() {
     super.initState();
@@ -141,9 +139,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       dobCtrl.text = user["date_of_birth"]?.toString() ?? "";
       drivingLicenseCtrl.text =
           user["driving_license_number"]?.toString() ?? "";
-      gender = user["gender"]?.toString().isNotEmpty == true
-          ? user["gender"].toString()
-          : gender;
       _storedProfileImage = user["profile_image"]?.toString();
 
       // Load backend-stored contacts
@@ -400,7 +395,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       fullName: fullName,
       mobileNumber: phoneCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''),
       email: emailCtrl.text.trim().toLowerCase(),
-      gender: gender,
       dateOfBirth: dobCtrl.text.trim(),
       drivingLicenseNumber: drivingLicenseCtrl.text.trim(),
       location: addressCtrl.text.trim(),
@@ -624,25 +618,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              const Text(
-                "Identified Gender",
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _genderPill("Male", Icons.male_rounded),
-                  const SizedBox(width: 12),
-                  _genderPill("Female", Icons.female_rounded),
-                ],
-              ),
-
               const SizedBox(height: 24),
               const Divider(height: 1),
               const SizedBox(height: 24),
@@ -1549,57 +1524,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _genderPill(String title, IconData icon) {
-    final bool isSelected = gender == title;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => gender = title),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0XFF184B8C) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSelected
-                  ? const Color(0XFF184B8C)
-                  : Colors.grey.shade300,
-              width: 1.5,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: const Color(0XFF184B8C).withValues(alpha: 0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : [],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: isSelected ? Colors.white : Colors.blueGrey,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.blueGrey.shade800,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

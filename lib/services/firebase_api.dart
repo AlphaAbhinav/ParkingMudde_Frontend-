@@ -214,12 +214,14 @@ class FirebaseApi {
   }
 
   Future<void> initNotifications() async {
-    // Request permissions from user
-    await _firebaseMessaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    // Android notification prompts are sequenced by the startup screen.
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      await _firebaseMessaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
     await _firebaseMessaging.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,

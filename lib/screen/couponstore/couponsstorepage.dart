@@ -12,6 +12,8 @@ import 'package:flutter/services.dart';
 import 'package:parkingmudde/widgets/screen_slogan.dart';
 import 'package:provider/provider.dart';
 
+enum _SharedCouponTab { mine, regional, society }
+
 class CouponStoreScreen extends StatefulWidget {
   final int coinsbackBalance;
 
@@ -22,6 +24,8 @@ class CouponStoreScreen extends StatefulWidget {
 }
 
 class _CouponStoreScreenState extends State<CouponStoreScreen> {
+  static const _mySharedTabIndex = 2;
+
   List<CouponModel> coupons = [];
   List<CouponModel> myCoupons = [];
 
@@ -29,6 +33,7 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
   SharedCouponFeed? _sharedFeed;
   String? _sharedCouponError;
   String? _userId;
+  final _deletingCoupons = <int>{};
   int _feedRequest = 0;
   late int currentCoins;
   late ConfettiController _confettiController;
@@ -75,7 +80,10 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
     });
   }
 
-  Future<void> _addCoupon() async {
+  Future<void> _openCouponForm(
+    BuildContext tabContext, {
+    SharedCoupon? coupon,
+  }) async {
     final userId = _userId;
     if (userId == null) return;
     final shared = await showShareCouponForm(
@@ -83,12 +91,45 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
       userId: userId,
       state: _sharedFeed?.state,
       societyName: _sharedFeed?.societyName,
+      coupon: coupon,
     );
     if (!mounted || shared != true) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Coupon shared')));
+    if (tabContext.mounted && coupon == null) {
+      DefaultTabController.of(tabContext).animateTo(_mySharedTabIndex);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(coupon == null ? 'Coupon shared' : 'Coupon updated'),
+      ),
+    );
     await _loadSharedCoupons();
+  }
+
+  Future<void> _deleteCoupon(SharedCoupon coupon, int couponId) async {
+    final userId = _userId;
+    if (userId == null || _deletingCoupons.contains(couponId)) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: const Color(0x88102A52),
+      builder: (_) => _DeleteCouponDialog(coupon: coupon),
+    );
+    if (!mounted || confirmed != true) return;
+    setState(() => _deletingCoupons.add(couponId));
+    final result = await ApiService.deleteSharedCoupon(userId, couponId);
+    if (!mounted) return;
+    final deleted = result['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          deleted
+              ? 'Coupon deleted'
+              : result['message']?.toString() ??
+                    'Could not delete this coupon.',
+        ),
+      ),
+    );
+    if (deleted) await _loadSharedCoupons();
+    if (mounted) setState(() => _deletingCoupons.remove(couponId));
   }
 
   Future<void> _changeState() async {
@@ -298,10 +339,11 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
   Widget build(BuildContext context) {
     final societyName = _sharedFeed?.societyName;
     return DefaultTabController(
-      length: societyName == null ? 3 : 4,
+      length: societyName == null ? 4 : 5,
       child: Stack(
         children: [
           Scaffold(
+            resizeToAvoidBottomInset: false,
             backgroundColor: const Color(0xFFF6F8FA),
             appBar: AppBar(
               backgroundColor: Colors.white,
@@ -326,12 +368,16 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
                 ),
               ),
               actions: [
-                IconButton(
-                  tooltip: 'Add Coupon',
-                  onPressed: _userId == null ? null : _addCoupon,
-                  icon: const Icon(
-                    Icons.add_circle_outline_rounded,
-                    color: Color(0xFF184B8C),
+                Builder(
+                  builder: (tabContext) => IconButton(
+                    tooltip: 'Add Coupon',
+                    onPressed: _userId == null
+                        ? null
+                        : () => _openCouponForm(tabContext),
+                    icon: const Icon(
+                      Icons.add_circle_outline_rounded,
+                      color: Color(0xFF184B8C),
+                    ),
                   ),
                 ),
 
@@ -382,6 +428,7 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
                 tabs: [
                   const Tab(text: "Explore Store"),
                   const Tab(text: "My Coupons"),
+                  const Tab(text: 'My Shared Coupons'),
                   const Tab(text: 'Shared Coupons'),
                   if (societyName != null)
                     const Tab(text: 'My Society Coupons'),
@@ -393,8 +440,10 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
               children: [
                 _storeTab(),
                 _myCouponsTab(),
-                _sharedCouponsTab(),
-                if (societyName != null) _sharedCouponsTab(society: true),
+                _sharedCouponsTab(_SharedCouponTab.mine),
+                _sharedCouponsTab(_SharedCouponTab.regional),
+                if (societyName != null)
+                  _sharedCouponsTab(_SharedCouponTab.society),
               ],
             ),
           ),
@@ -418,12 +467,13 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
     );
   }
 
-  Widget _sharedCouponsTab({bool society = false}) {
+  Widget _sharedCouponsTab(_SharedCouponTab tab) {
     final feed = _sharedFeed;
     if (feed == null) {
       final error = _sharedCouponError;
-      if (error == null)
+      if (error == null) {
         return const Center(child: CircularProgressIndicator());
+      }
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -441,7 +491,18 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
       );
     }
 
-    final items = society ? feed.societyCoupons : feed.regionalCoupons;
+    final items = switch (tab) {
+      _SharedCouponTab.mine => feed.myCoupons,
+      _SharedCouponTab.regional => feed.regionalCoupons,
+      _SharedCouponTab.society => feed.societyCoupons,
+    };
+    final emptyMessage = switch (tab) {
+      _SharedCouponTab.mine => 'Coupons you add will appear here.',
+      _SharedCouponTab.regional =>
+        'No shared coupons are available for your area yet.',
+      _SharedCouponTab.society =>
+        'No coupons have been shared in your society yet.',
+    };
     return RefreshIndicator(
       onRefresh: _loadSharedCoupons,
       child: ListView.builder(
@@ -452,33 +513,51 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
           if (index == 0) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: society
-                  ? Text(
-                      feed.societyName!,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    )
-                  : Align(
-                      alignment: Alignment.centerLeft,
-                      child: OutlinedButton.icon(
-                        onPressed: _changeState,
-                        icon: const Icon(Icons.location_on_outlined),
-                        label: Text(feed.state ?? 'Select your state'),
-                      ),
-                    ),
+              child: switch (tab) {
+                _SharedCouponTab.mine => Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _userId == null
+                        ? null
+                        : () => _openCouponForm(context),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add Coupon'),
+                  ),
+                ),
+                _SharedCouponTab.society => Text(
+                  feed.societyName!,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                _SharedCouponTab.regional => Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _changeState,
+                    icon: const Icon(Icons.location_on_outlined),
+                    label: Text(feed.state ?? 'Select your state'),
+                  ),
+                ),
+              },
             );
           }
           if (items.isEmpty) {
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 28),
-              child: Text(
-                society
-                    ? 'No coupons have been shared in your society yet.'
-                    : 'No shared coupons are available for your area yet.',
-                textAlign: TextAlign.center,
-              ),
+              child: Text(emptyMessage, textAlign: TextAlign.center),
             );
           }
-          return SharedCouponCard(coupon: items[index - 1]);
+          final coupon = items[index - 1];
+          final couponId = tab == _SharedCouponTab.mine ? coupon.id : null;
+          return SharedCouponCard(
+            key: coupon.id != null ? ValueKey(coupon.id) : null,
+            coupon: coupon,
+            onEdit: couponId == null || coupon.states == null
+                ? null
+                : () => _openCouponForm(context, coupon: coupon),
+            onDelete: couponId == null
+                ? null
+                : () => _deleteCoupon(coupon, couponId),
+            deleting: _deletingCoupons.contains(couponId),
+          );
         },
       ),
     );
@@ -1035,6 +1114,119 @@ class _CouponStoreScreenState extends State<CouponStoreScreen> {
           letterSpacing: 0.5,
         ),
       ),
+    );
+  }
+}
+
+class _DeleteCouponDialog extends StatelessWidget {
+  const _DeleteCouponDialog({required this.coupon});
+
+  final SharedCoupon coupon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final light = theme.brightness == Brightness.light;
+    final buttonShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    );
+    return AlertDialog(
+      scrollable: true,
+      constraints: const BoxConstraints(maxWidth: 400),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      backgroundColor: light ? Colors.white : colors.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: colors.outlineVariant),
+      ),
+      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      actionsOverflowButtonSpacing: 8,
+      title: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: colors.errorContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.delete_outline_rounded,
+              color: colors.onErrorContainer,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Delete coupon?',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        spacing: 12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'This coupon will be removed from all shared feeds.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: light
+                  ? const Color(0xFFF4F7FB)
+                  : colors.surfaceContainerLow,
+              border: Border.all(color: colors.outlineVariant),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [
+                Text(coupon.title, style: theme.textTheme.titleSmall),
+                Text(
+                  coupon.brand,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colors.onSurface,
+            minimumSize: const Size(0, 44),
+            shape: buttonShape,
+          ),
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: colors.error,
+            foregroundColor: colors.onError,
+            minimumSize: const Size(0, 44),
+            shape: buttonShape,
+          ),
+          onPressed: () => Navigator.pop(context, true),
+          icon: const Icon(Icons.delete_outline_rounded, size: 18),
+          label: const Text('Delete coupon'),
+        ),
+      ],
     );
   }
 }

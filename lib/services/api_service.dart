@@ -258,7 +258,7 @@ class ApiService {
     await saveString("mobile_number", "mobile_number");
     await saveString("email", "email");
     await saveString("profile_image", "profile_image");
-    await saveString("gender", "gender");
+    await prefs.remove("gender");
     await saveString("date_of_birth", "date_of_birth");
     await saveString("driving_license_number", "driving_license_number");
     await saveString("aadhaar_number", "aadhaar_number");
@@ -427,7 +427,6 @@ class ApiService {
       "mobile_number": prefs.getString("mobile_number"),
       "email": prefs.getString("email"),
       "profile_image": prefs.getString("profile_image"),
-      "gender": prefs.getString("gender"),
       "date_of_birth": prefs.getString("date_of_birth"),
       "location": prefs.getString("location"),
       "state": prefs.getString("state"),
@@ -736,7 +735,6 @@ class ApiService {
     required String fullName,
     required String mobileNumber,
     required String email,
-    String? gender,
     String? dateOfBirth,
     String? drivingLicenseNumber,
     String? aadhaarNumber,
@@ -769,7 +767,6 @@ class ApiService {
         "full_name": fullName,
         "mobile_number": mobileNumber,
         "email": email,
-        "gender": gender,
         "date_of_birth": dateOfBirth,
         if (drivingLicenseNumber != null)
           "driving_license_number": drivingLicenseNumber,
@@ -990,7 +987,6 @@ class ApiService {
     required String mobile,
     required String email,
     required String password,
-    String? gender,
     String? dateOfBirth,
     String? referralCode,
     String? location,
@@ -1026,7 +1022,6 @@ class ApiService {
           "mobile_number": mobile,
           "email": email,
           "password": password,
-          "gender": gender?.isEmpty == true ? null : gender,
           "date_of_birth": dateOfBirth?.isEmpty == true ? null : dateOfBirth,
           "referral_code": referralCode?.isEmpty == true ? null : referralCode,
           "location": location?.isEmpty == true ? null : location,
@@ -2626,32 +2621,89 @@ class ApiService {
     required String code,
     required List<String> states,
     required bool societyPriority,
+    String? websiteUrl,
+    int? couponId,
+    String? imageUrl,
+    bool removeImage = false,
   }) async {
+    final failure = couponId == null
+        ? 'Could not share this coupon.'
+        : 'Could not update this coupon.';
     try {
-      final response = await http.post(
-        Uri.parse("$baseUrl/v1/coupons/shared/$userId"),
+      final save = couponId == null ? http.post : http.put;
+      final suffix = couponId == null ? '' : '/$couponId';
+      final response = await save(
+        Uri.parse("$baseUrl/v1/coupons/shared/$userId$suffix"),
         headers: {"Content-Type": "application/json", ...await _inboxHeaders()},
         body: jsonEncode({
           "brand": brand,
           "title": title,
           "description": description,
           "code": code,
+          if (websiteUrl != null) "website_url": websiteUrl,
+          if (imageUrl != null || removeImage) "image_url": imageUrl,
           "states": states,
           "society_priority": societyPriority,
         }),
       );
-      if (response.statusCode != 201) {
-        return _authFailureFromResponse(
-          response,
-          "Could not share this coupon.",
-        );
+      if (response.statusCode != (couponId == null ? 201 : 200)) {
+        return _authFailureFromResponse(response, failure);
       }
       return {"success": true};
     } catch (_) {
-      return {
-        "success": false,
-        "message": "Could not share this coupon. Try again.",
-      };
+      return {"success": false, "message": "$failure Try again."};
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadSharedCouponImage({
+    required String userId,
+    required Uint8List bytes,
+    required String filename,
+    required String mimeType,
+  }) async {
+    const failure = 'Could not upload the coupon image.';
+    try {
+      final request =
+          http.MultipartRequest(
+              'POST',
+              Uri.parse('$baseUrl/v1/coupons/shared/$userId/upload-image'),
+            )
+            ..headers.addAll(await _inboxHeaders())
+            ..files.add(
+              http.MultipartFile.fromBytes(
+                'image',
+                bytes,
+                filename: filename,
+                contentType: MediaType.parse(mimeType),
+              ),
+            );
+      final response = await http.Response.fromStream(await request.send());
+      if (response.statusCode != 200) {
+        return _authFailureFromResponse(response, failure);
+      }
+      final url = jsonDecode(response.body)['image_url'] as String;
+      return {'success': true, 'image_url': url};
+    } catch (_) {
+      return {'success': false, 'message': failure};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteSharedCoupon(
+    String userId,
+    int couponId,
+  ) async {
+    const failure = 'Could not delete this coupon.';
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/v1/coupons/shared/$userId/$couponId'),
+        headers: await _inboxHeaders(),
+      );
+      if (response.statusCode != 200) {
+        return _authFailureFromResponse(response, failure);
+      }
+      return {'success': true};
+    } catch (_) {
+      return {'success': false, 'message': failure};
     }
   }
 

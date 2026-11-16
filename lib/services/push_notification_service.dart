@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 const parkingMuddeCustomPushChannelId = 'parking_mudde_loop_alert_tone_v1';
 const parkingMuddeUrgentFullScreenChannelId =
@@ -60,8 +59,6 @@ class PushNotificationService {
   static const _overlayChannel = MethodChannel(
     'com.parkingmudde.app/urgent_overlay',
   );
-  static const _overlayPermissionRequestedKey =
-      'urgent_overlay_permission_requested';
   static bool _ready = false;
   static Future<void> Function(Map<String, dynamic>)? _onUrgentAlertOpened;
 
@@ -132,9 +129,6 @@ class PushNotificationService {
     await android?.createNotificationChannel(_otpChannel);
     await android?.createNotificationChannel(_callChannel);
     if (requestPermissions) {
-      await android?.requestNotificationsPermission();
-      await android?.requestFullScreenIntentPermission();
-      await _requestOverlayPermissionOnce();
       await _notifications
           .resolvePlatformSpecificImplementation<
             IOSFlutterLocalNotificationsPlugin
@@ -164,22 +158,6 @@ class PushNotificationService {
           () => _handleNotificationResponse(response),
         );
       }
-    }
-  }
-
-  static Future<void> _requestOverlayPermissionOnce() async {
-    if (!Platform.isAndroid) return;
-    try {
-      final allowed =
-          await _overlayChannel.invokeMethod<bool>('canDrawOverlays') ?? false;
-      if (allowed) return;
-
-      final prefs = await SharedPreferences.getInstance();
-      if (prefs.getBool(_overlayPermissionRequestedKey) == true) return;
-      await prefs.setBool(_overlayPermissionRequestedKey, true);
-      await _overlayChannel.invokeMethod<void>('requestOverlayPermission');
-    } catch (_) {
-      // Full-screen notifications continue to work as the fallback.
     }
   }
 
